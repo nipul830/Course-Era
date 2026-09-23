@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 
 :root{
-  --bg:#02060a;
-  --panel:#070d13;
-  --panel2:#0a1119;
-  --line:#123044;
-  --text:#7ddcff;
-  --muted:#72a9bf;
-  --accent:#5edcff;
-  --accent2:#9beaff;
+  --bg:#000000;
+  --panel:#050505;
+  --panel2:#080808;
+  --line:#302713;
+  --text:#d6b35a;
+  --muted:#9b8552;
+  --accent:#d6b35a;
+  --accent2:#f1d98a;
 }
 
 *{box-sizing:border-box}
@@ -16,8 +16,8 @@ html{scroll-behavior:smooth}
 body{
   margin:0;
   background:
-    radial-gradient(circle at 80% 0,#082536 0,transparent 35%),
-    radial-gradient(circle at 10% 30%,#06151f 0,transparent 30%),
+    radial-gradient(circle at 80% 0,#171208 0,transparent 35%),
+    radial-gradient(circle at 10% 30%,#0d0b07 0,transparent 30%),
     var(--bg);
   color:var(--text);
   font-family:Inter,Arial,sans-serif;
@@ -26,10 +26,10 @@ a{text-decoration:none;color:inherit}
 .nav{
   height:72px;display:flex;align-items:center;justify-content:space-between;
   padding:0 6%;border-bottom:1px solid var(--line);
-  background:#02060af2;backdrop-filter:blur(10px);
+  background:#000000f5;backdrop-filter:blur(10px);
   position:sticky;top:0;z-index:5;
 }
-.brand{font-size:23px;font-weight:800;color:#fff}
+.brand{font-size:23px;font-weight:800;color:#ffffff}
 .brand .aura-word{color:#39d353}
 nav{display:flex;align-items:center;gap:18px;color:var(--muted);font-size:13px}
 nav a:hover{color:var(--accent2)}
@@ -45,7 +45,7 @@ nav a:hover{color:var(--accent2)}
   border-color:var(--accent);
   box-shadow:0 0 22px #5edcff22;
 }
-.ghost{background:#071019;color:var(--accent2)}
+.ghost{background:#090806;color:var(--accent2)}
 .full{width:100%}
 .hero{
   max-width:1150px;margin:auto;padding:100px 6%;
@@ -57,10 +57,10 @@ h1{font-size:clamp(44px,7vw,78px);line-height:1;letter-spacing:-3px;margin:12px 
 .lead{max-width:650px;color:var(--muted);line-height:1.8;font-size:17px}
 .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
 .hero-card{
-  min-height:350px;padding:30px;border:1px solid #16425a;
-  border-radius:24px;background:linear-gradient(145deg,#0b202d,#040a10);
+  min-height:350px;padding:30px;border:1px solid #4a3b1d;
+  border-radius:24px;background:linear-gradient(145deg,#0d0c09,#020202);
   display:flex;flex-direction:column;justify-content:flex-end;
-  box-shadow:0 0 45px #5edcff0d;
+  box-shadow:0 0 45px #d6b35a0d;
 }
 .chart{font-size:170px;color:var(--accent);line-height:.7;margin-bottom:auto}
 .hero-card strong{font-size:24px;margin-top:8px;color:var(--accent2)}
@@ -86,11 +86,11 @@ h1{font-size:clamp(44px,7vw,78px);line-height:1;letter-spacing:-3px;margin:12px 
 .terminal{margin-top:18px;padding:24px}
 .terminal-head{display:flex;justify-content:space-between;align-items:center}
 .terminal h2{margin:5px 0;color:var(--accent2)}
-.badge{padding:7px 10px;border-radius:999px;background:#062330;color:var(--accent);font-size:11px}
+.badge{padding:7px 10px;border-radius:999px;background:#211b0d;color:var(--accent);font-size:11px}
 .chart-area{
   height:300px;margin-top:20px;border:1px solid var(--line);
   border-radius:14px;
-  background:repeating-linear-gradient(0deg,#03080d 0 49px,#07131c 50px);
+  background:repeating-linear-gradient(0deg,#020202 0 49px,#0a0907 50px);
   display:grid;place-items:center;
 }
 .line{font-size:45px;color:var(--accent);letter-spacing:5px}
