@@ -126,6 +126,46 @@ app.get("/api/config", (req, res) => {
   });
 });
 
+app.get("/api/payment-settings", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("settings").doc("payment").get();
+    const d = snap.exists ? snap.data() : {};
+    res.json({ settings: {
+      googlePayUpi: d.googlePayUpi || "lipupoddar-3@okaxis",
+      phonePeUpi: d.phonePeUpi || "nipukumar007@ibl",
+      merchantName: d.merchantName || "Course Era",
+      qrUpi: d.qrUpi || d.googlePayUpi || "lipupoddar-3@okaxis",
+      usdtWallet: d.usdtWallet || ""
+    }});
+  } catch (e) {
+    res.status(500).json({ error: "Could not load payment settings" });
+  }
+});
+
+app.put("/api/payment-settings", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const clean = v => String(v || "").trim().slice(0, 200);
+    const googlePayUpi = clean(req.body.googlePayUpi);
+    const phonePeUpi = clean(req.body.phonePeUpi);
+    const merchantName = clean(req.body.merchantName) || "Course Era";
+    const qrUpi = clean(req.body.qrUpi) || googlePayUpi;
+    const usdtWallet = clean(req.body.usdtWallet);
+    if (!googlePayUpi || !phonePeUpi || !qrUpi) {
+      return res.status(400).json({ error: "Google Pay, PhonePe and QR UPI IDs are required" });
+    }
+    await db.collection("settings").doc("payment").set({
+      googlePayUpi, phonePeUpi, merchantName, qrUpi, usdtWallet,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: req.user.uid
+    }, { merge: true });
+    res.json({ message: "Payment settings updated" });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update payment settings", detail: e.message });
+  }
+});
+
 app.get("/api/courses", requireAuth, async (req, res) => {
   try {
     initFirebase();
