@@ -213,7 +213,6 @@ app.get("/api/meeting", requireAuth, async (req, res) => {
       title: d.title || "Course Era Live Class",
       date: d.date || "",
       time: d.time || "",
-      joinUrl: d.joinUrl || "",
       meetingId: d.meetingId || "",
       passcode: d.passcode || ""
     }});
@@ -229,22 +228,21 @@ app.put("/api/meeting", requireAuth, requireAdmin, async (req, res) => {
     const title = clean(req.body.title) || "Course Era Live Class";
     const date = clean(req.body.date);
     const time = clean(req.body.time);
-    const joinUrl = clean(req.body.joinUrl);
     const meetingId = clean(req.body.meetingId);
     const passcode = clean(req.body.passcode);
     const enabled = req.body.enabled === true;
 
-    if (enabled && !joinUrl) {
-      return res.status(400).json({ error: "Zoom join link is required when meeting is enabled" });
+    if (enabled && !meetingId) {
+      return res.status(400).json({ error: "Meeting code is required when meeting is enabled" });
     }
 
     await db.collection("settings").doc("meeting").set({
-      enabled, title, date, time, joinUrl, meetingId, passcode,
+      enabled, title, date, time, meetingId, passcode,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: req.user.uid
     }, { merge: true });
 
-    res.json({ message: "Zoom meeting settings updated" });
+    res.json({ message: "Live meeting settings updated" });
   } catch (e) {
     res.status(500).json({ error: "Could not update meeting settings", detail: e.message });
   }
