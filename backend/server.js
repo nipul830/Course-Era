@@ -18,10 +18,15 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024 }
 });
 
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || "")
-  .split(",")
-  .map(x => x.trim())
-  .filter(Boolean);
+const allowedOrigins = [
+  ...(process.env.FRONTEND_ORIGIN || "")
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean),
+  "capacitor://localhost",
+  "http://localhost",
+  "https://localhost"
+];
 
 app.use(helmet());
 app.use(cors({
