@@ -129,9 +129,28 @@ app.get("/api/config", (req, res) => {
 app.get("/api/courses", async (req, res) => {
   try {
     initFirebase();
-    const snap = await db.collection("courses")
+    let snap = await db.collection("courses")
       .where("published", "==", true)
       .get();
+
+    if (snap.empty) {
+      const defaults = [
+        { id: "trading-foundation", title: "Trading Foundation", description: "Market structure, risk management, chart reading and trading psychology.", price: 4999, thumbnail: "", videoUrl: "", published: true },
+        { id: "price-action", title: "Price Action Mastery", description: "Structured price-action concepts, setups and trade planning.", price: 6999, thumbnail: "", videoUrl: "", published: true },
+        { id: "indicator-pro", title: "Indicator Pro", description: "Understand indicators, confirmation and practical chart workflows.", price: 2999, thumbnail: "", videoUrl: "", published: true }
+      ];
+      const batch = db.batch();
+      defaults.forEach(c => {
+        const ref = db.collection("courses").doc(c.id);
+        batch.set(ref, {
+          ...c,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      });
+      await batch.commit();
+      snap = await db.collection("courses").where("published", "==", true).get();
+    }
 
     const courses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     res.json({ courses });
