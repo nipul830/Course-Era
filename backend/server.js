@@ -267,6 +267,10 @@ app.post("/api/payments", requireAuth, upload.single("screenshot"), async (req, 
       return res.status(400).json({ error: "Course is not available for purchase" });
     }
 
+    if (Math.abs(Number(courseData.price || 0) - amount) > 0.01) {
+      return res.status(400).json({ error: "Payment amount does not match the course price" });
+    }
+
     const normalizedTransactionId = String(transactionId).trim();
 
     const duplicate = await db.collection("payments")
@@ -290,7 +294,11 @@ app.post("/api/payments", requireAuth, upload.single("screenshot"), async (req, 
         metadata: { contentType: req.file.mimetype }
       });
 
-      screenshotUrl = file.publicUrl();
+      const [signedUrl] = await file.getSignedUrl({
+        action: "read",
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000
+      });
+      screenshotUrl = signedUrl;
     }
 
     const ref = db.collection("payments").doc();
@@ -336,13 +344,109 @@ app.get("/api/payments/my", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const [coursesSnap, paymentsSnap, usersSnap] = await Promise.all([
+      db.collection("courses").get(),
+      db.collection("payments").get(),
+      db.collection("users").get()
+    ]);
+    const payments = paymentsSnap.docs.map(d => d.data());
+    res.json({
+      courses: coursesSnap.size,
+      publishedCourses: coursesSnap.docs.filter(d => d.data().published === true).length,
+      users: usersSnap.size,
+      payments: paymentsSnap.size,
+      pendingPayments: payments.filter(p => p.status === "pending").length,
+      approvedPayments: payments.filter(p => p.status === "approved").length,
+      rejectedPayments: payments.filter(p => p.status === "rejected").length,
+      approvedRevenue: payments.filter(p => p.status === "approved").reduce((sum,p)=>sum+Number(p.amount||0),0)
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load admin stats", detail: e.message });
+  }
+});
+
+app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const users = [];
+    let nextPageToken;
+    do {
+      const page = await admin.auth().listUsers(1000, nextPageToken);
+      page.users.forEach(u => users.push({
+        uid: u.uid,
+        email: u.email || "",
+        name: u.displayName || "",
+        disabled: Boolean(u.disabled),
+        createdAt: u.metadata?.creationTime || null,
+        lastSignInAt: u.metadata?.lastSignInTime || null
+      }));
+      nextPageToken = page.pageToken;
+    } while (nextPageToken);
+    res.json({ users });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load users", detail: e.message });
+  }
+});
+
+app.patch("/api/admin/users/:uid", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    if (req.params.uid === req.user.uid) return res.status(400).json({ error: "You cannot disable your own admin account" });
+    if (typeof req.body.disabled !== "boolean") return res.status(400).json({ error: "disabled must be true or false" });
+    const u = await admin.auth().updateUser(req.params.uid, { disabled: req.body.disabled });
+    res.json({ message: req.body.disabled ? "User disabled" : "User enabled", disabled: u.disabled });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update user", detail: e.message });
+  }
+});
+
+app.get("/api/admin/users/:uid/courses", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("users").doc(req.params.uid).collection("courses").get();
+    const courses = [];
+    for (const d of snap.docs) {
+      const c = await db.collection("courses").doc(d.id).get();
+      if (c.exists) courses.push({ id: c.id, ...c.data(), grantedAt: d.data().grantedAt || null });
+    }
+    res.json({ courses });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load user courses", detail: e.message });
+  }
+});
+
+app.delete("/api/admin/users/:uid/courses/:courseId", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    await db.collection("users").doc(req.params.uid).collection("courses").doc(req.params.courseId).delete();
+    res.json({ message: "Course access revoked" });
+  } catch (e) {
+    res.status(500).json({ error: "Could not revoke course access", detail: e.message });
+  }
+});
+
 app.get("/api/admin/payments", requireAuth, requireAdmin, async (req, res) => {
   try {
     initFirebase();
 
-    const snap = await db.collection("payments").get();
-    const payments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
+    const snap = await db.collection("payments").orderBy("submittedAt", "desc").get();
+    const payments = [];
+    for (const d of snap.docs) {
+      const p = { id: d.id, ...d.data() };
+      if (p.screenshotPath && bucket) {
+        try {
+          const [url] = await bucket.file(p.screenshotPath).getSignedUrl({
+            action: "read",
+            expires: Date.now() + 60 * 60 * 1000
+          });
+          p.screenshotUrl = url;
+        } catch {}
+      }
+      payments.push(p);
+    }
     res.json({ payments });
   } catch (e) {
     res.status(500).json({ error: "Could not load payment queue", detail: e.message });
@@ -364,6 +468,20 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
     if (!snap.exists) return res.status(404).json({ error: "Payment not found" });
 
     const payment = snap.data();
+
+    if (payment.status === status) {
+      return res.json({ message: "Payment already " + status });
+    }
+    if (payment.status !== "pending") {
+      return res.status(409).json({ error: "Only pending payments can be reviewed" });
+    }
+
+    if (status === "approved") {
+      const course = await db.collection("courses").doc(payment.courseId).get();
+      if (!course.exists || course.data().published !== true) {
+        return res.status(400).json({ error: "Course is no longer available" });
+      }
+    }
 
     if (payment.status === status) {
       return res.json({ message: "Payment already " + status });
