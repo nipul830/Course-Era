@@ -49,14 +49,18 @@ jobs:
           s=p.read_text()
           dep='implementation "com.squareup.okhttp3:okhttp:4.12.0"'
           if dep not in s:
-              s=s.replace("dependencies {", "dependencies {\\n    "+dep)
+              s=s.replace("dependencies {", "dependencies {
+    "+dep)
           p.write_text(s)
           p=Path("android/app/src/main/AndroidManifest.xml")
           s=p.read_text()
           if "FOREGROUND_SERVICE_MEDIA_PROJECTION" not in s:
               s=s.replace("<manifest", '<manifest', 1)
-              s=s.replace(">", '>\\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />', 1)
-              s=s.replace("</application>", '    <service android:name=".ScreenShareService" android:exported="false" android:foregroundServiceType="mediaProjection" />\\n    </application>')
+              s=s.replace(">", '>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />', 1)
+              s=s.replace("</application>", '    <service android:name=".ScreenShareService" android:exported="false" android:foregroundServiceType="mediaProjection" />
+    </application>')
           p.write_text(s)
           PY
 
