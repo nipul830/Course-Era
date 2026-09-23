@@ -483,10 +483,6 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
       }
     }
 
-    if (payment.status === status) {
-      return res.json({ message: "Payment already " + status });
-    }
-
     await ref.update({
       status,
       reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
