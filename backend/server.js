@@ -126,7 +126,7 @@ app.get("/api/config", (req, res) => {
   });
 });
 
-app.get("/api/courses", async (req, res) => {
+app.get("/api/courses", requireAuth, async (req, res) => {
   try {
     initFirebase();
     let snap = await db.collection("courses")
