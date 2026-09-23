@@ -3,16 +3,16 @@
 <main class="container meeting-page"><div class="page-title"><p class="eyebrow">LIVE CLASS</p><h1>Course Era Meeting</h1><p class="muted">Apna Meeting ID/Code dalo aur directly Course Era ke andar join karo.</p></div>
 <div id="meeting" class="panel">Loading meeting details…</div>
 <section id="room" class="meeting-room hidden">
-  <div class="meeting-toolbar"><div><b id="roomTitle">Live Class</b><span id="roomStatus">Connecting…</span></div><div class="meeting-actions"><span class="people">👥 <b id="count">0</b></span><button id="micBtn" class="btn ghost" type="button" onclick="toggleMic()">🎙️ Mic</button><button id="camBtn" class="btn ghost" type="button" onclick="toggleCam()">📹 Camera</button><button class="btn ghost" type="button" onclick="shareScreen()">🖥️ Share Screen</button><button class="btn ghost" type="button" onclick="toggleFullscreen()">⛶ Full Screen</button><button class="btn danger" type="button" onclick="leaveMeeting()">Leave</button></div></div>
+  <div class="meeting-toolbar"><div><b id="roomTitle">Live Class</b><span id="roomStatus">Connecting…</span></div><div class="meeting-actions"><span class="people">👥 <b id="count">0</b></span><button id="micBtn" class="btn ghost" type="button" onclick="toggleMic()">🎙️ Mic</button><button id="camBtn" class="btn ghost" type="button" onclick="requestCamera()">📹 Request Camera</button><button class="btn ghost" type="button" onclick="shareScreen()">🖥️ Share Screen</button><button class="btn ghost" type="button" onclick="toggleFullscreen()">⛶ Full Screen</button><button class="btn danger" type="button" onclick="leaveMeeting()">Leave</button></div></div>
   <div id="videos" class="video-grid"></div>
 </section></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script><script src="app.js?v=15"></script>
 <script>
 protectPage("zoom-meeting");
-let scheduled={}, ws=null, localStream=null, screenStream=null, currentVideoTrack=null, selfId="", roomCode="", peers=new Map(), pendingIce=new Map();
-ceAuth.onAuthStateChanged(async u=>{if(!u)return;try{const d=await apiFetch('/api/meeting');scheduled=d.meeting||{};renderScheduled();const q=new URLSearchParams(location.search);if(q.get('code')){codeInput.value=q.get('code');if(q.get('host')==='1') joinMeeting();}}catch(e){meeting.innerHTML='<p class="msg">'+esc(e.message)+'</p>'}});
+let scheduled={}, ws=null, localStream=null, screenStream=null, currentVideoTrack=null, selfId="", roomCode="", peers=new Map(), pendingIce=new Map(), isHost=false, cameraRequested=false;
+ceAuth.onAuthStateChanged(async u=>{if(!u)return;try{const d=await apiFetch('/api/meeting');scheduled=d.meeting||{};renderScheduled();const q=new URLSearchParams(location.search);isHost=q.get('host')==='1';if(q.get('code')){codeInput.value=q.get('code');if(isHost) joinMeeting();}}catch(e){meeting.innerHTML='<p class="msg">'+esc(e.message)+'</p>'}});
 function renderScheduled(){if(!scheduled.enabled||!scheduled.meetingId){meeting.innerHTML='<div class="empty"><h2>No live meeting scheduled</h2><p class="muted">Admin ne abhi koi class schedule nahi ki.</p></div>';return}meeting.innerHTML='<div><p class="eyebrow">SCHEDULED CLASS</p><h2>'+esc(scheduled.title)+'</h2>'+(scheduled.date?'<p class="muted">📅 '+esc(scheduled.date)+(scheduled.time?' · ⏰ '+esc(scheduled.time):'')+'</p>':'')+'<label>Meeting ID / Code<input id="codeInput" value="" placeholder="Enter meeting code" autocomplete="off"></label>'+(scheduled.passcode?'<label>Passcode<input id="passInput" type="password" placeholder="Enter passcode"></label>':'')+'<button class="btn primary full" type="button" onclick="joinMeeting()">Join Live Class</button></div>';}
-async function joinMeeting(){const code=(document.getElementById('codeInput')?.value||'').trim();const pass=document.getElementById('passInput')?.value||'';if(!code){alert('Please enter Meeting ID/Code');return}roomCode=code;try{const nativePlugin=window.Capacitor?.Plugins?.ScreenShare;if(nativePlugin?.requestPermissions){const perms=await nativePlugin.requestPermissions({permissions:['camera','microphone']});if(perms?.camera==='denied'||perms?.microphone==='denied'){throw new Error('Camera/Microphone permission denied. Please allow both permissions in Android Settings.')}}localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});currentVideoTrack=localStream.getVideoTracks()[0]||null;try{await window.Capacitor?.Plugins?.ScreenShare?.configureAudio()}catch(e){}meeting.classList.add('hidden');room.classList.remove('hidden');roomTitle.textContent=scheduled.title||'Course Era Live Class';roomStatus.textContent='Connecting…';addVideo('local','You',localStream,true);const token=await getAuthToken();const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(proto+'://course-era.onrender.com/ws/meeting?code='+encodeURIComponent(code)+'&passcode='+encodeURIComponent(pass)+'&token='+encodeURIComponent(token||''));ws.onmessage=handleSignal;ws.onclose=()=>{roomStatus.textContent='Disconnected';};ws.onerror=()=>{roomStatus.textContent='Connection error';};}catch(e){alert('Camera/Mic permission required. '+e.message);}}
+async function joinMeeting(){const code=(document.getElementById('codeInput')?.value||'').trim();const pass=document.getElementById('passInput')?.value||'';if(!code){alert('Please enter Meeting ID/Code');return}roomCode=code;try{const nativePlugin=window.Capacitor?.Plugins?.ScreenShare;if(nativePlugin?.requestPermissions){const perms=await nativePlugin.requestPermissions({permissions:['camera','microphone']});if(perms?.camera==='denied'||perms?.microphone==='denied'){throw new Error('Camera/Microphone permission denied. Please allow both permissions in Android Settings.')}}localStream=await navigator.mediaDevices.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});currentVideoTrack=null;try{await window.Capacitor?.Plugins?.ScreenShare?.configureAudio()}catch(e){}meeting.classList.add('hidden');room.classList.remove('hidden');roomTitle.textContent=scheduled.title||'Course Era Live Class';roomStatus.textContent='Connecting…';addVideo('local','You',localStream,true);const token=await getAuthToken();const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(proto+'://course-era.onrender.com/ws/meeting?code='+encodeURIComponent(code)+'&passcode='+encodeURIComponent(pass)+'&token='+encodeURIComponent(token||''));ws.onmessage=handleSignal;ws.onclose=()=>{roomStatus.textContent='Disconnected';};ws.onerror=()=>{roomStatus.textContent='Connection error';};}catch(e){alert('Camera/Mic permission required. '+e.message);}}
 function send(x){if(ws&&ws.readyState===1)ws.send(JSON.stringify(x))}
 function makePeer(id,name,offer){if(peers.has(id))return peers.get(id);const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});localStream.getTracks().forEach(t=>{ if(t.kind==='video' && currentVideoTrack) pc.addTrack(currentVideoTrack,localStream); else pc.addTrack(t,localStream); });const obj={pc,name};peers.set(id,obj);pc.onicecandidate=e=>{if(e.candidate)send({type:'ice',to:id,candidate:e.candidate})};pc.ontrack=e=>{const stream=e.streams[0];addVideo(id,name,stream,false)};pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))removePeer(id)};if(offer)pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>send({type:'offer',to:id,sdp:pc.localDescription}));return obj}
 async function handleSignal(e){
@@ -22,16 +22,18 @@ async function handleSignal(e){
       showNativeScreenFrame(blob);
       return;
     }
-    const m=JSON.parse(e.data);if(m.type==='joined'){selfId=m.selfId;count.textContent=m.count;for(const p of m.peers)makePeer(p.id,p.name,true);roomStatus.textContent='Live • '+m.count+' joined';return}if(m.type==='participant-count'){count.textContent=m.count;roomStatus.textContent='Live • '+m.count+' joined';return}
+    const m=JSON.parse(e.data);if(m.type==='joined'){selfId=m.selfId;isHost=!!m.isHost;count.textContent=m.count;for(const p of m.peers)makePeer(p.id,p.name,true);roomStatus.textContent='Live • '+m.count+' joined'+(isHost?' • Host':'');if(!isHost)setTimeout(()=>requestCamera(),700);return}if(m.type==='participant-count'){count.textContent=m.count;roomStatus.textContent='Live • '+m.count+' joined';return}
+if(m.type==='camera-request'){if(isHost){const ok=window.confirm((m.fromName||'Participant')+' camera on karna chahta hai. Allow?');send({type:'camera-response',to:m.from,approved:ok});if(ok)showRoomNotice('Camera approved.');}return}
+if(m.type==='camera-response'){if(m.approved===true){cameraRequested=false;startLocalCamera();}else{cameraRequested=false;camBtn.textContent='📹 Request Camera';showRoomNotice('Host ne camera request approve nahi ki.');}return}
 if(m.type==='screen-start'){showRoomNotice((m.name||'Screen')+' started screen sharing.');return}
 if(m.type==='screen-stop'){removeNativeScreen();showRoomNotice('Screen sharing stopped.');return}if(m.type==='peer-joined'){makePeer(m.id,m.name,false);return}if(m.type==='peer-left'){removePeer(m.id);return}if(m.type==='error'){alert(m.message);leaveMeeting();return}if(m.type==='offer'){const p=makePeer(m.from,m.fromName||'Participant',false);await p.pc.setRemoteDescription(new RTCSessionDescription(m.sdp));const q=pendingIce.get(m.from)||[];for(const c of q)await p.pc.addIceCandidate(c).catch(()=>{});pendingIce.delete(m.from);const ans=await p.pc.createAnswer();await p.pc.setLocalDescription(ans);send({type:'answer',to:m.from,sdp:p.pc.localDescription});return}if(m.type==='answer'){const p=peers.get(m.from);if(!p)return;await p.pc.setRemoteDescription(new RTCSessionDescription(m.sdp));const q=pendingIce.get(m.from)||[];for(const c of q)await p.pc.addIceCandidate(c).catch(()=>{});pendingIce.delete(m.from);return}if(m.type==='ice'){const c=new RTCIceCandidate(m.candidate);const p=peers.get(m.from);if(p?.pc.remoteDescription)await p.pc.addIceCandidate(c).catch(()=>{});else{const q=pendingIce.get(m.from)||[];q.push(c);pendingIce.set(m.from,q)}}}catch(err){console.error(err)}}
-function addVideo(id,name,stream,local){let box=document.getElementById('v-'+id);if(!box){box=document.createElement('div');box.className='video-tile';box.id='v-'+id;box.innerHTML='<video playsinline autoplay '+(local?'muted':'')+'></video><span>'+esc(name)+'</span>';videos.appendChild(box)}box.querySelector('video').srcObject=stream}
+function addVideo(id,name,stream,local){let box=document.getElementById('v-'+id);if(!box){box=document.createElement('div');box.className='video-tile '+(local?'host-tile':'participant-tile');box.id='v-'+id;box.innerHTML='<video playsinline autoplay '+(local?'muted':'')+'></video><span>'+esc(name)+'</span>';videos.appendChild(box)}box.querySelector('video').srcObject=stream}
 let nativeScreenUrl='';
 function showNativeScreenFrame(blob){
   let box=document.getElementById('v-screen');
   if(!box){
     box=document.createElement('div');
-    box.className='video-tile screen-share-tile';
+    box.className='video-tile screen-share-tile main-share-tile';
     box.id='v-screen';
     box.innerHTML='<img playsinline alt="Screen Share"><span>Screen Share</span>';
     videos.appendChild(box);
@@ -49,6 +51,35 @@ function removeNativeScreen(){
 function removePeer(id){const p=peers.get(id);if(p){try{p.pc.close()}catch{}peers.delete(id)}document.getElementById('v-'+id)?.remove()}
 function toggleMic(){if(!localStream)return;const t=localStream.getAudioTracks()[0];if(t){t.enabled=!t.enabled;micBtn.textContent=t.enabled?'🎙️ Mic':'🔇 Mic Off'}}
 function toggleCam(){if(!localStream)return;const t=localStream.getVideoTracks()[0];if(t){t.enabled=!t.enabled;camBtn.textContent=t.enabled?'📹 Camera':'🚫 Camera Off'}}
+
+function requestCamera(){
+  if(isHost){return startLocalCamera();}
+  if(cameraRequested){showRoomNotice('Camera request already sent.');return}
+  cameraRequested=true;
+  send({type:'camera-request'});
+  camBtn.textContent='⏳ Camera Request Sent';
+  showRoomNotice('Camera on karne ki request host ko bhej di.');
+}
+
+async function startLocalCamera(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
+    const track=stream.getVideoTracks()[0];
+    if(!track)return;
+    currentVideoTrack=track;
+    localStream.addTrack(track);
+    addVideo('local','You',localStream,true);
+    camBtn.textContent='📹 Camera On';
+    for(const [id,obj] of peers){
+      obj.pc.addTrack(track,localStream);
+      const offer=await obj.pc.createOffer();
+      await obj.pc.setLocalDescription(offer);
+      send({type:'offer',to:id,sdp:obj.pc.localDescription});
+    }
+  }catch(e){
+    showRoomNotice('Camera permission was not allowed.');
+  }
+}
 async function shareScreen(){
   try{
     const nativePlugin=window.Capacitor?.Plugins?.ScreenShare;
