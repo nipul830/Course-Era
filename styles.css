@@ -5,3 +5,15 @@
 
 .modal-paid{margin-top:22px!important;min-height:58px;font-size:17px;font-weight:800;box-shadow:0 8px 24px rgba(0,255,145,.18)}.modal-paid:hover{transform:translateY(-1px)}.pay-tabs{grid-template-columns:1fr 1fr}
 .admin-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:24px}.stat-card{display:grid;gap:8px}.stat-card strong{font-size:28px;color:var(--a)}.check{display:flex;align-items:center;gap:10px}.check input{width:auto}@media(max-width:800px){.admin-stats{grid-template-columns:repeat(2,1fr)}}
+.meeting-page{max-width:1100px}
+.meeting-room{margin-top:20px;border:1px solid var(--line);border-radius:18px;background:#050b08;padding:10px}
+.meeting-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 8px 14px;flex-wrap:wrap}
+.meeting-toolbar span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.meeting-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.people{border:1px solid var(--line);padding:10px 12px;border-radius:10px;color:var(--muted)}
+.btn.danger{background:#3a1717;color:#fff;border-color:#6d2b2b}
+.video-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.video-tile{position:relative;aspect-ratio:16/10;background:#020504;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.video-tile video{width:100%;height:100%;object-fit:cover;background:#020504}
+.video-tile span{position:absolute;left:10px;bottom:10px;background:#000b;padding:6px 9px;border-radius:8px;font-size:12px}
+@media(max-width:600px){.video-grid{grid-template-columns:1fr}.meeting-toolbar{align-items:flex-start}.meeting-actions{width:100%}.meeting-actions .btn{flex:1}.people{flex:0 0 auto}}
