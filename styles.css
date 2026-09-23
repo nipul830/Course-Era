@@ -22,3 +22,5 @@
 .meeting-room:fullscreen .video-grid{height:calc(100vh - 110px);grid-auto-rows:1fr}
 .meeting-room:fullscreen .video-tile{aspect-ratio:auto;min-height:0}
 @media(max-width:600px){.meeting-room:fullscreen .video-grid{height:calc(100vh - 150px)}}
+
+.meeting-notice{margin:0 0 10px;padding:12px 14px;border:1px solid #6d5b22;background:#211d0a;color:#f2e8b0;border-radius:10px;font-size:13px;line-height:1.5}
