@@ -1,7 +1,7 @@
 {
   "appId": "com.courseera.app",
   "appName": "Course Era",
-  "webDir": ".",
+  "webDir": "www",
   "android": {
     "backgroundColor": "#03100d"
   }
