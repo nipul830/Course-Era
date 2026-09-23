@@ -16,6 +16,7 @@ import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.DisplayMetrics;
 import android.view.WindowManager;
 
@@ -49,6 +50,7 @@ public class ScreenShareService extends Service {
     private ExecutorService encoder;
     private final AtomicBoolean encoding = new AtomicBoolean(false);
     private final AtomicLong lastFrameMs = new AtomicLong(0L);
+    private PowerManager.WakeLock wakeLock;
 
     private static class SurfaceHolder {
         android.view.Surface surface;
@@ -58,6 +60,8 @@ public class ScreenShareService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null) wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CourseEra:ScreenShare");
         encoder = Executors.newSingleThreadExecutor();
         httpClient = new OkHttpClient.Builder()
                 .pingInterval(15, java.util.concurrent.TimeUnit.SECONDS)
@@ -93,13 +97,20 @@ public class ScreenShareService extends Service {
                 startForeground(NOTIFICATION_ID, notification);
             }
 
+            if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(30 * 60 * 1000L);
             startCapture(resultCode, resultData, wsUrl);
         } catch (Exception e) {
             stopCapture();
             stopSelf();
         }
 
-        return START_NOT_STICKY;
+        return START_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Keep the foreground screen-share service alive when the Course Era task is minimized/removed.
+        super.onTaskRemoved(rootIntent);
     }
 
     private void startCapture(int resultCode, Intent resultData, String wsUrl) {
@@ -288,6 +299,9 @@ public class ScreenShareService extends Service {
         encoder = Executors.newSingleThreadExecutor();
         encoding.set(false);
 
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try { wakeLock.release(); } catch (Exception ignored) {}
+        }
         if (Build.VERSION.SDK_INT >= 24) {
             stopForeground(STOP_FOREGROUND_REMOVE);
         } else {
