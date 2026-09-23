@@ -358,16 +358,16 @@ app.get("/api/admin/courses", requireAuth, requireAdmin, async (req, res) => {
 app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
   try {
     initFirebase();
-    const [coursesSnap, paymentsSnap, usersSnap] = await Promise.all([
+    const [coursesSnap, paymentsSnap, authPage] = await Promise.all([
       db.collection("courses").get(),
       db.collection("payments").get(),
-      db.collection("users").get()
+      admin.auth().listUsers(1000)
     ]);
     const payments = paymentsSnap.docs.map(d => d.data());
     res.json({
       courses: coursesSnap.size,
       publishedCourses: coursesSnap.docs.filter(d => d.data().published === true).length,
-      users: usersSnap.size,
+      users: authPage.users.length,
       payments: paymentsSnap.size,
       pendingPayments: payments.filter(p => p.status === "pending").length,
       approvedPayments: payments.filter(p => p.status === "approved").length,
