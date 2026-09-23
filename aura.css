@@ -29,8 +29,8 @@ a{text-decoration:none;color:inherit}
   background:#02060af2;backdrop-filter:blur(10px);
   position:sticky;top:0;z-index:5;
 }
-.brand{font-size:23px;font-weight:800;color:var(--text)}
-.brand span{color:var(--accent)}
+.brand{font-size:23px;font-weight:800;color:#fff}
+.brand .aura-word{color:#39d353}
 nav{display:flex;align-items:center;gap:18px;color:var(--muted);font-size:13px}
 nav a:hover{color:var(--accent2)}
 .linkbtn{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit}
