@@ -199,6 +199,53 @@ app.post("/api/payment-settings/qr", requireAuth, requireAdmin, upload.single("q
   }
 });
 
+app.get("/api/meeting", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("settings").doc("meeting").get();
+    const d = snap.exists ? snap.data() : {};
+    res.json({ meeting: {
+      enabled: d.enabled === true,
+      title: d.title || "Course Era Live Class",
+      date: d.date || "",
+      time: d.time || "",
+      joinUrl: d.joinUrl || "",
+      meetingId: d.meetingId || "",
+      passcode: d.passcode || ""
+    }});
+  } catch (e) {
+    res.status(500).json({ error: "Could not load meeting settings" });
+  }
+});
+
+app.put("/api/meeting", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const clean = v => String(v || "").trim().slice(0, 500);
+    const title = clean(req.body.title) || "Course Era Live Class";
+    const date = clean(req.body.date);
+    const time = clean(req.body.time);
+    const joinUrl = clean(req.body.joinUrl);
+    const meetingId = clean(req.body.meetingId);
+    const passcode = clean(req.body.passcode);
+    const enabled = req.body.enabled === true;
+
+    if (enabled && !joinUrl) {
+      return res.status(400).json({ error: "Zoom join link is required when meeting is enabled" });
+    }
+
+    await db.collection("settings").doc("meeting").set({
+      enabled, title, date, time, joinUrl, meetingId, passcode,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: req.user.uid
+    }, { merge: true });
+
+    res.json({ message: "Zoom meeting settings updated" });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update meeting settings", detail: e.message });
+  }
+});
+
 app.get("/api/courses", requireAuth, async (req, res) => {
   try {
     initFirebase();
