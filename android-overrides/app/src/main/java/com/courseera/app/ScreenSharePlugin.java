@@ -3,15 +3,26 @@ package com.courseera.app;
 import android.app.Activity;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
+import android.Manifest;
 
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.PluginMethod;
 import androidx.activity.result.ActivityResult;
 
-@CapacitorPlugin(name = "ScreenShare")
+@CapacitorPlugin(
+        name = "ScreenShare",
+        permissions = {
+                @Permission(alias = "camera", strings = { Manifest.permission.CAMERA }),
+                @Permission(alias = "microphone", strings = {
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.MODIFY_AUDIO_SETTINGS
+                })
+        }
+)
 public class ScreenSharePlugin extends Plugin {
     private static final String SERVICE_ACTION_STOP = "com.courseera.app.STOP_SCREEN_SHARE";
 
