@@ -1,0 +1,1 @@
+function logout(){try{ceAuth.signOut().then(()=>location.href='index.html')}catch(e){location.href='index.html'}}ceAuth.onAuthStateChanged(function(user){if(!user){location.href='login.html?next=courses';return}const w=document.getElementById('welcome');if(w)w.textContent='Welcome, '+(user.displayName||user.email||'Trader')+' · Account AURA-100001';});
