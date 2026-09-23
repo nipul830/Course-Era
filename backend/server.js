@@ -136,6 +136,7 @@ app.get("/api/payment-settings", requireAuth, async (req, res) => {
       phonePeUpi: d.phonePeUpi || "nipukumar007@ibl",
       merchantName: d.merchantName || "Course Era",
       qrUpi: d.qrUpi || d.googlePayUpi || "lipupoddar-3@okaxis",
+      qrImageUrl: d.qrImageUrl || "",
       usdtWallet: d.usdtWallet || ""
     }});
   } catch (e) {
@@ -152,17 +153,42 @@ app.put("/api/payment-settings", requireAuth, requireAdmin, async (req, res) => 
     const merchantName = clean(req.body.merchantName) || "Course Era";
     const qrUpi = clean(req.body.qrUpi) || googlePayUpi;
     const usdtWallet = clean(req.body.usdtWallet);
+    const qrImageUrl = clean(req.body.qrImageUrl);
     if (!googlePayUpi || !phonePeUpi || !qrUpi) {
       return res.status(400).json({ error: "Google Pay, PhonePe and QR UPI IDs are required" });
     }
     await db.collection("settings").doc("payment").set({
-      googlePayUpi, phonePeUpi, merchantName, qrUpi, usdtWallet,
+      googlePayUpi, phonePeUpi, merchantName, qrUpi, usdtWallet, qrImageUrl,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: req.user.uid
     }, { merge: true });
     res.json({ message: "Payment settings updated" });
   } catch (e) {
     res.status(500).json({ error: "Could not update payment settings", detail: e.message });
+  }
+});
+
+app.post("/api/payment-settings/qr", requireAuth, requireAdmin, upload.single("qr"), async (req, res) => {
+  try {
+    initFirebase();
+    if (!bucket) return res.status(500).json({ error: "Firebase Storage is not configured" });
+    if (!req.file) return res.status(400).json({ error: "QR image is required" });
+    if (!String(req.file.mimetype || "").startsWith("image/")) return res.status(400).json({ error: "Only image files are allowed" });
+    if (req.file.size > 5 * 1024 * 1024) return res.status(400).json({ error: "QR image must be 5MB or smaller" });
+
+    const path = "payment-settings/qr-" + Date.now() + "-" + req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const file = bucket.file(path);
+    await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype, cacheControl: "public,max-age=3600" } });
+    await file.makePublic();
+    const qrImageUrl = "https://storage.googleapis.com/" + bucket.name + "/" + encodeURIComponent(path).replace(/%2F/g, "/");
+    await db.collection("settings").doc("payment").set({
+      qrImageUrl,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: req.user.uid
+    }, { merge: true });
+    res.json({ message: "QR image updated", qrImageUrl });
+  } catch (e) {
+    res.status(500).json({ error: "Could not upload QR image", detail: e.message });
   }
 });
 
