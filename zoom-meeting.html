@@ -15,15 +15,77 @@ function renderScheduled(){if(!scheduled.enabled||!scheduled.meetingId){meeting.
 async function joinMeeting(){const code=(document.getElementById('codeInput')?.value||'').trim();const pass=document.getElementById('passInput')?.value||'';if(!code){alert('Please enter Meeting ID/Code');return}roomCode=code;try{localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});currentVideoTrack=localStream.getVideoTracks()[0]||null;meeting.classList.add('hidden');room.classList.remove('hidden');roomTitle.textContent=scheduled.title||'Course Era Live Class';roomStatus.textContent='Connecting…';addVideo('local','You',localStream,true);const token=await getAuthToken();const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(proto+'://course-era.onrender.com/ws/meeting?code='+encodeURIComponent(code)+'&passcode='+encodeURIComponent(pass)+'&token='+encodeURIComponent(token||''));ws.onmessage=handleSignal;ws.onclose=()=>{roomStatus.textContent='Disconnected';};ws.onerror=()=>{roomStatus.textContent='Connection error';};}catch(e){alert('Camera/Mic permission required. '+e.message);}}
 function send(x){if(ws&&ws.readyState===1)ws.send(JSON.stringify(x))}
 function makePeer(id,name,offer){if(peers.has(id))return peers.get(id);const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});localStream.getTracks().forEach(t=>{ if(t.kind==='video' && currentVideoTrack) pc.addTrack(currentVideoTrack,localStream); else pc.addTrack(t,localStream); });const obj={pc,name};peers.set(id,obj);pc.onicecandidate=e=>{if(e.candidate)send({type:'ice',to:id,candidate:e.candidate})};pc.ontrack=e=>{const stream=e.streams[0];addVideo(id,name,stream,false)};pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))removePeer(id)};if(offer)pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>send({type:'offer',to:id,sdp:pc.localDescription}));return obj}
-async function handleSignal(e){try{const m=JSON.parse(e.data);if(m.type==='joined'){selfId=m.selfId;count.textContent=m.count;for(const p of m.peers)makePeer(p.id,p.name,true);roomStatus.textContent='Live • '+m.count+' joined';return}if(m.type==='participant-count'){count.textContent=m.count;roomStatus.textContent='Live • '+m.count+' joined';return}if(m.type==='peer-joined'){makePeer(m.id,m.name,false);return}if(m.type==='peer-left'){removePeer(m.id);return}if(m.type==='error'){alert(m.message);leaveMeeting();return}if(m.type==='offer'){const p=makePeer(m.from,m.fromName||'Participant',false);await p.pc.setRemoteDescription(new RTCSessionDescription(m.sdp));const q=pendingIce.get(m.from)||[];for(const c of q)await p.pc.addIceCandidate(c).catch(()=>{});pendingIce.delete(m.from);const ans=await p.pc.createAnswer();await p.pc.setLocalDescription(ans);send({type:'answer',to:m.from,sdp:p.pc.localDescription});return}if(m.type==='answer'){const p=peers.get(m.from);if(!p)return;await p.pc.setRemoteDescription(new RTCSessionDescription(m.sdp));const q=pendingIce.get(m.from)||[];for(const c of q)await p.pc.addIceCandidate(c).catch(()=>{});pendingIce.delete(m.from);return}if(m.type==='ice'){const c=new RTCIceCandidate(m.candidate);const p=peers.get(m.from);if(p?.pc.remoteDescription)await p.pc.addIceCandidate(c).catch(()=>{});else{const q=pendingIce.get(m.from)||[];q.push(c);pendingIce.set(m.from,q)}}}catch(err){console.error(err)}}
+async function handleSignal(e){
+  try{
+    if(typeof e.data!=='string'){
+      const blob=e.data instanceof Blob?e.data:new Blob([e.data],{type:'image/jpeg'});
+      showNativeScreenFrame(blob);
+      return;
+    }
+    const m=JSON.parse(e.data);if(m.type==='joined'){selfId=m.selfId;count.textContent=m.count;for(const p of m.peers)makePeer(p.id,p.name,true);roomStatus.textContent='Live • '+m.count+' joined';return}if(m.type==='participant-count'){count.textContent=m.count;roomStatus.textContent='Live • '+m.count+' joined';return}
+if(m.type==='screen-start'){showRoomNotice((m.name||'Screen')+' started screen sharing.');return}
+if(m.type==='screen-stop'){removeNativeScreen();showRoomNotice('Screen sharing stopped.');return}if(m.type==='peer-joined'){makePeer(m.id,m.name,false);return}if(m.type==='peer-left'){removePeer(m.id);return}if(m.type==='error'){alert(m.message);leaveMeeting();return}if(m.type==='offer'){const p=makePeer(m.from,m.fromName||'Participant',false);await p.pc.setRemoteDescription(new RTCSessionDescription(m.sdp));const q=pendingIce.get(m.from)||[];for(const c of q)await p.pc.addIceCandidate(c).catch(()=>{});pendingIce.delete(m.from);const ans=await p.pc.createAnswer();await p.pc.setLocalDescription(ans);send({type:'answer',to:m.from,sdp:p.pc.localDescription});return}if(m.type==='answer'){const p=peers.get(m.from);if(!p)return;await p.pc.setRemoteDescription(new RTCSessionDescription(m.sdp));const q=pendingIce.get(m.from)||[];for(const c of q)await p.pc.addIceCandidate(c).catch(()=>{});pendingIce.delete(m.from);return}if(m.type==='ice'){const c=new RTCIceCandidate(m.candidate);const p=peers.get(m.from);if(p?.pc.remoteDescription)await p.pc.addIceCandidate(c).catch(()=>{});else{const q=pendingIce.get(m.from)||[];q.push(c);pendingIce.set(m.from,q)}}}catch(err){console.error(err)}}
 function addVideo(id,name,stream,local){let box=document.getElementById('v-'+id);if(!box){box=document.createElement('div');box.className='video-tile';box.id='v-'+id;box.innerHTML='<video playsinline autoplay '+(local?'muted':'')+'></video><span>'+esc(name)+'</span>';videos.appendChild(box)}box.querySelector('video').srcObject=stream}
+let nativeScreenUrl='';
+function showNativeScreenFrame(blob){
+  let box=document.getElementById('v-screen');
+  if(!box){
+    box=document.createElement('div');
+    box.className='video-tile screen-share-tile';
+    box.id='v-screen';
+    box.innerHTML='<img playsinline alt="Screen Share"><span>Screen Share</span>';
+    videos.appendChild(box);
+  }
+  const img=box.querySelector('img');
+  if(nativeScreenUrl)URL.revokeObjectURL(nativeScreenUrl);
+  nativeScreenUrl=URL.createObjectURL(blob);
+  img.src=nativeScreenUrl;
+}
+function removeNativeScreen(){
+  if(nativeScreenUrl){URL.revokeObjectURL(nativeScreenUrl);nativeScreenUrl='';}
+  document.getElementById('v-screen')?.remove();
+}
+
 function removePeer(id){const p=peers.get(id);if(p){try{p.pc.close()}catch{}peers.delete(id)}document.getElementById('v-'+id)?.remove()}
 function toggleMic(){if(!localStream)return;const t=localStream.getAudioTracks()[0];if(t){t.enabled=!t.enabled;micBtn.textContent=t.enabled?'🎙️ Mic':'🔇 Mic Off'}}
 function toggleCam(){if(!localStream)return;const t=localStream.getVideoTracks()[0];if(t){t.enabled=!t.enabled;camBtn.textContent=t.enabled?'📹 Camera':'🚫 Camera Off'}}
-async function shareScreen(){if(!navigator.mediaDevices?.getDisplayMedia){showRoomNotice('Screen sharing is not supported by this mobile browser. Use Chrome/Edge on a computer for screen sharing.');return}try{screenStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});const screenTrack=screenStream.getVideoTracks()[0];currentVideoTrack=screenTrack;for(const {pc} of peers.values()){const sender=pc.getSenders().find(s=>s.track&&s.track.kind==='video');if(sender)await sender.replaceTrack(screenTrack)}const localVideo=document.querySelector('#v-local video');if(localVideo)localVideo.srcObject=screenStream;screenTrack.onended=()=>stopScreenShare();roomStatus.textContent='Sharing screen • '+(peers.size+1)+' joined'}catch(e){if(e.name!=='NotAllowedError')showRoomNotice('Screen sharing is not available on this device/browser. For reliable screen sharing, use Course Era on a computer with Chrome or Edge.')}}
-function stopScreenShare(){if(!localStream)return;const cam=localStream.getVideoTracks()[0];currentVideoTrack=cam;for(const {pc} of peers.values()){const sender=pc.getSenders().find(s=>s.track&&s.track.kind==='video');if(sender)sender.replaceTrack(cam)}if(screenStream){screenStream.getTracks().forEach(t=>t.stop());screenStream=null}const localVideo=document.querySelector('#v-local video');if(localVideo)localVideo.srcObject=localStream;roomStatus.textContent='Live • '+(peers.size+1)+' joined'}
+async function shareScreen(){
+  try{
+    const nativePlugin=window.Capacitor?.Plugins?.ScreenShare;
+    if(nativePlugin){
+      const token=await getAuthToken();
+      const proto=location.protocol==='https:'?'wss':'ws';
+      const wsUrl=proto+'://course-era.onrender.com/ws/meeting?code='+encodeURIComponent(roomCode)+'&passcode='+encodeURIComponent(document.getElementById('passInput')?.value||'')+'&token='+encodeURIComponent(token||'')+'&kind=screen';
+      await nativePlugin.start({wsUrl});
+      showRoomNotice('Screen sharing started. Android system permission is active.');
+      roomStatus.textContent='Sharing screen • '+(peers.size+1)+' joined';
+      return;
+    }
+    if(!navigator.mediaDevices?.getDisplayMedia){
+      showRoomNotice('Screen sharing is not supported in this browser. On Android, use the Course Era APK.');
+      return;
+    }
+    screenStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    const screenTrack=screenStream.getVideoTracks()[0];
+    currentVideoTrack=screenTrack;
+    for(const {pc} of peers.values()){
+      const sender=pc.getSenders().find(s=>s.track&&s.track.kind==='video');
+      if(sender)await sender.replaceTrack(screenTrack);
+    }
+    const localVideo=document.querySelector('#v-local video');
+    if(localVideo)localVideo.srcObject=screenStream;
+    screenTrack.onended=()=>stopScreenShare();
+    roomStatus.textContent='Sharing screen • '+(peers.size+1)+' joined';
+  }catch(e){
+    showRoomNotice('Screen sharing could not start. Please allow the Android screen-capture permission and try again.');
+    console.error(e);
+  }
+}
+function stopScreenShare(){
+  try{window.Capacitor?.Plugins?.ScreenShare?.stop()}catch(e){}
+  if(!localStream)return;const cam=localStream.getVideoTracks()[0];currentVideoTrack=cam;for(const {pc} of peers.values()){const sender=pc.getSenders().find(s=>s.track&&s.track.kind==='video');if(sender)sender.replaceTrack(cam)}if(screenStream){screenStream.getTracks().forEach(t=>t.stop());screenStream=null}const localVideo=document.querySelector('#v-local video');if(localVideo)localVideo.srcObject=localStream;roomStatus.textContent='Live • '+(peers.size+1)+' joined'}
 function showRoomNotice(message){let n=document.getElementById('roomNotice');if(!n){n=document.createElement('div');n.id='roomNotice';n.className='meeting-notice';document.getElementById('room').prepend(n)}n.textContent=message;setTimeout(()=>n.remove(),6000)}
 async function toggleFullscreen(){const el=document.getElementById('room');try{if(document.fullscreenElement)await document.exitFullscreen();else await el.requestFullscreen()}catch(e){alert('Full screen is not supported here.')}}
-function leaveMeeting(){try{ws?.close()}catch{}peers.forEach(p=>{try{p.pc.close()}catch{}});peers.clear();localStream?.getTracks().forEach(t=>t.stop());localStream=null;document.getElementById('room').classList.add('hidden');document.getElementById('meeting').classList.remove('hidden');renderScheduled()}
+function leaveMeeting(){try{window.Capacitor?.Plugins?.ScreenShare?.stop()}catch(e){};try{ws?.close()}catch{}peers.forEach(p=>{try{p.pc.close()}catch{}});peers.clear();localStream?.getTracks().forEach(t=>t.stop());localStream=null;document.getElementById('room').classList.add('hidden');document.getElementById('meeting').classList.remove('hidden');renderScheduled()}
 function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 </script></body></html>
