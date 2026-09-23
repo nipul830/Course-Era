@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zoom Meeting — Course Era</title><link rel="stylesheet" href="styles.css"></head><body>
+<header class="nav"><a class="brand" href="index.html">Course<span>Era</span></a><nav><a href="admin.html">Dashboard</a><a href="#" onclick="logout();return false">Logout</a></nav></header>
+<main class="container narrow"><div class="page-title"><p class="eyebrow">LIVE CLASS</p><h1>Zoom Meeting</h1><p class="muted">Set the Zoom class details. Students will see the meeting in the app.</p></div>
+<form class="panel" onsubmit="saveMeeting(event)">
+<label class="check"><input id="enabled" type="checkbox"> Enable live meeting</label>
+<label>Meeting title<input id="title" placeholder="Course Era Live Class"></label>
+<label>Date<input id="date" type="date"></label>
+<label>Time<input id="time" type="time"></label>
+<label>Zoom Join Link<input id="joinUrl" type="url" placeholder="https://zoom.us/j/123456789"></label>
+<label>Meeting ID<input id="meetingId" placeholder="123 456 789"></label>
+<label>Passcode<input id="passcode" placeholder="Optional"></label>
+<div class="actions"><button class="btn primary" type="submit">Save Zoom Meeting</button><a class="btn ghost" href="zoom-meeting.html">Preview</a></div><p id="msg" class="msg"></p>
+</form></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script><script src="app.js?v=14"></script>
+<script>
+protectPage("admin-zoom");
+ceAuth.onAuthStateChanged(async u=>{if(!u)return;try{const d=await apiFetch('/api/meeting');const m=d.meeting||{};enabled.checked=!!m.enabled;title.value=m.title||'';date.value=m.date||'';time.value=m.time||'';joinUrl.value=m.joinUrl||'';meetingId.value=m.meetingId||'';passcode.value=m.passcode||'';}catch(e){msg.textContent=e.message}});
+async function saveMeeting(e){e.preventDefault();msg.textContent='Saving…';try{await apiFetch('/api/meeting',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:enabled.checked,title:title.value,date:date.value,time:time.value,joinUrl:joinUrl.value,meetingId:meetingId.value,passcode:passcode.value})});msg.textContent='Zoom meeting saved successfully.';}catch(e){msg.textContent=e.message}}
+</script></body></html>
