@@ -21,6 +21,10 @@ if "FOREGROUND_SERVICE_MEDIA_PROJECTION" not in text:
         text[:first_close + 1]
         + '\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />'
         + '\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />'
+        + '\n    <uses-permission android:name="android.permission.CAMERA" />'
+        + '\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />'
+        + '\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />'
+        + '\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
         + text[first_close + 1:]
     )
     text = text.replace(
