@@ -1,1 +1,31 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin — Course Era</title><link rel="stylesheet" href="styles.css"></head><body><header class="nav"><a class="brand" href="index.html">Course<span>Era</span></a><nav><a href="courses.html">Site</a></nav></header><main class="container"><div class="page-title"><p class="eyebrow">ADMIN</p><h1>Course Era Dashboard</h1></div><div class="admin-grid"><a class="panel admin-link" href="admin-courses.html"><b>📚 Course Management</b><span>Add courses, prices and content</span></a><a class="panel admin-link" href="admin-payments.html"><b>💳 Payment Verification</b><span>Review and approve payments</span></a></div></main></body></html>
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Dashboard — Course Era</title><link rel="stylesheet" href="styles.css"></head>
+<body><header class="nav"><a class="brand" href="index.html">Course<span>Era</span></a><nav><a href="courses.html">Site</a><a href="#" onclick="logout();return false">Logout</a></nav></header>
+<main class="container">
+<div class="page-title"><p class="eyebrow">ADMIN CONTROL CENTER</p><h1>Course Era Dashboard</h1><p class="muted">Manage courses, payments and users from one place.</p></div>
+<div id="stats" class="admin-stats"></div>
+<div class="admin-grid" style="margin-top:20px">
+<a class="panel admin-link" href="admin-courses.html"><b>📚 Course Management</b><span>Add, edit, publish/unpublish, price and video.</span></a>
+<a class="panel admin-link" href="admin-payments.html"><b>💳 Payment Verification</b><span>Review UTR, screenshots and grant access.</span></a>
+<a class="panel admin-link" href="admin-users.html"><b>👥 User Management</b><span>View users and revoke course access.</span></a>
+<a class="panel admin-link" href="courses.html"><b>🌐 Open Store</b><span>Preview the customer-facing website.</span></a>
+</div>
+<p id="adminMsg" class="msg"></p>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=7"></script><script src="app.js?v=11"></script>
+<script>
+protectPage("admin");
+ceAuth.onAuthStateChanged(async user=>{
+ if(!user)return;
+ try{
+  const s=await apiFetch('/api/admin/stats');
+  document.getElementById('stats').innerHTML=[
+   ['Courses',s.publishedCourses+'/'+s.courses],['Users',s.users],['Pending Payments',s.pendingPayments],
+   ['Approved',s.approvedPayments],['Revenue','₹'+Number(s.approvedRevenue||0).toLocaleString('en-IN')]
+  ].map(x=>'<div class="panel stat-card"><span class="muted">'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
+ }catch(e){document.getElementById('adminMsg').textContent=e.message}
+});
+</script></body></html>
