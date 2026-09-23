@@ -4,14 +4,12 @@ import android.app.Activity;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
 
-import com.getcapacitor.ActivityCallback;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.PluginMethod;
-import com.getcapacitor.activityresult.ActivityResult;
-
-import org.json.JSONException;
+import com.getcapacitor.PluginMethod;
+import androidx.activity.result.ActivityResult;
 
 @CapacitorPlugin(name = "ScreenShare")
 public class ScreenSharePlugin extends Plugin {
