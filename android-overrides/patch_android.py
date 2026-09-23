@@ -29,7 +29,7 @@ if "FOREGROUND_SERVICE_MEDIA_PROJECTION" not in text:
     )
     text = text.replace(
         "</application>",
-        '    <service android:name=".ScreenShareService" android:exported="false" android:foregroundServiceType="mediaProjection" />\n    </application>',
+        '    <service android:name=".ScreenShareService" android:exported="false" android:foregroundServiceType="mediaProjection" android:stopWithTask="false" />\n    </application>',
         1
     )
 manifest.write_text(text)
