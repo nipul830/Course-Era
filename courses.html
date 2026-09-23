@@ -3,7 +3,18 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trader Dashboard — Aura Farming</title><link rel="stylesheet" href="aura.css"></head>
 <body>
-<header class="nav"><a class="brand" href="index.html"><span class="aura-word">Aura</span> Farming</a><nav>
+<header class="nav"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">
+<svg viewBox="0 0 64 64" role="img">
+  <defs>
+    <linearGradient id="auraGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7df98"/><stop offset=".45" stop-color="#d6b35a"/><stop offset="1" stop-color="#9b671f"/>
+    </linearGradient>
+  </defs>
+  <path d="M12 53 31 9l21 44h-9l-5.3-12H25l-5 12zM28 34h7l-3.5-8z" fill="none" stroke="url(#auraGold)" stroke-width="4.2" stroke-linejoin="round"/>
+  <path d="M20 42C9 39 5 31 5 25c9 1 16 6 18 13-1 1-2 2-3 4z" fill="#1f7a32" stroke="#d6b35a" stroke-width="1.4"/>
+  <path d="M25 48c1-10 8-17 19-19-1 10-7 17-18 21z" fill="#39a844" stroke="#d6b35a" stroke-width="1.4"/>
+</svg>
+</span><span>Aura Farming</span></a><nav>
 <a href="courses.html">Dashboard</a><a href="index.html">Home</a><button class="linkbtn" onclick="logout()">Logout</button></nav></header>
 <main class="dashboard"><div class="page-title"><p class="eyebrow">TRADER PORTAL</p><h1>Dashboard</h1><p id="welcome" class="muted">Loading account…</p></div>
 <div class="stats"><div class="stat"><span>Balance</span><strong>$10,000</strong></div><div class="stat"><span>Equity</span><strong>$10,000</strong></div><div class="stat"><span>Daily Drawdown</span><strong>0.00%</strong></div><div class="stat"><span>Max Drawdown</span><strong>0.00%</strong></div></div>
