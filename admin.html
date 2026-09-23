@@ -8,6 +8,7 @@
 <div class="admin-grid" style="margin-top:20px">
 <a class="panel admin-link" href="admin-courses.html"><b>📚 Course Management</b><span>Add, edit, publish/unpublish, price and video.</span></a>
 <a class="panel admin-link" href="admin-payments.html"><b>💳 Payment Verification</b><span>Review UTR, screenshots and grant access.</span></a>
+<a class="panel admin-link" href="admin-payment-settings.html"><b>⚙️ Payment Settings</b><span>Change GPay, PhonePe and QR payment details.</span></a>
 <a class="panel admin-link" href="admin-users.html"><b>👥 User Management</b><span>View users and revoke course access.</span></a>
 <a class="panel admin-link" href="courses.html"><b>🌐 Open Store</b><span>Preview the customer-facing website.</span></a>
 </div>
@@ -15,7 +16,7 @@
 </main>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="firebase-config.js?v=7"></script><script src="app.js?v=11"></script>
+<script src="firebase-config.js?v=7"></script><script src="app.js?v=12"></script>
 <script>
 protectPage("admin");
 ceAuth.onAuthStateChanged(async user=>{
