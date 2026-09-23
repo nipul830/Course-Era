@@ -15,7 +15,8 @@ if "FOREGROUND_SERVICE_MEDIA_PROJECTION" not in text:
         '<manifest',
         1
     )
-    first_close = text.find(">")
+    manifest_start = text.find("<manifest")
+    first_close = text.find(">", manifest_start)
     text = (
         text[:first_close + 1]
         + '\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />'
