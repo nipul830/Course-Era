@@ -708,6 +708,7 @@ async function verifyMeetingSocket(req) {
   const code = meetingRoomId(url.searchParams.get("code") || "");
   const passcode = String(url.searchParams.get("passcode") || "");
   const kind = String(url.searchParams.get("kind") || "participant");
+  const role = String(url.searchParams.get("role") || "participant");
   if (!token || !code) throw new Error("Authentication and meeting code are required");
   initFirebase();
   const user = await admin.auth().verifyIdToken(token);
@@ -715,7 +716,12 @@ async function verifyMeetingSocket(req) {
   const meeting = snap.exists ? snap.data() : {};
   if (meeting.enabled !== true || meetingRoomId(meeting.meetingId) !== code) throw new Error("Meeting is not active");
   if (String(meeting.passcode || "") && String(meeting.passcode) !== passcode) throw new Error("Invalid meeting passcode");
-  return { user, kind: kind === "screen" ? "screen" : "participant" };
+  let meetingRole = "participant";
+  if (role === "host") {
+    const admins = (process.env.ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+    if (user.email && admins.includes(String(user.email).toLowerCase())) meetingRole = "host";
+  }
+  return { user, kind: kind === "screen" ? "screen" : "participant", role: meetingRole };
 }
 
 function activeParticipantCount(room) {
@@ -740,8 +746,9 @@ function broadcastBinary(room, data, exceptId = "") {
 
 meetingWss.on("connection", (ws, req, auth, code) => {
   const room = meetingRooms.get(code) || new Map();
-  const { user, kind } = auth;
+  const { user, kind, role } = auth;
   const isScreen = kind === "screen";
+  const isHost = !isScreen && role === "host";
 
   if (isScreen && [...room.values()].some(x => x.isScreen)) {
     ws.send(JSON.stringify({ type: "error", message: "Another screen is already being shared." }));
@@ -757,7 +764,7 @@ meetingWss.on("connection", (ws, req, auth, code) => {
 
   const id = crypto.randomUUID();
   const name = user.name || user.email?.split("@")[0] || "Participant";
-  room.set(id, { ws, userId: user.uid, name, isScreen });
+  room.set(id, { ws, userId: user.uid, name, isScreen, isHost });
   meetingRooms.set(code, room);
 
   const peers = isScreen
@@ -797,6 +804,27 @@ meetingWss.on("connection", (ws, req, auth, code) => {
 
       if (isScreen && msg.type === "screen-stop") {
         broadcastRoom(room, { type: "screen-stop", id }, id);
+        return;
+      }
+
+      if (msg.type === "camera-request") {
+        const host = [...room.entries()].find(([, info]) => info.isHost && !info.isScreen);
+        if (host && host[1].ws.readyState === WebSocket.OPEN) {
+          host[1].ws.send(JSON.stringify({ type: "camera-request", from: id, fromName: name }));
+        }
+        return;
+      }
+
+      if (msg.type === "camera-response") {
+        if (!isHost) return;
+        const target = room.get(String(msg.to || ""));
+        if (!target || target.isScreen) return;
+        target.ws.send(JSON.stringify({
+          type: "camera-response",
+          approved: msg.approved === true,
+          from: id,
+          fromName: name
+        }));
         return;
       }
 
