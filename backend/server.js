@@ -771,7 +771,7 @@ meetingWss.on("connection", (ws, req, auth, code) => {
     ? []
     : [...room.entries()]
         .filter(([peerId, info]) => peerId !== id && !info.isScreen)
-        .map(([peerId, info]) => ({ id: peerId, name: info.name }));
+        .map(([peerId, info]) => ({ id: peerId, name: info.name, isHost: info.isHost }));
 
   if (isScreen) {
     ws.send(JSON.stringify({ type: "screen-connected", selfId: id }));
@@ -785,7 +785,7 @@ meetingWss.on("connection", (ws, req, auth, code) => {
       screenSharing: [...room.values()].some(x => x.isScreen)
     }));
     broadcastRoom(room, { type: "participant-count", count: activeParticipantCount(room) }, "");
-    broadcastRoom(room, { type: "peer-joined", id, name }, id);
+    broadcastRoom(room, { type: "peer-joined", id, name, isHost }, id);
   }
 
   ws.on("message", (raw, isBinary) => {
