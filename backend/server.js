@@ -4,6 +4,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
 import admin from "firebase-admin";
+import crypto from "node:crypto";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -178,9 +179,15 @@ app.post("/api/payment-settings/qr", requireAuth, requireAdmin, upload.single("q
 
     const path = "payment-settings/qr-" + Date.now() + "-" + req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     const file = bucket.file(path);
-    await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype, cacheControl: "public,max-age=3600" } });
-    await file.makePublic();
-    const qrImageUrl = "https://storage.googleapis.com/" + bucket.name + "/" + encodeURIComponent(path).replace(/%2F/g, "/");
+    const downloadToken = crypto.randomUUID();
+    await file.save(req.file.buffer, {
+      metadata: {
+        contentType: req.file.mimetype,
+        cacheControl: "public,max-age=3600",
+        metadata: { firebaseStorageDownloadTokens: downloadToken }
+      }
+    });
+    const qrImageUrl = "https://firebasestorage.googleapis.com/v0/b/" + encodeURIComponent(bucket.name) + "/o/" + encodeURIComponent(path) + "?alt=media&token=" + encodeURIComponent(downloadToken);
     await db.collection("settings").doc("payment").set({
       qrImageUrl,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
