@@ -1,6 +1,6 @@
 // Course Era Firebase client configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBqrMvKivSvrVEr8hwDpVWg8f3zFfZfZttLVQ",
+  apiKey: "AIzaSyBqrMvKivSvrVEr8hwDpVWg8f3ZfZttLVQ",
   authDomain: "courseera-22425.firebaseapp.com",
   projectId: "courseera-22425",
   storageBucket: "courseera-22425.firebasestorage.app",
