@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: course-era-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: FRONTEND_ORIGIN
+        value: "https://nipul830.github.io"
+      - key: FIREBASE_STORAGE_BUCKET
+        value: "courseera-22425.firebasestorage.app"
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: "/etc/secrets/firebase-service-account.json"
