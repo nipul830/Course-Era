@@ -1,6 +1,17 @@
 const API_BASE='https://course-era.onrender.com';
 let courses=JSON.parse(localStorage.getItem('ce_courses')||'null')||[{id:'trading-foundation',title:'Trading Foundation',price:4999,desc:'Market structure, risk management, chart reading and trading psychology.',icon:'📈'},{id:'price-action',title:'Price Action Mastery',price:6999,desc:'Structured price-action concepts, setups and trade planning.',icon:'🕯️'},{id:'indicator-pro',title:'Indicator Pro',price:2999,desc:'Understand indicators, confirmation and practical chart workflows.',icon:'⚡'}];
 
+function goToCourses(e){
+  if(e)e.preventDefault();
+  if(typeof ceAuth==='undefined'){location.href='login.html?next=courses';return;}
+  ceAuth.onAuthStateChanged(function(user){location.href=user?'courses.html':'login.html?next=courses';});
+}
+function protectPage(next='courses'){
+  if(typeof ceAuth==='undefined'){location.replace('login.html?next='+encodeURIComponent(next));return;}
+  ceAuth.onAuthStateChanged(function(user){
+    if(!user) location.replace('login.html?next='+encodeURIComponent(next));
+  });
+}
 async function getAuthToken(){try{if(typeof ceAuth!=='undefined'&&ceAuth.currentUser)return await ceAuth.currentUser.getIdToken();}catch(e){}return null}
 async function apiFetch(path,options={}){const headers=new Headers(options.headers||{});const token=await getAuthToken();if(token)headers.set('Authorization','Bearer '+token);const res=await fetch(API_BASE+path,{...options,headers});let data={};try{data=await res.json()}catch(e){}if(!res.ok)throw new Error(data.error||'Server request failed');return data}
 async function loadCourses(){try{const data=await apiFetch('/api/courses');if(Array.isArray(data.courses)&&data.courses.length){courses=data.courses;saveCourses();return courses}}catch(e){console.warn('Backend courses unavailable:',e.message)}return courses}
