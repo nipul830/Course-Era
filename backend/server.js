@@ -107,6 +107,10 @@ function positiveAmount(value) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+app.get("/", (req, res) => {
+  res.status(200).send("Course Era API is running. Use /health to check status.");
+});
+
 app.get("/health", (req, res) => {
   res.json({
     ok: true,
