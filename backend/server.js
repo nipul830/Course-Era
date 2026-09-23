@@ -5,8 +5,13 @@ import rateLimit from "express-rate-limit";
 import multer from "multer";
 import admin from "firebase-admin";
 import crypto from "node:crypto";
+import http from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
 
 const app = express();
+const httpServer = http.createServer(app);
+const meetingWss = new WebSocketServer({ noServer: true });
+const meetingRooms = new Map();
 const PORT = Number(process.env.PORT || 3000);
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -688,6 +693,92 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log("Course Era API running on port " + PORT);
+function meetingRoomId(value) {
+  return String(value || "").trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80);
+}
+
+async function verifyMeetingSocket(req) {
+  const url = new URL(req.url || "", "http://localhost");
+  const token = url.searchParams.get("token") || "";
+  const code = meetingRoomId(url.searchParams.get("code") || "");
+  const passcode = String(url.searchParams.get("passcode") || "");
+  if (!token || !code) throw new Error("Authentication and meeting code are required");
+  initFirebase();
+  const user = await admin.auth().verifyIdToken(token);
+  const snap = await db.collection("settings").doc("meeting").get();
+  const meeting = snap.exists ? snap.data() : {};
+  if (meeting.enabled !== true || meetingRoomId(meeting.meetingId) !== code) throw new Error("Meeting is not active");
+  if (String(meeting.passcode || "") && String(meeting.passcode) !== passcode) throw new Error("Invalid meeting passcode");
+  return user;
+}
+
+function broadcastRoom(room, payload, exceptId = "") {
+  for (const [id, client] of room) {
+    if (id === exceptId) continue;
+    if (client.ws.readyState === WebSocket.OPEN) client.ws.send(JSON.stringify(payload));
+  }
+}
+
+meetingWss.on("connection", (ws, req, user, code) => {
+  const room = meetingRooms.get(code) || new Map();
+  if (room.size >= 12) {
+    ws.send(JSON.stringify({ type: "error", message: "Meeting is full. Maximum 12 participants." }));
+    ws.close();
+    return;
+  }
+
+  const id = crypto.randomUUID();
+  room.set(id, { ws, userId: user.uid, name: user.name || user.email?.split("@")[0] || "Participant" });
+  meetingRooms.set(code, room);
+
+  const peers = [...room.entries()].filter(([peerId]) => peerId !== id).map(([peerId, info]) => ({
+    id: peerId,
+    name: info.name
+  }));
+  ws.send(JSON.stringify({ type: "joined", selfId: id, peers, count: room.size }));
+  broadcastRoom(room, { type: "participant-count", count: room.size }, "");
+  broadcastRoom(room, { type: "peer-joined", id, name: room.get(id).name }, id);
+
+  ws.on("message", raw => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      const target = room.get(String(msg.to || ""));
+      if (!target || !["offer", "answer", "ice"].includes(msg.type)) return;
+      target.ws.send(JSON.stringify({ ...msg, from: id, fromName: room.get(id).name }));
+    } catch {}
+  });
+
+  const cleanup = () => {
+    if (!room.has(id)) return;
+    room.delete(id);
+    if (room.size === 0) meetingRooms.delete(code);
+    else {
+      broadcastRoom(room, { type: "peer-left", id });
+      broadcastRoom(room, { type: "participant-count", count: room.size });
+    }
+  };
+  ws.on("close", cleanup);
+  ws.on("error", cleanup);
+});
+
+httpServer.on("upgrade", async (req, socket, head) => {
+  try {
+    const url = new URL(req.url || "", "http://localhost");
+    if (url.pathname !== "/ws/meeting") {
+      socket.destroy();
+      return;
+    }
+    const code = meetingRoomId(url.searchParams.get("code") || "");
+    const user = await verifyMeetingSocket(req);
+    meetingWss.handleUpgrade(req, socket, head, ws => {
+      meetingWss.emit("connection", ws, req, user, code);
+    });
+  } catch (e) {
+    try { socket.write("HTTP/1.1 401 Unauthorized\\r\\n\\r\\n"); } catch {}
+    socket.destroy();
+  }
+});
+
+httpServer.listen(PORT, () => {
+  console.log("Course Era API + meeting server running on port " + PORT);
 });
