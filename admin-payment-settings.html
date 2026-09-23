@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Settings — Course Era</title><link rel="stylesheet" href="styles.css"></head>
+<body><header class="nav"><a class="brand" href="index.html">Course<span>Era</span></a><nav><a href="admin.html">Dashboard</a></nav></header>
+<main class="container narrow">
+<div class="page-title"><p class="eyebrow">ADMIN / PAYMENT</p><h1>Payment Settings</h1><p class="muted">Change the UPI IDs used by the customer payment page. QR is generated from the QR UPI ID.</p></div>
+<form class="panel form-grid" onsubmit="saveSettings(event)">
+<label>Google Pay UPI ID<input id="gpay" required placeholder="example@bank"></label>
+<label>PhonePe UPI ID<input id="phonepe" required placeholder="example@bank"></label>
+<label>QR UPI ID<input id="qrupi" required placeholder="example@bank"></label>
+<label>Merchant / Name<input id="merchant" required></label>
+<label>USDT Wallet (optional)<input id="usdt" placeholder="TRC20/ERC20 wallet address"></label>
+<div class="actions"><button class="btn primary" type="submit">Save Payment Settings</button><button class="btn ghost" type="button" onclick="loadSettings()">Reset</button></div>
+<p id="msg" class="msg"></p>
+</form>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=7"></script><script src="app.js?v=12"></script>
+<script>
+protectPage("admin-payment-settings");
+async function loadSettings(){
+ try{const s=(await apiFetch('/api/payment-settings')).settings||{};gpay.value=s.googlePayUpi||'';phonepe.value=s.phonePeUpi||'';qrupi.value=s.qrUpi||'';merchant.value=s.merchantName||'Course Era';usdt.value=s.usdtWallet||'';}
+ catch(e){msg.textContent=e.message}
+}
+async function saveSettings(e){
+ e.preventDefault();msg.textContent='Saving…';
+ try{await apiFetch('/api/payment-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({googlePayUpi:gpay.value.trim(),phonePeUpi:phonepe.value.trim(),qrUpi:qrupi.value.trim(),merchantName:merchant.value.trim(),usdtWallet:usdt.value.trim()})});msg.textContent='Payment settings saved successfully.';}
+ catch(e){msg.textContent=e.message}
+}
+ceAuth.onAuthStateChanged(u=>{if(u)loadSettings()});
+</script></body></html>
