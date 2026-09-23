@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live Meeting — Course Era</title><link rel="stylesheet" href="styles.css"></head><body>
+<header class="nav"><a class="brand" href="index.html">Course<span>Era</span></a><nav><a href="courses.html">Courses</a><a href="my-courses.html">My Courses</a><a class="active" href="zoom-meeting.html">Live Meeting</a><a href="profile.html">Profile</a></nav></header>
+<main class="container narrow"><div class="page-title"><p class="eyebrow">LIVE CLASS</p><h1>Zoom Meeting</h1><p class="muted">Join the latest Course Era live class.</p></div>
+<div id="meeting" class="panel empty">Loading meeting details…</div></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script><script src="app.js?v=14"></script>
+<script>
+protectPage("zoom-meeting");
+ceAuth.onAuthStateChanged(async u=>{if(!u)return;try{const d=await apiFetch('/api/meeting');const m=d.meeting||{};if(!m.enabled||!m.joinUrl){meeting.innerHTML='<div class="empty"><h2>No live meeting scheduled</h2><p class="muted">The next Zoom class will appear here when it is scheduled.</p></div>';return}meeting.innerHTML='<div><p class="eyebrow">ZOOM LIVE</p><h2>'+esc(m.title)+'</h2>'+(m.date?'<p class="muted">📅 '+esc(m.date)+(m.time?' · ⏰ '+esc(m.time):'')+'</p>':'')+(m.meetingId?'<p>Meeting ID: <b>'+esc(m.meetingId)+'</b></p>':'')+(m.passcode?'<p>Passcode: <b>'+esc(m.passcode)+'</b></p>':'')+'<div class="actions"><a class="btn primary full" target="_blank" rel="noopener" href="'+safeUrl(m.joinUrl)+'">Join Zoom Meeting</a></div></div>';}catch(e){meeting.innerHTML='<p class="msg">'+esc(e.message)+'</p>'}});
+function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function safeUrl(v){try{const u=new URL(v);return /^https?:$/.test(u.protocol)?u.href:'#'}catch{return '#'}}
+</script></body></html>
