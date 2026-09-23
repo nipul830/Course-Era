@@ -702,6 +702,7 @@ async function verifyMeetingSocket(req) {
   const token = url.searchParams.get("token") || "";
   const code = meetingRoomId(url.searchParams.get("code") || "");
   const passcode = String(url.searchParams.get("passcode") || "");
+  const kind = String(url.searchParams.get("kind") || "participant");
   if (!token || !code) throw new Error("Authentication and meeting code are required");
   initFirebase();
   const user = await admin.auth().verifyIdToken(token);
@@ -709,7 +710,13 @@ async function verifyMeetingSocket(req) {
   const meeting = snap.exists ? snap.data() : {};
   if (meeting.enabled !== true || meetingRoomId(meeting.meetingId) !== code) throw new Error("Meeting is not active");
   if (String(meeting.passcode || "") && String(meeting.passcode) !== passcode) throw new Error("Invalid meeting passcode");
-  return user;
+  return { user, kind: kind === "screen" ? "screen" : "participant" };
+}
+
+function activeParticipantCount(room) {
+  let count = 0;
+  for (const info of room.values()) if (!info.isScreen) count++;
+  return count;
 }
 
 function broadcastRoom(room, payload, exceptId = "") {
@@ -719,44 +726,94 @@ function broadcastRoom(room, payload, exceptId = "") {
   }
 }
 
-meetingWss.on("connection", (ws, req, user, code) => {
+function broadcastBinary(room, data, exceptId = "") {
+  for (const [id, client] of room) {
+    if (id === exceptId || client.isScreen) continue;
+    if (client.ws.readyState === WebSocket.OPEN) client.ws.send(data, { binary: true });
+  }
+}
+
+meetingWss.on("connection", (ws, req, auth, code) => {
   const room = meetingRooms.get(code) || new Map();
-  if (room.size >= 12) {
+  const { user, kind } = auth;
+  const isScreen = kind === "screen";
+
+  if (isScreen && [...room.values()].some(x => x.isScreen)) {
+    ws.send(JSON.stringify({ type: "error", message: "Another screen is already being shared." }));
+    ws.close();
+    return;
+  }
+
+  if (!isScreen && activeParticipantCount(room) >= 12) {
     ws.send(JSON.stringify({ type: "error", message: "Meeting is full. Maximum 12 participants." }));
     ws.close();
     return;
   }
 
   const id = crypto.randomUUID();
-  room.set(id, { ws, userId: user.uid, name: user.name || user.email?.split("@")[0] || "Participant" });
+  const name = user.name || user.email?.split("@")[0] || "Participant";
+  room.set(id, { ws, userId: user.uid, name, isScreen });
   meetingRooms.set(code, room);
 
-  const peers = [...room.entries()].filter(([peerId]) => peerId !== id).map(([peerId, info]) => ({
-    id: peerId,
-    name: info.name
-  }));
-  ws.send(JSON.stringify({ type: "joined", selfId: id, peers, count: room.size }));
-  broadcastRoom(room, { type: "participant-count", count: room.size }, "");
-  broadcastRoom(room, { type: "peer-joined", id, name: room.get(id).name }, id);
+  const peers = isScreen
+    ? []
+    : [...room.entries()]
+        .filter(([peerId, info]) => peerId !== id && !info.isScreen)
+        .map(([peerId, info]) => ({ id: peerId, name: info.name }));
 
-  ws.on("message", raw => {
+  if (isScreen) {
+    ws.send(JSON.stringify({ type: "screen-connected", selfId: id }));
+    broadcastRoom(room, { type: "screen-start", id, name: name + " • Screen" }, id);
+  } else {
+    ws.send(JSON.stringify({
+      type: "joined",
+      selfId: id,
+      peers,
+      count: activeParticipantCount(room),
+      screenSharing: [...room.values()].some(x => x.isScreen)
+    }));
+    broadcastRoom(room, { type: "participant-count", count: activeParticipantCount(room) }, "");
+    broadcastRoom(room, { type: "peer-joined", id, name }, id);
+  }
+
+  ws.on("message", (raw, isBinary) => {
+    if (isBinary) {
+      if (isScreen) broadcastBinary(room, raw, id);
+      return;
+    }
+
     try {
       const msg = JSON.parse(raw.toString());
+
+      if (isScreen && msg.type === "screen-start") {
+        broadcastRoom(room, { type: "screen-start", id, name: name + " • Screen" }, id);
+        return;
+      }
+
+      if (isScreen && msg.type === "screen-stop") {
+        broadcastRoom(room, { type: "screen-stop", id }, id);
+        return;
+      }
+
       const target = room.get(String(msg.to || ""));
-      if (!target || !["offer", "answer", "ice"].includes(msg.type)) return;
-      target.ws.send(JSON.stringify({ ...msg, from: id, fromName: room.get(id).name }));
+      if (!target || target.isScreen || !["offer", "answer", "ice"].includes(msg.type)) return;
+      target.ws.send(JSON.stringify({ ...msg, from: id, fromName: name }));
     } catch {}
   });
 
   const cleanup = () => {
     if (!room.has(id)) return;
     room.delete(id);
-    if (room.size === 0) meetingRooms.delete(code);
-    else {
+    if (room.size === 0) {
+      meetingRooms.delete(code);
+    } else if (isScreen) {
+      broadcastRoom(room, { type: "screen-stop", id });
+    } else {
       broadcastRoom(room, { type: "peer-left", id });
-      broadcastRoom(room, { type: "participant-count", count: room.size });
+      broadcastRoom(room, { type: "participant-count", count: activeParticipantCount(room) });
     }
   };
+
   ws.on("close", cleanup);
   ws.on("error", cleanup);
 });
@@ -769,9 +826,9 @@ httpServer.on("upgrade", async (req, socket, head) => {
       return;
     }
     const code = meetingRoomId(url.searchParams.get("code") || "");
-    const user = await verifyMeetingSocket(req);
+    const auth = await verifyMeetingSocket(req);
     meetingWss.handleUpgrade(req, socket, head, ws => {
-      meetingWss.emit("connection", ws, req, user, code);
+      meetingWss.emit("connection", ws, req, auth, code);
     });
   } catch (e) {
     try { socket.write("HTTP/1.1 401 Unauthorized\\r\\n\\r\\n"); } catch {}
