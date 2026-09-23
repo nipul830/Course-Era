@@ -344,6 +344,17 @@ app.get("/api/payments/my", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/admin/courses", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("courses").get();
+    const courses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json({ courses });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load admin courses", detail: e.message });
+  }
+});
+
 app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
   try {
     initFirebase();
