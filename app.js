@@ -63,6 +63,8 @@ function enhancePaymentUI(){
   });
   const paid=box.querySelector('.payment-next a');
   if(paid){paid.removeAttribute('href');paid.className='btn primary';paid.textContent='I Have Paid →';paid.onclick=function(e){e.preventDefault();openPaymentPopup('verify',Number(c.price),c.title)};}
+  const inlinePaid=document.getElementById('inlinePaidBtn');
+  if(inlinePaid) inlinePaid.onclick=function(){openPaymentPopup('verify',Number(c.price),c.title)};
   const existing=localStorage.getItem('ce_payment_timer'); if(existing) showPaymentTimer();
 }
 function openPaymentPopup(mode,amount,title){
