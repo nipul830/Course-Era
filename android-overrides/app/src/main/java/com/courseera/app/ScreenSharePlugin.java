@@ -3,6 +3,7 @@ package com.courseera.app;
 import android.app.Activity;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
+import android.media.AudioManager;
 import android.Manifest;
 
 import com.getcapacitor.annotation.ActivityCallback;
@@ -25,6 +26,44 @@ import androidx.activity.result.ActivityResult;
 )
 public class ScreenSharePlugin extends Plugin {
     private static final String SERVICE_ACTION_STOP = "com.courseera.app.STOP_SCREEN_SHARE";
+
+    @PluginMethod
+    public void configureAudio(PluginCall call) {
+        try {
+            AudioManager audio = (AudioManager) getContext().getSystemService(Activity.AUDIO_SERVICE);
+            if (audio != null) {
+                audio.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                audio.setMicrophoneMute(false);
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    android.media.AudioDeviceInfo speaker = null;
+                    for (android.media.AudioDeviceInfo d : audio.getAvailableCommunicationDevices()) {
+                        if (d.getType() == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                            speaker = d;
+                            break;
+                        }
+                    }
+                    if (speaker != null) audio.setCommunicationDevice(speaker);
+                }
+                audio.setSpeakerphoneOn(true);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.resolve();
+        }
+    }
+
+    @PluginMethod
+    public void restoreAudio(PluginCall call) {
+        try {
+            AudioManager audio = (AudioManager) getContext().getSystemService(Activity.AUDIO_SERVICE);
+            if (audio != null) {
+                if (android.os.Build.VERSION.SDK_INT >= 31) audio.clearCommunicationDevice();
+                audio.setSpeakerphoneOn(false);
+                audio.setMode(AudioManager.MODE_NORMAL);
+            }
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
 
     @PluginMethod
     public void start(PluginCall call) {
