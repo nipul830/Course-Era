@@ -17,3 +17,8 @@
 .video-tile video{width:100%;height:100%;object-fit:cover;background:#020504}
 .video-tile span{position:absolute;left:10px;bottom:10px;background:#000b;padding:6px 9px;border-radius:8px;font-size:12px}
 @media(max-width:600px){.video-grid{grid-template-columns:1fr}.meeting-toolbar{align-items:flex-start}.meeting-actions{width:100%}.meeting-actions .btn{flex:1}.people{flex:0 0 auto}}
+
+.meeting-room:fullscreen{width:100vw;height:100vh;margin:0;border-radius:0;padding:12px;background:#020604}
+.meeting-room:fullscreen .video-grid{height:calc(100vh - 110px);grid-auto-rows:1fr}
+.meeting-room:fullscreen .video-tile{aspect-ratio:auto;min-height:0}
+@media(max-width:600px){.meeting-room:fullscreen .video-grid{height:calc(100vh - 150px)}}
