@@ -5,11 +5,11 @@
 body{margin:0;background:radial-gradient(circle at 80% 0,#171208 0,transparent 35%),radial-gradient(circle at 10% 30%,#0d0b07 0,transparent 30%),var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif}
 a{text-decoration:none;color:inherit}
 .nav{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;border-bottom:1px solid var(--line);background:#000000f5;backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
-.brand{display:flex;align-items:center;gap:9px;font-size:23px;font-weight:800;color:var(--accent2)}
+.brand{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;font-size:23px;font-weight:800;color:#fff}
 .brand-mark{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 9px #d6b35a22)}
 .brand-mark svg{width:100%;height:100%;display:block}
-.brand span:last-child{white-space:nowrap}
-nav{display:flex;align-items:center;gap:18px;color:var(--muted);font-size:13px}
+.brand span:last-child{white-space:nowrap;color:#fff;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
+nav{margin-left:auto;display:flex;align-items:center;gap:18px;color:var(--muted);font-size:13px}
 nav a:hover{color:var(--accent2)}.linkbtn{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit}
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:10px;border:1px solid var(--line);font-weight:800;cursor:pointer}.btn.small{padding:9px 14px}
 .primary{background:var(--accent);color:#021018;border-color:var(--accent);box-shadow:0 0 22px #d6b35a22}.ghost{background:#090806;color:var(--accent2)}.full{width:100%}
