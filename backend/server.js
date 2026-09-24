@@ -334,6 +334,109 @@ app.put("/api/support-settings", requireAuth, requireAdmin, async (req, res) => 
   }
 });
 
+const DEFAULT_CHALLENGES = [
+  { id:"instant-1000", model:"Instant", size:"$1K", accountSize:1000, price:8, dailyDrawdown:"3%", evaluation:"None" },
+  { id:"instant-2500", model:"Instant", size:"$2.5K", accountSize:2500, price:15, dailyDrawdown:"3%", evaluation:"None" },
+  { id:"one-5000", model:"1 Step", size:"$5K", accountSize:5000, price:40, dailyDrawdown:"4%", totalDrawdown:"8%", profitTarget:"10%" },
+  { id:"one-10000", model:"1 Step", size:"$10K", accountSize:10000, price:75, dailyDrawdown:"4%", totalDrawdown:"8%", profitTarget:"10%" },
+  { id:"one-25000", model:"1 Step", size:"$25K", accountSize:25000, price:150, dailyDrawdown:"4%", totalDrawdown:"8%", profitTarget:"10%" },
+  { id:"two-5000", model:"2 Step", size:"$5K", accountSize:5000, price:25, dailyDrawdown:"4%", totalDrawdown:"8%", phase1Profit:"8%", phase2Profit:"6%" },
+  { id:"two-10000", model:"2 Step", size:"$10K", accountSize:10000, price:45, dailyDrawdown:"4%", totalDrawdown:"8%", phase1Profit:"8%", phase2Profit:"6%" },
+  { id:"two-25000", model:"2 Step", size:"$25K", accountSize:25000, price:110, dailyDrawdown:"4%", totalDrawdown:"8%", phase1Profit:"8%", phase2Profit:"6%" },
+  { id:"two-50000", model:"2 Step", size:"$50K", accountSize:50000, price:200, dailyDrawdown:"4%", totalDrawdown:"8%", phase1Profit:"8%", phase2Profit:"6%" },
+  { id:"two-100000", model:"2 Step", size:"$100K", accountSize:100000, price:350, dailyDrawdown:"4%", totalDrawdown:"8%", phase1Profit:"8%", phase2Profit:"6%" }
+];
+
+async function getChallengeCatalog() {
+  initFirebase();
+  const snap = await db.collection("settings").doc("challengeCatalog").get();
+  const saved = snap.exists && Array.isArray(snap.data()?.items) ? snap.data().items : null;
+  return saved && saved.length ? saved : DEFAULT_CHALLENGES;
+}
+
+app.get("/api/challenges", async (req, res) => {
+  try {
+    const challenges = await getChallengeCatalog();
+    res.json({ challenges });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load challenge catalog" });
+  }
+});
+
+app.put("/api/challenges", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    if (!Array.isArray(req.body.challenges) || !req.body.challenges.length) {
+      return res.status(400).json({ error: "Challenge catalog is required" });
+    }
+    const items = req.body.challenges.map(x => ({
+      id: cleanId(x.id), model: String(x.model || "").trim(), size: String(x.size || "").trim(),
+      accountSize: Number(x.accountSize), price: Number(x.price),
+      ...(x.dailyDrawdown ? { dailyDrawdown:String(x.dailyDrawdown) } : {}),
+      ...(x.totalDrawdown ? { totalDrawdown:String(x.totalDrawdown) } : {}),
+      ...(x.profitTarget ? { profitTarget:String(x.profitTarget) } : {}),
+      ...(x.phase1Profit ? { phase1Profit:String(x.phase1Profit) } : {}),
+      ...(x.phase2Profit ? { phase2Profit:String(x.phase2Profit) } : {}),
+      ...(x.evaluation ? { evaluation:String(x.evaluation) } : {})
+    })).filter(x => x.id && x.model && x.size && Number.isFinite(x.accountSize) && x.accountSize > 0 && Number.isFinite(x.price) && x.price > 0);
+    if (!items.length) return res.status(400).json({ error: "No valid challenge items" });
+    await db.collection("settings").doc("challengeCatalog").set({
+      items, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy:req.user.uid
+    });
+    res.json({ challenges:items });
+  } catch (e) {
+    res.status(500).json({ error:"Could not update challenge catalog" });
+  }
+});
+
+app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), async (req, res) => {
+  try {
+    initFirebase();
+    const challengeId = String(req.body.challengeId || "").trim();
+    const transactionId = String(req.body.transactionId || "").trim();
+    const method = String(req.body.method || "UPI").trim();
+    const amount = positiveAmount(req.body.amount);
+    if (!challengeId || !transactionId || amount === null) return res.status(400).json({ error:"challengeId, transactionId and valid amount are required" });
+    const catalog = await getChallengeCatalog();
+    const challenge = catalog.find(x => x.id === challengeId);
+    if (!challenge) return res.status(404).json({ error:"Challenge not found" });
+    if (Math.abs(Number(challenge.price) - amount) > 0.01) return res.status(400).json({ error:"Payment amount does not match challenge price" });
+
+    const duplicate = await db.collection("payments").where("transactionId","==",transactionId).limit(1).get();
+    if (!duplicate.empty) return res.status(409).json({ error:"This transaction/reference ID was already submitted" });
+
+    let screenshotUrl="", screenshotPath="";
+    if (req.file && bucket) {
+      const safe=req.file.originalname.replace(/[^a-zA-Z0-9._-]/g,"_");
+      screenshotPath="payment-proofs/"+req.user.uid+"/"+Date.now()+"-"+safe;
+      const file=bucket.file(screenshotPath);
+      await file.save(req.file.buffer,{metadata:{contentType:req.file.mimetype}});
+      const [url]=await file.getSignedUrl({action:"read",expires:Date.now()+7*24*60*60*1000});
+      screenshotUrl=url;
+    }
+    const ref=db.collection("payments").doc();
+    await ref.set({
+      userId:req.user.uid,userEmail:req.user.email||"",type:"challenge",
+      challengeId,challengeModel:challenge.model,challengeSize:challenge.size,
+      accountSize:Number(challenge.accountSize),courseId:"",courseTitle:"Aura Farming "+challenge.model+" "+challenge.size,
+      method,transactionId,amount,screenshotUrl,screenshotPath,status:"pending",
+      submittedAt:admin.firestore.FieldValue.serverTimestamp(),reviewedAt:null,reviewedBy:null
+    });
+    res.status(201).json({id:ref.id,status:"pending",message:"Challenge payment submitted for verification"});
+  } catch(e) {
+    res.status(500).json({error:"Could not submit challenge payment",detail:e.message});
+  }
+});
+
+app.get("/api/challenge-payments/my", requireAuth, async (req,res)=>{
+  try {
+    initFirebase();
+    const snap=await db.collection("payments").where("userId","==",req.user.uid).get();
+    const payments=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.type==="challenge");
+    res.json({payments});
+  } catch(e){res.status(500).json({error:"Could not load challenge payments"});}
+});
+
 app.get("/api/payment-settings", requireAuth, async (req, res) => {
   try {
     initFirebase();
@@ -796,9 +899,13 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
     }
 
     if (status === "approved") {
-      const course = await db.collection("courses").doc(payment.courseId).get();
-      if (!course.exists || course.data().published !== true) {
-        return res.status(400).json({ error: "Course is no longer available" });
+      if (payment.type === "challenge") {
+        const catalog = await getChallengeCatalog();
+        const challenge = catalog.find(x => x.id === payment.challengeId);
+        if (!challenge) return res.status(400).json({ error: "Challenge is no longer available" });
+      } else {
+        const course = await db.collection("courses").doc(payment.courseId).get();
+        if (!course.exists || course.data().published !== true) return res.status(400).json({ error: "Course is no longer available" });
       }
     }
 
@@ -808,16 +915,27 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
       reviewedBy: req.user.uid
     });
 
-    if (status === "approved") {
-      await db.collection("users")
-        .doc(payment.userId)
-        .collection("courses")
-        .doc(payment.courseId)
-        .set({
-          courseId: payment.courseId,
-          paymentId: req.params.id,
-          grantedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+    if (status === "approved" && payment.type === "challenge") {
+      const accountRef = db.collection("users").doc(payment.userId).collection("trading").doc("account");
+      const catalog = await getChallengeCatalog();
+      const challenge = catalog.find(x => x.id === payment.challengeId);
+      const accountId = "AF-ACC-" + new Date().getFullYear() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+      await accountRef.set({
+        accountId, startingBalance:Number(challenge.accountSize), balance:Number(challenge.accountSize),
+        equity:Number(challenge.accountSize), pnl:0, currency:"USD",
+        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active",
+        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
+      });
+      await db.collection("users").doc(payment.userId).collection("challengeAccounts").doc(accountId).set({
+        accountId, paymentId:req.params.id, challengeId:challenge.id, model:challenge.model, size:challenge.size,
+        accountSize:Number(challenge.accountSize), status:"active", createdAt:admin.firestore.FieldValue.serverTimestamp()
+      });
+      await ref.update({accountId});
+    } else if (status === "approved") {
+      await db.collection("users").doc(payment.userId).collection("courses").doc(payment.courseId).set({
+        courseId: payment.courseId, paymentId: req.params.id, grantedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
     }
 
     res.json({ message: "Payment " + status });
@@ -837,7 +955,7 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
       const account = existing.data() || {};
       return res.json({
         account: {
-          id: "account",
+          id: account.accountId || "account",
           startingBalance: Number(account.startingBalance || 0),
           balance: Number(account.balance ?? account.startingBalance ?? 0),
           equity: Number(account.equity ?? account.balance ?? account.startingBalance ?? 0),
@@ -896,7 +1014,7 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
 
     res.json({
       account: {
-        id: "account",
+        id: account.accountId || "account",
         startingBalance,
         balance: startingBalance,
         equity: startingBalance,
@@ -912,7 +1030,7 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
       const account = snap.data() || {};
       return res.json({
         account: {
-          id: "account",
+          id: account.accountId || "account",
           startingBalance: Number(account.startingBalance || 0),
           balance: Number(account.balance ?? account.startingBalance ?? 0),
           equity: Number(account.equity ?? account.balance ?? account.startingBalance ?? 0),
@@ -957,7 +1075,7 @@ app.post("/api/trading-account/adjust", requireAuth, async (req, res) => {
     const a = snap.data() || {};
     res.json({
       account: {
-        id: "account",
+        id: a.accountId || "account",
         startingBalance: Number(a.startingBalance || 0),
         balance: Number(a.balance ?? 0),
         equity: Number(a.equity ?? a.balance ?? 0),
