@@ -2,6 +2,35 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Competition — Aura Farming</title><link rel="stylesheet" href="aura.css"><style>
 .comp-page{max-width:1100px;margin:auto;padding:55px 6% 80px}.comp-head{text-align:center;margin-bottom:30px}.comp-head h1{font-size:48px;margin:10px 0;color:var(--text)}.comp-head p{color:var(--muted);line-height:1.7}.prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0}.prize{background:#060606;border:1px solid var(--line);border-radius:18px;padding:22px;text-align:center}.prize h2{color:var(--accent2);margin:8px 0}.prize b{color:var(--accent)}.table-wrap{background:#050505;border:1px solid var(--line);border-radius:18px;padding:20px;overflow:auto}.comp-table{width:100%;min-width:600px;border-collapse:collapse}.comp-table th,.comp-table td{padding:13px 12px;border-bottom:1px solid #211b10;text-align:left}.comp-table th{color:var(--accent);font-size:12px;text-transform:uppercase}.comp-table td{color:#f1d98a}.comp-table td:last-child{text-align:right;color:var(--accent)}@media(max-width:760px){.comp-page{padding:35px 4% 60px}.comp-head h1{font-size:36px}.prizes{grid-template-columns:1fr}.table-wrap{padding:12px}}
 </style></head><body>
-<header class="nav"><button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button><div class="side-menu" id="sideMenu"><a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="transparency.html">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="competition.html">Competition</a><a href="terminal.html">Terminal</a><a href="affiliate.html">Affiliate</a><a href="index.html#faq">Help</a></div><div class="menu-backdrop" id="menuBackdrop"></div><a class="brand" href="index.html">Aura Farming</a><nav class="top-links"><a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="transparency.html">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="competition.html">Competition</a><a href="terminal.html">Terminal</a><a href="affiliate.html">Affiliate</a><a href="index.html#faq">Help</a></nav><div class="auth-nav"><a class="btn primary small" href="login.html">Login</a></div></header>
-<main class="comp-page"><section class="comp-head"><p class="eyebrow">AURA FARMING</p><h1>Competition</h1><p>Top 100 simulated traders compete for account prizes.</p></section><section class="prizes"><article class="prize"><div>🥇 1ST PRIZE</div><h2>$2.5K Instant Account</h2><b>Instant Funding</b></article><article class="prize"><div>🥈 2ND PRIZE</div><h2>1 Step Account</h2><b>Challenge Account</b></article><article class="prize"><div>🥉 3RD–7TH</div><h2>2 Step $5K Account</h2><b>Each qualifying rank</b></article></section><section class="table-wrap"><table class="comp-table"><thead><tr><th>Rank</th><th>Trader</th><th>Prize</th></tr></thead><tbody id="competitionList"></tbody></table></section></main>
+<header class="nav"><button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button><div class="side-menu" id="sideMenu"><a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="transparency.html">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="competition.html">Competition</a><a href="terminal.html">Terminal</a><a href="affiliate.html">Affiliate</a><a href="index.html#faq">Help</a></div><div class="menu-backdrop" id="menuBackdrop"></div><a class="brand" href="index.html">Aura Farming</a><nav class="top-links"><a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="transparency.html">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="competition.html">Competition</a><a href="terminal.html">Terminal</a><a href="affiliate.html">Affiliate</a><a href="index.html#faq">Help</a></nav><div class="auth-nav"></div></header>
+<main class="comp-page"><section class="comp-head"><p class="eyebrow">AURA FARMING</p><h1>Competition</h1><p>Top 100 simulated traders compete for account prizes.</p><button id="joinCompetition" class="btn primary" style="margin-top:20px">Join Competition</button><p id="joinStatus" class="muted" style="margin-top:12px"></p></section><section class="prizes"><article class="prize"><div>🥇 1ST PRIZE</div><h2>$2.5K Instant Account</h2><b>Instant Funding</b></article><article class="prize"><div>🥈 2ND PRIZE</div><h2>1 Step Account</h2><b>Challenge Account</b></article><article class="prize"><div>🥉 3RD–7TH</div><h2>2 Step $5K Account</h2><b>Each qualifying rank</b></article></section><section class="table-wrap"><table class="comp-table"><thead><tr><th>Rank</th><th>Trader</th><th>Prize</th></tr></thead><tbody id="competitionList"></tbody></table></section></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=6"></script>
+<script>
+var joinBtn=document.getElementById('joinCompetition'),joinStatus=document.getElementById('joinStatus');
+async function loadCompetitionEntry(){
+  if(!ceAuth.currentUser)return;
+  try{
+    var token=await ceAuth.currentUser.getIdToken();
+    var res=await fetch('https://course-era.onrender.com/api/competition/entry',{headers:{Authorization:'Bearer '+token}});
+    var d=await res.json();
+    if(d.joined){joinBtn.textContent='Joined';joinBtn.disabled=true;joinStatus.textContent='Your Competition ID: '+d.competitionId;}
+  }catch(e){}
+}
+joinBtn.addEventListener('click',async function(){
+  var user=ceAuth.currentUser;
+  if(!user){location.href='login.html?next=competition';return}
+  joinBtn.disabled=true;joinBtn.textContent='Joining…';joinStatus.textContent='';
+  try{
+    var token=await user.getIdToken();
+    var res=await fetch('https://course-era.onrender.com/api/competition/join',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'}});
+    var d=await res.json();
+    if(!res.ok)throw new Error(d.error||'Could not join competition');
+    joinBtn.textContent='Joined';
+    joinStatus.textContent='Your Competition ID: '+d.competitionId;
+  }catch(e){joinBtn.disabled=false;joinBtn.textContent='Join Competition';joinStatus.textContent=e.message}
+});
+ceAuth.onAuthStateChanged(loadCompetitionEntry);
+</script>
 <script>var l=document.getElementById('competitionList'),r='';for(var i=1;i<=100;i++){var p=i===1?'$2.5K Instant Account':i===2?'1 Step Account':i<=7?'2 Step $5K Account':'—';r+='<tr><td>#'+i+'</td><td>Trader #'+String(i).padStart(3,'0')+'</td><td>'+p+'</td></tr>'}l.innerHTML=r;var t=document.getElementById('menuToggle'),m=document.getElementById('sideMenu'),b=document.getElementById('menuBackdrop');t.addEventListener('click',function(){var o=m.classList.toggle('open');b.classList.toggle('open',o);t.classList.toggle('open',o)});b.addEventListener('click',function(){m.classList.remove('open');b.classList.remove('open');t.classList.remove('open')});</script></body></html>
