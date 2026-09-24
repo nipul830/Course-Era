@@ -448,7 +448,8 @@ app.get("/api/payment-settings", requireAuth, async (req, res) => {
     res.json({ settings: {
       googlePayUpi: d.googlePayUpi || "lipupoddar-3@okaxis",
       phonePeUpi: d.phonePeUpi || "nipukumar007@ibl",
-      merchantName: d.merchantName || "Course Era",
+      paytmUpi: d.paytmUpi || "nipukumar007@ibl",
+      merchantName: d.merchantName || "Aura Farming",
       qrUpi: d.qrUpi || d.googlePayUpi || "lipupoddar-3@okaxis",
       qrImageUrl: d.qrImageUrl || "",
       usdtWallet: d.usdtWallet || ""
@@ -464,15 +465,16 @@ app.put("/api/payment-settings", requireAuth, requireAdmin, async (req, res) => 
     const clean = v => String(v || "").trim().slice(0, 200);
     const googlePayUpi = clean(req.body.googlePayUpi);
     const phonePeUpi = clean(req.body.phonePeUpi);
-    const merchantName = clean(req.body.merchantName) || "Course Era";
+    const paytmUpi = clean(req.body.paytmUpi) || phonePeUpi;
+    const merchantName = clean(req.body.merchantName) || "Aura Farming";
     const qrUpi = clean(req.body.qrUpi) || googlePayUpi;
     const usdtWallet = clean(req.body.usdtWallet);
     const qrImageUrl = clean(req.body.qrImageUrl);
-    if (!googlePayUpi || !phonePeUpi || !qrUpi) {
-      return res.status(400).json({ error: "Google Pay, PhonePe and QR UPI IDs are required" });
+    if (!googlePayUpi || !phonePeUpi || !paytmUpi || !qrUpi) {
+      return res.status(400).json({ error: "Google Pay, PhonePe, Paytm and QR UPI IDs are required" });
     }
     await db.collection("settings").doc("payment").set({
-      googlePayUpi, phonePeUpi, merchantName, qrUpi, usdtWallet, qrImageUrl,
+      googlePayUpi, phonePeUpi, paytmUpi, merchantName, qrUpi, usdtWallet, qrImageUrl,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: req.user.uid
     }, { merge: true });
