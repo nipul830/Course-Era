@@ -15,7 +15,7 @@
     <a href="transparency.html">Transparency</a>
     <a href="#reviews">Reviews</a>
     <a href="#leaderboard">Leaderboard</a>
-    <a href="#spreads">Spreads</a>
+    <a href="#competition">Competition</a>
     <a href="terminal.html">Terminal</a>
     <a href="affiliate.html">Affiliate</a>
     <a href="#faq">Help</a>
@@ -39,7 +39,7 @@
     <a href="#transparency">Transparency</a>
     <a href="#reviews">Reviews</a>
     <a href="#leaderboard">Leaderboard</a>
-    <a href="#spreads">Spreads</a>
+    <a href="#competition">Competition</a>
     <a href="terminal.html">Terminal</a>
     <a href="#affiliate">Affiliate</a>
     <a href="#faq">Help</a>
@@ -91,6 +91,24 @@
     </div>
   </section>
 
+  <section id="competition" class="section">
+    <p class="eyebrow">AURA FARMING COMPETITION</p>
+    <h2>Competition</h2>
+    <p class="muted">Top 100 simulated traders are shown here. Rankings can be updated from the competition system as results are recorded.</p>
+    <div class="panel" style="margin-top:22px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:4px 0 18px">
+        <div><strong style="color:#f1d98a">Top 100</strong><span class="muted" style="margin-left:10px">Monthly competition</span></div>
+        <span class="badge">Grand Prize: $2K Instant Account</span>
+      </div>
+      <div style="overflow:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:520px">
+          <thead><tr><th style="text-align:left;padding:12px;border-bottom:1px solid #302713">Rank</th><th style="text-align:left;padding:12px;border-bottom:1px solid #302713">Trader</th><th style="text-align:right;padding:12px;border-bottom:1px solid #302713">Prize</th></tr></thead>
+          <tbody id="competitionList"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section id="reviews" class="section">
     <p class="eyebrow">TRADER REVIEWS</p>
     <h2>Reviews</h2>
@@ -129,6 +147,16 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
+(function(){
+  var list=document.getElementById('competitionList');
+  if(!list)return;
+  var rows='';
+  for(var i=1;i<=100;i++){
+    var prize=i===1?'$2K Instant Account':'—';
+    rows+='<tr><td style="padding:11px 12px;border-bottom:1px solid #211b10;color:#d6b35a;font-weight:800">#'+i+'</td><td style="padding:11px 12px;border-bottom:1px solid #211b10;color:#f1d98a">Trader #'+String(i).padStart(3,'0')+'</td><td style="padding:11px 12px;border-bottom:1px solid #211b10;text-align:right;color:#9b8552">'+prize+'</td></tr>';
+  }
+  list.innerHTML=rows;
+})();
 async function loadReviews(){
   var list=document.getElementById('reviewsList');
   try{
