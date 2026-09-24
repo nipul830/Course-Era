@@ -22,7 +22,7 @@
 </span><span>Aura Farming</span></a>
   <nav>
     <a href="#faq">FAQ</a>
-    <a class="btn primary small" href="login.html">Login</a>
+    <span id="authNav"></span>
   </nav>
 </header>
 
@@ -33,7 +33,7 @@
       <h1>Trade with<br><span>discipline.</span></h1>
       <p class="lead">A professional simulated prop-trading environment built around risk management, consistency and transparent challenge rules.</p>
       <div class="actions">
-        <a class="btn primary" href="login.html">Trader Login</a>
+        <a id="heroAccountBtn" class="btn primary" href="login.html">Trader Login</a>
       </div>
     </div>
     <div class="hero-card">
@@ -64,10 +64,28 @@
       <article class="card"><h3>What is Aura Farming?</h3><p>Aura Farming is a simulated prop-trading environment focused on risk management and trading performance.</p></article>
       <article class="card"><h3>Is trading real?</h3><p>No. The trading environment and account balances are simulated and do not execute real brokerage trades.</p></article>
       <article class="card"><h3>What are the challenge rules?</h3><p>Challenge rules cover areas such as daily drawdown, maximum drawdown, profit targets and trade history.</p></article>
-      <article class="card"><h3>How do I access my account?</h3><p>Use the Login button above to access the trader portal with your existing account.</p></article>
+      <article class="card"><h3>How do I access my account?</h3><p>Use the account access option above to access the trader portal with your existing account.</p></article>
     </div>
   </section>
 </main>
 <footer>© 2026 Aura Farming · Simulated trading environment. No real brokerage execution.</footer>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=6"></script>
+<script>
+ceAuth.onAuthStateChanged(function(user){
+  var nav=document.getElementById('authNav');
+  var hero=document.getElementById('heroAccountBtn');
+  if(user){
+    nav.innerHTML='<a class="btn primary small" href="courses.html">Dashboard</a><button class="linkbtn" onclick="ceAuth.signOut()">Logout</button>';
+    hero.href='courses.html';
+    hero.textContent='Open Dashboard';
+  }else{
+    nav.innerHTML='<a class="btn primary small" href="login.html">Login</a>';
+    hero.href='login.html';
+    hero.textContent='Trader Login';
+  }
+});
+</script>
 </body>
 </html>
