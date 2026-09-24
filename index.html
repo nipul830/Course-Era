@@ -119,7 +119,9 @@ ceAuth.onAuthStateChanged(async function(user){
   if(user){
     nav.innerHTML='<button type="button" class="profile-nav" id="profileNavBtn" aria-expanded="false"><span class="profile-nav-avatar"><img id="profileNavImg" alt="" hidden></span></button>';
     var img=document.getElementById('profileNavImg');
-    var profilePhoto=user.photoURL||'';
+    var profilePhoto='';
+    try{profilePhoto=localStorage.getItem('auraProfilePhoto')||''}catch(e){}
+    profilePhoto=profilePhoto||user.photoURL||'';
     try{
       var token=await user.getIdToken();
       var pr=await fetch('https://course-era.onrender.com/api/profile',{headers:{Authorization:'Bearer '+token}});
