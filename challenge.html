@@ -44,7 +44,7 @@
 </header>
 
 <main class="challenge-page">
-  <section class="challenge-head"><p class="eyebrow">AURA FARMING</p><h1>Choose Your Challenge</h1><p>Select your simulated account. Prices and account sizes are loaded from the backend.</p></section>
+  <section class="challenge-head"><p class="eyebrow">AURA FARMING</p><h1>Choose Your Challenge</h1><p>Select your simulated account and choose your payment currency.</p></section>
   <div class="challenge-tabs">
     <button class="challenge-tab active" data-tab="one">1 Step</button><button class="challenge-tab" data-tab="two">2 Step</button><button class="challenge-tab" data-tab="instant">Instant</button>
   </div>
@@ -71,7 +71,7 @@ function card(x){
   if(x.phase1Profit)rules.push('<div><b>Phase 1 Profit:</b> '+x.phase1Profit+'</div>');
   if(x.phase2Profit)rules.push('<div><b>Phase 2 Profit:</b> '+x.phase2Profit+'</div>');
   if(x.evaluation)rules.push('<div><b>Evaluation:</b> '+x.evaluation+'</div>');
-  return '<article class="account-card"><div class="account-type">'+x.model.toUpperCase()+'</div><h2>'+x.size+'</h2><div class="price">₹'+inr.toLocaleString('en-IN')+' <span style="font-size:14px;color:#9b8552">/ '+Number(x.price).toFixed(2)+' USDT</span></div><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize).toLocaleString('en-US')+'</b></div></div><button class="buy-now" data-id="'+x.id+'">Buy Now</button></article>';
+  return '<article class="account-card"><div class="account-type">'+x.model.toUpperCase()+'</div><h2>'+x.size+'</h2><div class="price" data-inr="'+inr+'" data-usdt="'+Number(x.price).toFixed(2)+'">₹'+inr.toLocaleString('en-IN')+'</div><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize).toLocaleString('en-US')+'</b></div></div><button class="buy-now" data-id="'+x.id+'">Buy Now</button></article>';
 }
 (async function(){
   try{
@@ -81,7 +81,7 @@ function card(x){
       document.getElementById(model+'Grid').innerHTML=items.filter(x=>x.model===key).map(card).join('');
     });
     document.getElementById('challengeStatus').textContent='Choose an account to continue to checkout.';
-    document.querySelectorAll('.account-card').forEach(card=>{card.querySelectorAll('.currency-btn').forEach(b=>b.onclick=()=>{card.querySelectorAll('.currency-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');});});
+    document.querySelectorAll('.account-card').forEach(card=>{card.querySelectorAll('.currency-btn').forEach(b=>b.onclick=()=>{card.querySelectorAll('.currency-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');const price=card.querySelector('.price');price.textContent=b.dataset.currency==='USDT'?price.dataset.usdt+' USDT':'₹'+Number(price.dataset.inr).toLocaleString('en-IN');});});
     document.querySelectorAll('.buy-now').forEach(btn=>btn.onclick=()=>{const card=btn.closest('.account-card');const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';localStorage.setItem('auraSelectedChallengeId',btn.dataset.id);localStorage.setItem('auraSelectedCurrency',currency);location.href='checkout.html';});
   }catch(e){document.getElementById('challengeStatus').textContent=e.message;}
 })();
