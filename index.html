@@ -119,11 +119,17 @@ ceAuth.onAuthStateChanged(function(user){
   if(user){
     nav.innerHTML='<button type="button" class="profile-nav" id="profileNavBtn" aria-expanded="false"><span class="profile-nav-avatar"><img id="profileNavImg" alt="" hidden></span></button>';
     var img=document.getElementById('profileNavImg');
-    if(user.photoURL){img.src=user.photoURL;img.hidden=false}
+    var profilePhoto=user.photoURL||'';
+    try{
+      var token=await user.getIdToken();
+      var pr=await fetch('https://course-era.onrender.com/api/profile',{headers:{Authorization:'Bearer '+token}});
+      if(pr.ok){var pd=await pr.json();profilePhoto=pd.photoURL||profilePhoto}
+    }catch(e){}
+    if(profilePhoto){img.src=profilePhoto;img.hidden=false}
     if(menu){
       pname.textContent=user.displayName||'Trader';
       pemail.textContent=user.email||'';
-      if(user.photoURL){photo.src=user.photoURL;photo.hidden=false;blank.style.display='none'}
+      if(profilePhoto){photo.src=profilePhoto;photo.hidden=false;blank.style.display='none'}
       else{photo.hidden=true;blank.style.display='block'}
     }
     hero.href='courses.html';
