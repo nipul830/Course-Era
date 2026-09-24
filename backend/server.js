@@ -150,7 +150,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       name: req.user.name || d.name || "",
       email: req.user.email || "",
       mobile: d.mobile || "",
-      photoURL: req.user.picture || d.photoURL || ""
+      photoURL: d.photoURL || req.user.picture || ""
     });
   } catch (e) {
     res.status(500).json({ error: "Could not load profile" });
@@ -172,10 +172,7 @@ app.put("/api/profile", requireAuth, async (req, res) => {
       ...(photoURL ? { photoURL } : {}),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    await admin.auth().updateUser(req.user.uid, {
-      displayName: name,
-      ...(photoURL ? { photoURL } : {})
-    });
+    await admin.auth().updateUser(req.user.uid, { displayName: name });
     res.json({ message: "Profile updated", name, mobile, photoURL });
   } catch (e) {
     res.status(500).json({ error: "Could not update profile" });
