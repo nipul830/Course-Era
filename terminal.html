@@ -79,7 +79,7 @@ body{background:#fff;color:#182332}
 
 <main class="mobile-terminal">
  <div class="m-top">
-   <div class="balance"><div class="balance-icon">D</div><div>$918.00</div><div class="balance-loss">−$82.00</div><div class="balance-chevron">⌄</div></div>
+   <div class="balance"><div class="balance-icon">D</div><div id="accountBalance">Loading…</div><div class="balance-loss" id="accountPnl">—</div><div class="balance-chevron">⌄</div></div>
    <button class="wallet" aria-label="Wallet">▱</button>
  </div>
  <div class="instrument">
@@ -131,13 +131,36 @@ body{background:#fff;color:#182332}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal')});
+ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');else loadTradingAccount();});
+async function loadTradingAccount(){
+  try{
+    const user=ceAuth.currentUser;
+    if(!user)return;
+    const token=await user.getIdToken();
+    const res=await fetch("https://course-era.onrender.com/api/trading-account",{headers:{Authorization:"Bearer "+token}});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||"Account unavailable");
+    const a=data.account||{};
+    const balance=Number(a.balance||0), pnl=Number(a.pnl||0);
+    document.getElementById("accountBalance").textContent="$"+balance.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const pnlEl=document.getElementById("accountPnl");
+    pnlEl.textContent=(pnl>=0?"+":"−")+"$"+Math.abs(pnl).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    pnlEl.style.color=pnl>=0?"#00a873":"#e35b63";
+    const openPnl=document.getElementById("pnl");
+    if(openPnl){openPnl.textContent=(pnl>=0?"+":"−")+"$"+Math.abs(pnl).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});openPnl.style.color=pnl>=0?"#00a873":"#e25b5b";}
+  }catch(e){
+    document.getElementById("accountBalance").textContent="—";
+    document.getElementById("accountPnl").textContent="No account";
+    document.getElementById("accountPnl").style.color="#8a96a2";
+  }
+}
 function placeSimulatedOrder(side){
   const pnl=document.getElementById('pnl'), text=document.getElementById('positionText');
   if(!pnl||!text)return;
   pnl.textContent=side==='BUY'?'$0.00':'−$0.00';
   pnl.style.color=side==='BUY'?'#00a873':'#e25b5b';
   text.textContent=document.getElementById('instrumentName').innerText.replace('⌄','')+' · 100 units · '+side+' · simulated';
+  loadTradingAccount();
 }
 let currentSymbol='OANDA:XAUUSD';
 function mountChart(id,symbol){
