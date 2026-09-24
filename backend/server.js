@@ -299,6 +299,41 @@ app.post("/api/competition/join", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/support-settings", async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("settings").doc("support").get();
+    const d = snap.exists ? snap.data() : {};
+    res.json({
+      support: {
+        email: d.email || "",
+        telegram: d.telegram || "joker007lp",
+        whatsapp: d.whatsapp || "7608094247"
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load support settings" });
+  }
+});
+
+app.put("/api/support-settings", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const clean = v => String(v || "").trim().slice(0, 200);
+    const email = clean(req.body.email);
+    const telegram = clean(req.body.telegram);
+    const whatsapp = clean(req.body.whatsapp);
+    await db.collection("settings").doc("support").set({
+      email, telegram, whatsapp,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: req.user.uid
+    }, { merge: true });
+    res.json({ message: "Support settings updated", support: { email, telegram, whatsapp } });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update support settings" });
+  }
+});
+
 app.get("/api/payment-settings", requireAuth, async (req, res) => {
   try {
     initFirebase();
