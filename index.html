@@ -45,6 +45,13 @@
     <a href="#faq">Help</a>
   </nav>
   <div class="auth-nav" id="authNav"></div>
+  <div class="profile-menu" id="profileMenu" aria-hidden="true">
+    <div class="profile-menu-user">
+      <div class="profile-menu-avatar"><img id="navProfilePhoto" alt="" hidden><span id="navProfileBlank"></span></div>
+      <div><strong id="navProfileName">Trader</strong><small id="navProfileEmail"></small></div>
+    </div>
+    <button type="button" class="profile-logout" onclick="ceAuth.signOut()">Logout</button>
+  </div>
 </header>
 
 <main>
@@ -61,25 +68,6 @@
       <div class="chart">↗</div>
       <small>SIMULATED TRADING FIRM</small>
       <strong>Rules first. Performance second.</strong>
-    </div>
-  </section>
-
-  <section id="profile" class="section profile-section" style="display:none">
-    <div class="profile-panel">
-      <div class="profile-avatar" id="profileAvatar">A</div>
-      <div class="profile-main">
-        <p class="eyebrow">TRADER PROFILE</p>
-        <h2 id="profileName">Trader</h2>
-        <p id="profileEmail" class="muted"></p>
-        <div class="profile-meta">
-          <span><b>Account</b><strong id="profileAccount">AURA-100001</strong></span>
-          <span><b>Status</b><strong>Active</strong></span>
-        </div>
-      </div>
-      <div class="profile-actions">
-        <a class="btn primary small" href="courses.html">Dashboard</a>
-        <button class="btn ghost small" type="button" onclick="ceAuth.signOut()">Logout</button>
-      </div>
     </div>
   </section>
 
@@ -116,26 +104,36 @@
 ceAuth.onAuthStateChanged(function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
+  var menu=document.getElementById('profileMenu');
+  var photo=document.getElementById('navProfilePhoto');
+  var blank=document.getElementById('navProfileBlank');
+  var pname=document.getElementById('navProfileName');
+  var pemail=document.getElementById('navProfileEmail');
   if(user){
-    nav.innerHTML='<a class="profile-nav" href="#profile"><span class="profile-nav-avatar">'+((user.displayName||user.email||'A').charAt(0).toUpperCase())+'</span><span>Profile</span></a><button class="linkbtn" onclick="ceAuth.signOut()">Logout</button>';
+    nav.innerHTML='<button type="button" class="profile-nav" id="profileNavBtn" aria-expanded="false"><span class="profile-nav-avatar"><img id="profileNavImg" alt="" hidden></span></button>';
+    var img=document.getElementById('profileNavImg');
+    if(user.photoURL){img.src=user.photoURL;img.hidden=false}
+    if(menu){
+      pname.textContent=user.displayName||'Trader';
+      pemail.textContent=user.email||'';
+      if(user.photoURL){photo.src=user.photoURL;photo.hidden=false;blank.style.display='none'}
+      else{photo.hidden=true;blank.style.display='block'}
+    }
     hero.href='courses.html';
     hero.textContent='Open Dashboard';
-    var profile=document.getElementById('profile');
-    if(profile) profile.style.display='block';
-    var name=document.getElementById('profileName');
-    var email=document.getElementById('profileEmail');
-    var avatar=document.getElementById('profileAvatar');
-    if(name) name.textContent=user.displayName||'Trader';
-    if(email) email.textContent=user.email||'';
-    if(avatar) avatar.textContent=(user.displayName||user.email||'A').charAt(0).toUpperCase();
+    var btn=document.getElementById('profileNavBtn');
+    if(btn) btn.addEventListener('click',function(e){e.stopPropagation();var open=menu.classList.toggle('open');menu.setAttribute('aria-hidden',open?'false':'true');btn.setAttribute('aria-expanded',open?'true':'false')});
   }else{
-    var profile=document.getElementById('profile');
-    if(profile) profile.style.display='none';
     nav.innerHTML='<a class="btn primary small" href="login.html">Login</a>';
+    if(menu) menu.classList.remove('open');
     hero.href='login.html';
     hero.textContent='Trader Login';
   }
 });
+  document.addEventListener('click',function(e){
+    var menu=document.getElementById('profileMenu');
+    if(menu && !e.target.closest('#profileMenu') && !e.target.closest('#profileNavBtn')){menu.classList.remove('open');menu.setAttribute('aria-hidden','true')}
+  });
   document.getElementById('menuToggle').addEventListener('click',function(){
     var open=document.getElementById('sideMenu').classList.toggle('open');
     document.getElementById('menuBackdrop').classList.toggle('open',open);
