@@ -4,7 +4,7 @@
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;background:radial-gradient(circle at 80% 0,#171208 0,transparent 35%),radial-gradient(circle at 10% 30%,#0d0b07 0,transparent 30%),var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif}
 a{text-decoration:none;color:inherit}
-.nav{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;border-bottom:1px solid var(--line);background:#000000f5;backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
+.nav{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;border-bottom:1px solid var(--line);background:#000000f5;backdrop-filter:blur(10px);position:sticky;top:0;z-index:1000}
 .brand{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;font-size:23px;font-weight:800;color:#fff;z-index:22}
 .brand-mark{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 9px #d6b35a22)}
 .brand-mark svg{width:100%;height:100%;display:block}
@@ -14,10 +14,10 @@ a{text-decoration:none;color:inherit}
 .menu-toggle.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
 .menu-toggle.open span:nth-child(2){opacity:0}
 .menu-toggle.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
-.side-menu{position:fixed;left:0;top:0;bottom:0;width:min(380px,82vw);padding:105px 28px 28px;background:#050505 !important;opacity:1;isolation:isolate;border-right:1px solid #3a2c13;transform:translateX(-105%);transition:transform .25s ease;z-index:100;box-shadow:20px 0 50px #000;overflow-y:auto}
+.side-menu{position:fixed;left:0;top:0;bottom:0;width:min(380px,82vw);padding:105px 28px 28px;background:#050505 !important;opacity:1;border-right:1px solid #3a2c13;transform:translateX(-105%);transition:transform .25s ease;z-index:10000;box-shadow:20px 0 50px #000;overflow-y:auto;display:block;visibility:visible}
 .side-menu.open{transform:translateX(0)}
-.side-menu a{display:block;color:var(--accent2);font-size:20px;font-weight:700;padding:14px 8px;border-bottom:1px solid var(--line)}
-.menu-backdrop{position:fixed;inset:0;background:#000c;opacity:0;pointer-events:none;transition:.2s;z-index:90}
+.side-menu a{display:block !important;visibility:visible;color:#f1d98a !important;font-size:20px;font-weight:700;padding:14px 8px;border-bottom:1px solid #302713}
+.menu-backdrop{position:fixed;inset:0;background:#000c;opacity:0;pointer-events:none;transition:.2s;z-index:9000}
 .menu-backdrop.open{opacity:1;pointer-events:auto}
 nav{margin-left:auto;display:flex;align-items:center;gap:18px;color:var(--muted);font-size:13px}
 nav a:hover{color:var(--accent2)}.linkbtn{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit}
