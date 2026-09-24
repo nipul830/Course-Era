@@ -38,7 +38,7 @@ document.getElementById('profileForm').addEventListener('submit',async e=>{
  try{
   const res=await fetch(API+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token()},body:JSON.stringify({name:document.getElementById('name').value,mobile:document.getElementById('mobile').value})});
   const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not save');
-  await currentUser.reload();msg('Profile updated successfully.');
+  await currentUser.reload();await loadProfile();msg('Profile updated successfully.');
  }catch(err){msg(err.message)}
 });
 document.getElementById('photoInput').addEventListener('change',async e=>{
