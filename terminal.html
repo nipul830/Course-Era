@@ -11,22 +11,21 @@
 *{box-sizing:border-box}
 body{background:#fff;color:#182332}
 .terminal-page{max-width:1500px;margin:0 auto;padding:18px 3% 28px;min-height:calc(100vh - 128px)}
-.mobile-terminal{display:none}
+.mobile-terminal{display:flex;flex-direction:column;height:100dvh;min-height:100vh;padding:10px 0 84px;background:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;position:relative}
 .tv-shell{background:#fff;border:1px solid #e7ebef;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px #00000010}
 .tv-widget{height:720px;width:100%}.tv-widget iframe{border:0}
 .notice{margin:12px 2px 0;color:#7a8795;font-size:11px}
-.desktop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.desktop-head{display:none}
 .desktop-head h1{margin:0;color:#d6b35a;font-size:32px}.desktop-head p{margin:4px 0 0;color:#8c7b53}
 .status{padding:8px 12px;border:1px solid #d6b35a;border-radius:999px;color:#9b671f;font-size:11px;font-weight:700}
-.desktop-orders{display:grid;grid-template-columns:1fr 1fr 150px;gap:10px;margin:0 0 12px}
+.desktop-orders{display:none}
 .desktop-orders .trade-btn{border:0;border-radius:12px;padding:14px 18px;font-size:17px;font-weight:800;cursor:pointer;color:#fff;box-shadow:0 5px 14px #0001}
 .desktop-orders .trade-btn.sell{background:#ec0050}.desktop-orders .trade-btn.buy{background:#00bd84}
 .desktop-orders .pending-desktop{border:1px solid #dce2e7;border-radius:12px;background:#f7f8fa;color:#182332;font-weight:800;font-size:13px;cursor:pointer}
 .desktop-orders .trade-btn:active,.desktop-orders .pending-desktop:active{transform:scale(.985)}
 @media(max-width:760px){.desktop-orders{display:none}}
 
-@media(max-width:760px){
- body{background:#fff}
+body{background:#fff}
  .nav{display:none}
  .terminal-page{display:none}
  .mobile-terminal{display:flex;flex-direction:column;height:100dvh;min-height:100vh;padding:10px 0 84px;background:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;position:relative}
@@ -70,12 +69,11 @@ body{background:#fff;color:#182332}
  .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
  .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
-}
 </style>
 </head>
 <body>
 
-<header class="nav">
+<header class="nav" style="display:none">
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
   <div class="side-menu" id="sideMenu">
     <a href="index.html">Home</a><a href="index.html#transparency">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="index.html#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="index.html#affiliate">Affiliate</a><a href="index.html#faq">Help</a>
@@ -214,8 +212,7 @@ function mountChart(id,symbol){
   el.appendChild(s);
 }
 (function(){
- const mobile=window.matchMedia('(max-width:760px)').matches;
- mountChart(mobile?'tvMobile':'tvChart',currentSymbol);
+ mountChart('tvMobile',currentSymbol);
 })();
 (function(){
  const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
