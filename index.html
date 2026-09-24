@@ -36,12 +36,12 @@
   <nav class="top-links">
     <a href="index.html">Home</a>
     <a href="challenge.html">Challenge</a>
-    <a href="#transparency">Transparency</a>
+    <a href="transparency.html">Transparency</a>
     <a href="reviews.html">Reviews</a>
     <a href="leaderboard.html">Leaderboard</a>
-    <a href="#competition">Competition</a>
+    <a href="competition.html">Competition</a>
     <a href="terminal.html">Terminal</a>
-    <a href="#affiliate">Affiliate</a>
+    <a href="affiliate.html">Affiliate</a>
     <a href="help.html">Help</a>
   </nav>
   <div class="auth-nav" id="authNav"></div>
@@ -98,16 +98,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-(function(){
-  var list=document.getElementById('competitionList');
-  if(!list)return;
-  var rows='';
-  for(var i=1;i<=100;i++){
-    var prize=i===1?'$2K Instant Account':'—';
-    rows+='<tr><td style="padding:11px 12px;border-bottom:1px solid #211b10;color:#d6b35a;font-weight:800">#'+i+'</td><td style="padding:11px 12px;border-bottom:1px solid #211b10;color:#f1d98a">Trader #'+String(i).padStart(3,'0')+'</td><td style="padding:11px 12px;border-bottom:1px solid #211b10;text-align:right;color:#9b8552">'+prize+'</td></tr>';
-  }
-  list.innerHTML=rows;
-})();
+
 ceAuth.onAuthStateChanged(async function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
