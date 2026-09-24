@@ -1,12 +1,26 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Positions — Aura Farming</title><link rel="stylesheet" href="aura.css">
 <style>
-body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-width:760px;margin:auto;font-family:Arial,Helvetica,sans-serif}.positions-page h1{margin:0 0 6px;font-size:28px}.sub{color:#7b8793;font-size:13px;margin-bottom:18px}.position-card{border:1px solid #e0e5e9;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:0 5px 18px #0000000d}.pos-head{display:flex;justify-content:space-between;align-items:center}.side-buy{color:#00a875;font-weight:800}.side-sell{color:#e6004d;font-weight:800}.pos-symbol{font-weight:800}.pos-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;color:#687786;font-size:12px}.pos-meta b{display:block;color:#182332;font-size:14px;margin-top:3px}.empty{text-align:center;padding:70px 20px;color:#7b8793}.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}.bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
+body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-width:760px;margin:auto;font-family:Arial,Helvetica,sans-serif}.positions-page h1{margin:0 0 6px;font-size:28px}.account-top{border:1px solid #e0e5e9;border-radius:16px;padding:14px 16px;margin:0 0 18px;background:#fff;box-shadow:0 5px 18px #0000000d;display:flex;justify-content:space-between;gap:12px}.account-top small{display:block;color:#7b8793;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.account-top strong{display:block;margin-top:5px;font-size:19px;color:#182332}.account-top .account-side{text-align:right}.sub{color:#7b8793;font-size:13px;margin-bottom:18px}.position-card{border:1px solid #e0e5e9;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:0 5px 18px #0000000d}.pos-head{display:flex;justify-content:space-between;align-items:center}.side-buy{color:#00a875;font-weight:800}.side-sell{color:#e6004d;font-weight:800}.pos-symbol{font-weight:800}.pos-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;color:#687786;font-size:12px}.pos-meta b{display:block;color:#182332;font-size:14px;margin-top:3px}.empty{text-align:center;padding:70px 20px;color:#7b8793}.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}.bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
 @media(min-width:761px){.bottom-nav{display:none}}
 </style></head>
 <body>
-<main class="positions-page"><h1>Positions</h1><div class="sub">Simulated trades placed from your terminal</div><div id="positions"></div></main>
+<main class="positions-page"><h1>Positions</h1>
+<div class="account-top"><div><small>Balance</small><strong id="positionBalance">—</strong></div><div class="account-side"><small>Equity</small><strong id="positionEquity">—</strong></div></div>
+<div class="sub">Simulated trades placed from your terminal</div><div id="positions"></div></main>
 <nav class="bottom-nav"><a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a><a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Charts</span></a><a href="position.html" class="active"><span class="bn-icon">♮</span><span class="bn-label">Position</span></a></nav>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=6"></script>
+<script src="aura-account.js"></script>
 <script>
+ceAuth.onAuthStateChanged(async function(user){
+  if(!user){location.replace('login.html?next=position');return;}
+  const account=await auraAccount();
+  if(account){
+    document.getElementById('positionBalance').textContent=auraMoney(account.balance);
+    document.getElementById('positionEquity').textContent=auraMoney(account.equity);
+  }
+});
 function render(){const el=document.getElementById('positions');const ps=JSON.parse(localStorage.getItem('auraPositions')||'[]');if(!ps.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}el.innerHTML=ps.map(p=>'<article class="position-card"><div class="pos-head"><span class="'+(p.side==='BUY'?'side-buy':'side-sell')+'">'+p.side+'</span><span class="pos-symbol">'+p.symbol.replace(':',' · ')+'</span></div><div class="pos-meta"><div>Lot<b>'+p.lot+'</b></div><div>Entry<b>'+p.price+'</b></div><div>Time<b>'+p.time+'</b></div></div></article>').join('')}render();
 </script></body></html>
