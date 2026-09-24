@@ -207,6 +207,55 @@ app.post("/api/profile/photo", requireAuth, upload.single("photo"), async (req, 
   }
 });
 
+app.get("/api/reviews", async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("reviews").orderBy("createdAt", "desc").limit(50).get();
+    const reviews = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        name: d.name || "Trader",
+        rating: Math.min(5, Math.max(1, Number(d.rating) || 5)),
+        text: d.text || "",
+        createdAt: d.createdAt?.toDate?.()?.toISOString?.() || null
+      };
+    });
+    res.json({ reviews });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load reviews" });
+  }
+});
+
+app.post("/api/reviews", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const rating = Number(req.body.rating);
+    const text = String(req.body.text || "").trim().slice(0, 800);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "Rating must be between 1 and 5" });
+    }
+    if (text.length < 10) {
+      return res.status(400).json({ error: "Review must be at least 10 characters" });
+    }
+    const existing = await db.collection("reviews").doc(req.user.uid).get();
+    if (existing.exists) {
+      return res.status(409).json({ error: "You have already submitted a review" });
+    }
+    const name = req.user.name || req.user.email?.split("@")[0] || "Trader";
+    await db.collection("reviews").doc(req.user.uid).set({
+      userId: req.user.uid,
+      name,
+      rating,
+      text,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.status(201).json({ message: "Review submitted" });
+  } catch (e) {
+    res.status(500).json({ error: "Could not submit review" });
+  }
+});
+
 app.get("/api/payment-settings", requireAuth, async (req, res) => {
   try {
     initFirebase();
