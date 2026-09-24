@@ -18,6 +18,12 @@ body{background:#fff;color:#182332}
 .desktop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .desktop-head h1{margin:0;color:#d6b35a;font-size:32px}.desktop-head p{margin:4px 0 0;color:#8c7b53}
 .status{padding:8px 12px;border:1px solid #d6b35a;border-radius:999px;color:#9b671f;font-size:11px;font-weight:700}
+.desktop-orders{display:grid;grid-template-columns:1fr 1fr 150px;gap:10px;margin:0 0 12px}
+.desktop-orders .trade-btn{border:0;border-radius:12px;padding:14px 18px;font-size:17px;font-weight:800;cursor:pointer;color:#fff;box-shadow:0 5px 14px #0001}
+.desktop-orders .trade-btn.sell{background:#ec0050}.desktop-orders .trade-btn.buy{background:#00bd84}
+.desktop-orders .pending-desktop{border:1px solid #dce2e7;border-radius:12px;background:#f7f8fa;color:#182332;font-weight:800;font-size:13px;cursor:pointer}
+.desktop-orders .trade-btn:active,.desktop-orders .pending-desktop:active{transform:scale(.985)}
+@media(max-width:760px){.desktop-orders{display:none}}
 
 @media(max-width:760px){
  body{background:#fff}
@@ -83,6 +89,11 @@ body{background:#fff;color:#182332}
 
 <main class="terminal-page">
  <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">SIMULATED</span></div>
+ <div class="desktop-orders" aria-label="Simulated trade controls">
+   <button class="trade-btn sell" type="button" onclick="placeSimulatedOrder('SELL')">SELL <span id="desktopSellPrice">4,288.33</span></button>
+   <button class="trade-btn buy" type="button" onclick="placeSimulatedOrder('BUY')">BUY <span id="desktopBuyPrice">4,288.89</span></button>
+   <button class="pending-desktop" type="button" onclick="alert('Pending orders are simulated only and will be added next.')">Pending Order ▾</button>
+ </div>
  <section class="tv-shell"><div class="tv-widget" id="tvChart"></div></section>
  <p class="notice">TradingView market data can be real-time, delayed, or end-of-day depending on the instrument and exchange. Aura Farming execution is simulated only.</p>
 </main>
@@ -131,7 +142,7 @@ body{background:#fff;color:#182332}
 <script>
 ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');});
 function placeSimulatedOrder(side){
-  const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell'));
+  const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell')) || document.querySelector('.desktop-orders .'+(side==='BUY'?'buy':'sell'));
   if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
   const lot=document.getElementById('lotSize');
   const size=lot?lot.value:'0.10';
