@@ -2,56 +2,151 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Terminal — Aura Farming</title>
 <link rel="stylesheet" href="aura.css">
 <style>
-.terminal-page{max-width:1500px;margin:0 auto;padding:24px 3%;min-height:calc(100vh - 128px)}
-.terminal-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
-.terminal-title h1{margin:4px 0 0;color:var(--text);font-size:34px}.terminal-title p{margin:0;color:var(--muted)}
-.market-status{padding:9px 13px;border:1px solid var(--line);border-radius:999px;color:var(--accent2);font-size:12px}
-.tv-shell{background:#050505;border:1px solid var(--line);border-radius:16px;overflow:hidden;min-height:720px}
-.tv-widget{height:720px;width:100%}
-.tv-widget iframe{border:0}
-.notice{margin-top:12px;color:var(--muted);font-size:11px}
+*{box-sizing:border-box}
+body{background:#fff;color:#182332}
+.terminal-page{max-width:1500px;margin:0 auto;padding:18px 3% 28px;min-height:calc(100vh - 128px)}
+.mobile-terminal{display:none}
+.tv-shell{background:#fff;border:1px solid #e7ebef;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px #00000010}
+.tv-widget{height:720px;width:100%}.tv-widget iframe{border:0}
+.notice{margin:12px 2px 0;color:#7a8795;font-size:11px}
+.desktop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.desktop-head h1{margin:0;color:#d6b35a;font-size:32px}.desktop-head p{margin:4px 0 0;color:#8c7b53}
+.status{padding:8px 12px;border:1px solid #d6b35a;border-radius:999px;color:#9b671f;font-size:11px;font-weight:700}
+
 @media(max-width:760px){
- .terminal-page{padding:16px 3%}.terminal-top{align-items:flex-start}.terminal-title h1{font-size:28px}.tv-shell{min-height:620px}.tv-widget{height:620px}
+ body{background:#fff}
+ .nav{display:none}
+ .terminal-page{display:none}
+ .mobile-terminal{display:block;min-height:100vh;padding:18px 0 88px;background:#fff;font-family:Arial,Helvetica,sans-serif}
+ .m-top{display:flex;align-items:center;justify-content:space-between;padding:0 28px 10px}
+ .balance{display:flex;align-items:center;gap:10px;background:#f4f5f7;border-radius:30px;padding:8px 14px 8px 8px;font-weight:800;color:#1c2633}
+ .balance-icon{width:38px;height:38px;border-radius:14px;background:#f6ad18;color:#fff;display:grid;place-items:center;font-size:19px}
+ .balance-loss{color:#e35b63;font-weight:700}.balance-chevron{font-size:22px;color:#455160;margin-left:2px}
+ .wallet{width:30px;height:30px;border:0;background:transparent;color:#667585;font-size:27px}
+ .instrument{display:flex;align-items:center;justify-content:space-between;padding:8px 28px 10px}
+ .instrument-left{display:flex;align-items:center;gap:12px}
+ .gold-icon{width:48px;height:48px;border-radius:15px;background:#f4c11e;display:grid;place-items:center;color:#fff;font-size:25px}
+ .instrument-name{font-size:27px;font-weight:800;color:#101820;line-height:1}
+ .instrument-sub{margin-top:7px;font-size:16px;color:#d64f4f}
+ .instrument-sub span{color:#98a3ad}.instrument-tools{display:flex;gap:10px}
+ .sparkle{width:58px;height:58px;border-radius:16px;border:0;background:linear-gradient(135deg,#087cf0,#8f20f2,#e72ab0);color:#fff;font-size:27px}
+ .more{width:58px;height:58px;border:1px solid #d7dde2;border-radius:16px;background:#fff;font-size:25px}
+ .chart-wrap{margin:0 0 0;position:relative}
+ .tv-mobile{height:610px;width:100%;background:#fff}
+ .tv-mobile iframe{border:0}
+ .trade-controls{padding:0 28px}
+ .time-row{display:flex;align-items:center;justify-content:space-between;margin:0 0 16px}
+ .candle-btn,.expand-btn{width:56px;height:56px;border:1px solid #dce2e7;background:#fff;border-radius:15px;font-size:24px;color:#617080}
+ .timeframes{display:flex;gap:22px;align-items:center;color:#697887;font-weight:800;font-size:18px}
+ .timeframes .active{background:#182839;color:#fff;border-radius:50%;width:48px;height:48px;display:grid;place-items:center}
+ .quote-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative}
+ .quote{border:0;border-radius:19px;color:#fff;min-height:98px;font-weight:800;box-shadow:0 4px 8px #00000012}
+ .quote.sell{background:#ec0050}.quote.buy{background:#00bd84}
+ .quote .label{font-size:17px}.quote .price{font-size:25px;margin-top:4px}
+ .spread{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:9px;padding:5px 8px;font-size:14px;font-weight:800;color:#202a35;box-shadow:0 2px 7px #0002;z-index:2}
+ .position-card{margin:28px 28px 0;background:#f5f6f8;border-radius:24px;padding:18px 18px 20px;min-height:130px}
+ .position-head{display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:#1a2530}.pnl{color:#e25b5b}
+ .position-sub{margin-top:18px;color:#687687;font-size:13px}
+ .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(5,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
+ .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
+ .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
+ .sim-note{text-align:center;margin:10px 28px;color:#9aa5ae;font-size:10px}
 }
 </style>
 </head>
 <body>
+
 <header class="nav">
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
+  <div class="side-menu" id="sideMenu">
+    <a href="index.html">Home</a><a href="index.html#transparency">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="index.html#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="index.html#affiliate">Affiliate</a><a href="index.html#faq">Help</a>
+  </div>
+  <div class="menu-backdrop" id="menuBackdrop"></div>
   <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">
 <svg viewBox="0 0 64 64"><defs><linearGradient id="auraGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7df98"/><stop offset=".45" stop-color="#d6b35a"/><stop offset="1" stop-color="#9b671f"/></linearGradient></defs><path d="M12 53 31 9l21 44h-9l-5.3-12H25l-5 12zM28 34h7l-3.5-8z" fill="none" stroke="url(#auraGold)" stroke-width="4.2" stroke-linejoin="round"/><path d="M20 42C9 39 5 31 5 25c9 1 16 6 18 13-1 1-2 2-3 4z" fill="#1f7a32" stroke="#d6b35a" stroke-width="1.4"/><path d="M25 48c1-10 8-17 19-19-1 10-7 17-18 21z" fill="#39a844" stroke="#d6b35a" stroke-width="1.4"/></svg></span><span>Aura Farming</span></a>
-  <nav class="top-links">
-    <a href="index.html">Home</a><a href="index.html#transparency">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="index.html#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="index.html#affiliate">Affiliate</a><a href="index.html#faq">Help</a>
-  </nav>
+  <nav class="top-links"><a href="index.html">Home</a><a href="index.html#transparency">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="index.html#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="index.html#affiliate">Affiliate</a><a href="index.html#faq">Help</a></nav>
   <div class="auth-nav"><a class="btn primary small" href="courses.html">Dashboard</a><button class="linkbtn" onclick="ceAuth.signOut()">Logout</button></div>
 </header>
+
 <main class="terminal-page">
- <div class="terminal-top"><div class="terminal-title"><p class="eyebrow">AURA FARMING</p><h1>Market Terminal</h1><p>Live market charts · Crypto · Gold · Forex</p></div><span class="market-status">SIMULATED EXECUTION</span></div>
+ <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">SIMULATED</span></div>
  <section class="tv-shell"><div class="tv-widget" id="tvChart"></div></section>
- <p class="notice">Market data is provided by TradingView. Data availability and real-time status can vary by instrument and exchange. Trading inside Aura Farming remains simulated.</p>
+ <p class="notice">TradingView market data can be real-time, delayed, or end-of-day depending on the instrument and exchange. Aura Farming execution is simulated only.</p>
 </main>
+
+<main class="mobile-terminal">
+ <div class="m-top">
+   <div class="balance"><div class="balance-icon">D</div><div>$918.00</div><div class="balance-loss">−$82.00</div><div class="balance-chevron">⌄</div></div>
+   <button class="wallet" aria-label="Wallet">▱</button>
+ </div>
+ <div class="instrument">
+   <div class="instrument-left"><div class="gold-icon">▰</div><div><div class="instrument-name">GOLD⌄</div><div class="instrument-sub">−3.44 ↘ −0.08% <span>• 1 Day</span></div></div></div>
+   <div class="instrument-tools"><button class="sparkle">✦</button><button class="more">⋮</button></div>
+ </div>
+ <div class="chart-wrap"><div class="tv-mobile" id="tvMobile"></div></div>
+ <div class="trade-controls">
+   <div class="time-row">
+     <button class="candle-btn">♮</button>
+     <div class="timeframes"><span>1H</span><span class="active">1D</span><span>1W</span><span>1M</span><span>3M</span><span>1Y</span></div>
+     <button class="expand-btn">⛶</button>
+   </div>
+   <div class="quote-row">
+     <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
+     <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
+     <div class="spread">0.56</div>
+   </div>
+ </div>
+ <section class="position-card">
+   <div class="position-head"><span>▣ Open Positions</span><span class="pnl" id="pnl">−$82.00</span></div>
+   <div class="position-sub" id="positionText">GOLD · 100 Troy Ounce(s) · simulated</div>
+ </section>
+ <div class="sim-note">Quotes and order controls shown here are simulation UI. No real brokerage order is sent.</div>
+ <nav class="bottom-nav">
+   <a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a>
+   <a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Markets</span></a>
+   <a href="terminal.html" class="active"><span class="bn-icon">♮</span><span class="bn-label">Trade</span></a>
+   <a href="courses.html"><span class="bn-icon">▢</span><span class="bn-label">Portfolio</span></a>
+   <a href="index.html"><span class="bn-icon">▦</span><span class="bn-label">More</span></a>
+ </nav>
+</main>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
 ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal')});
-</script>
-<script>
+function placeSimulatedOrder(side){
+  const pnl=document.getElementById('pnl'), text=document.getElementById('positionText');
+  if(!pnl||!text)return;
+  pnl.textContent=side==='BUY'?'$0.00':'−$0.00';
+  text.textContent='GOLD · 100 Troy Ounce(s) · '+side+' · simulated';
+}
 (function(){
- const s=document.createElement('script');
- s.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
- s.async=true;
- s.innerHTML=JSON.stringify({
-  autosize:true,width:"100%",height:"100%",symbol:"OANDA:XAUUSD",interval:"15",timezone:"exchange",
-  theme:"dark",style:"1",withdateranges:true,hide_side_toolbar:false,allow_symbol_change:true,
-  save_image:false,calendar:false,locale:"en",support_host:"https://www.tradingview.com",
-  watchlist:["OANDA:XAUUSD","FX:EURUSD","FX:GBPUSD","FX:USDJPY","BINANCE:BTCUSDT","BINANCE:ETHUSDT","BINANCE:SOLUSDT","BINANCE:XRPUSDT"]
- });
- document.getElementById('tvChart').appendChild(s);
+ function mount(id){
+  const el=document.getElementById(id); if(!el)return;
+  const s=document.createElement('script');
+  s.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  s.async=true;
+  s.innerHTML=JSON.stringify({
+   autosize:true,width:"100%",height:"100%",symbol:"OANDA:XAUUSD",interval:"15",timezone:"exchange",
+   theme:"light",style:"1",withdateranges:true,hide_side_toolbar:false,allow_symbol_change:true,
+   save_image:false,calendar:false,locale:"en",support_host:"https://www.tradingview.com",
+   watchlist:["OANDA:XAUUSD","FX:EURUSD","FX:GBPUSD","FX:USDJPY","BINANCE:BTCUSDT","BINANCE:ETHUSDT","BINANCE:SOLUSDT","BINANCE:XRPUSDT"]
+  });
+  el.appendChild(s);
+ }
+ mount('tvChart'); mount('tvMobile');
+})();
+(function(){
+ const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
+ if(toggle&&menu&&back){
+  toggle.addEventListener('click',function(){const open=menu.classList.toggle('open');back.classList.toggle('open',open);toggle.classList.toggle('open',open);toggle.setAttribute('aria-expanded',open?'true':'false')});
+  back.addEventListener('click',function(){menu.classList.remove('open');back.classList.remove('open');toggle.classList.remove('open');toggle.setAttribute('aria-expanded','false')});
+ }
 })();
 </script>
 </body>
