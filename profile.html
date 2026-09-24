@@ -56,6 +56,7 @@ document.getElementById('photoInput').addEventListener('change',async e=>{
   })});
   const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not save profile photo');
   document.getElementById('photo').src=photoURL;
+  try{localStorage.setItem('auraProfilePhoto',photoURL)}catch(e){}
   msg('Profile photo updated successfully.');
  }catch(err){msg(err.message||'Could not update profile photo')}
 });
