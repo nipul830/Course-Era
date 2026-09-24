@@ -13,8 +13,8 @@
     <a href="index.html">Home</a>
     <a href="challenge.html">Challenge</a>
     <a href="transparency.html">Transparency</a>
-    <a href="#reviews">Reviews</a>
-    <a href="#leaderboard">Leaderboard</a>
+    <a href="reviews.html">Reviews</a>
+    <a href="leaderboard.html">Leaderboard</a>
     <a href="competition.html">Competition</a>
     <a href="terminal.html">Terminal</a>
     <a href="affiliate.html">Affiliate</a>
@@ -37,8 +37,8 @@
     <a href="index.html">Home</a>
     <a href="challenge.html">Challenge</a>
     <a href="#transparency">Transparency</a>
-    <a href="#reviews">Reviews</a>
-    <a href="#leaderboard">Leaderboard</a>
+    <a href="reviews.html">Reviews</a>
+    <a href="leaderboard.html">Leaderboard</a>
     <a href="#competition">Competition</a>
     <a href="terminal.html">Terminal</a>
     <a href="#affiliate">Affiliate</a>
@@ -87,56 +87,11 @@
     </div>
   </section>
 
-  <section id="competition" class="section">
-    <p class="eyebrow">AURA FARMING COMPETITION</p>
-    <h2>Competition</h2>
-    <p class="muted">Top 100 simulated traders are shown here. Rankings can be updated from the competition system as results are recorded.</p>
-    <div class="panel" style="margin-top:22px;overflow:hidden">
-      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:4px 0 18px">
-        <div><strong style="color:#f1d98a">Top 100</strong><span class="muted" style="margin-left:10px">Monthly competition</span></div>
-        <span class="badge">Grand Prize: $2K Instant Account</span>
-      </div>
-      <div style="overflow:auto">
-        <table style="width:100%;border-collapse:collapse;min-width:520px">
-          <thead><tr><th style="text-align:left;padding:12px;border-bottom:1px solid #302713">Rank</th><th style="text-align:left;padding:12px;border-bottom:1px solid #302713">Trader</th><th style="text-align:right;padding:12px;border-bottom:1px solid #302713">Prize</th></tr></thead>
-          <tbody id="competitionList"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
+  
 
-  <section id="reviews" class="section">
-    <p class="eyebrow">TRADER REVIEWS</p>
-    <h2>Reviews</h2>
-    <p class="muted">Reviews are submitted by signed-in traders and displayed from the Aura Farming review system.</p>
-    <div id="reviewsList" class="grid" style="margin-top:20px"><article class="card"><p>Loading reviews…</p></article></div>
-    <div class="panel" style="margin-top:24px">
-      <h3>Share your experience</h3>
-      <form id="reviewForm">
-        <label>Rating
-          <select id="reviewRating" required style="margin:8px 0;width:100%;padding:12px;border-radius:10px;background:#090806;color:#fff;border:1px solid #3a2c13">
-            <option value="5">★★★★★ — 5</option><option value="4">★★★★☆ — 4</option><option value="3">★★★☆☆ — 3</option><option value="2">★★☆☆☆ — 2</option><option value="1">★☆☆☆☆ — 1</option>
-          </select>
-        </label>
-        <label>Review
-          <textarea id="reviewText" required minlength="10" maxlength="800" rows="4" placeholder="Tell us about your experience…" style="width:100%;box-sizing:border-box;margin:8px 0;padding:12px;border-radius:10px;background:#090806;color:#fff;border:1px solid #3a2c13"></textarea>
-        </label>
-        <button class="btn primary" type="submit">Submit Review</button>
-        <p id="reviewMsg" class="muted"></p>
-      </form>
-    </div>
-  </section>
+  
 
-  <section id="faq" class="section">
-    <p class="eyebrow">HELP & SUPPORT</p>
-    <h2>Need Help?</h2>
-    <p class="muted">Contact Aura Farming support through the channels below.</p>
-    <div class="grid" id="supportCards" style="margin-top:20px">
-      <article class="card"><h3>WhatsApp</h3><p id="supportWhatsapp">Loading…</p></article>
-      <article class="card"><h3>Telegram</h3><p id="supportTelegram">Loading…</p></article>
-      <article class="card" id="supportEmailCard" style="display:none"><h3>Email</h3><p id="supportEmail"></p></article>
-    </div>
-  </section>
+  
 </main>
 <footer>© 2026 Aura Farming · Simulated trading environment. No real brokerage execution.</footer>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
