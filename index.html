@@ -96,7 +96,7 @@ ceAuth.onAuthStateChanged(function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
   if(user){
-    nav.innerHTML='<a class="btn primary small" href="courses.html">Dashboard</a><button class="linkbtn" onclick="ceAuth.signOut()">Logout</button>';
+    nav.innerHTML='<button class="linkbtn" onclick="ceAuth.signOut()">Logout</button>';
     hero.href='courses.html';
     hero.textContent='Open Dashboard';
   }else{
