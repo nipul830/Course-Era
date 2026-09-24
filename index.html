@@ -130,6 +130,7 @@ ceAuth.onAuthStateChanged(async function(user){
     if(profilePhoto){
       try{localStorage.setItem('auraProfilePhoto',profilePhoto)}catch(e){}
       img.hidden=false;img.style.display='block';img.src=profilePhoto;
+      img.setAttribute('src',profilePhoto);
       img.onerror=function(){img.hidden=true;img.style.display='none'};
     }
     if(menu){
