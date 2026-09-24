@@ -4,8 +4,8 @@
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;background:radial-gradient(circle at 80% 0,#171208 0,transparent 35%),radial-gradient(circle at 10% 30%,#0d0b07 0,transparent 30%),var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif}
 a{text-decoration:none;color:inherit}
-.nav{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;border-bottom:1px solid var(--line);background:#000000f5;backdrop-filter:blur(10px);position:sticky;top:0;z-index:1000}
-.brand{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:7px;font-size:23px;font-weight:800;color:#fff;z-index:22;white-space:nowrap}
+.nav{height:112px;display:flex;align-items:flex-start;justify-content:center;padding:0 6%;border-bottom:1px solid var(--line);background:#000000f5;backdrop-filter:blur(10px);position:sticky;top:0;z-index:1000}
+.brand{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;font-size:23px;font-weight:800;color:#fff;z-index:22;white-space:nowrap}
 .brand-mark{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 9px #d6b35a22)}
 .brand-mark svg{width:100%;height:100%;display:block}
 .brand span:last-child{white-space:nowrap;color:#fff;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
@@ -19,9 +19,9 @@ a{text-decoration:none;color:inherit}
 .side-menu a{display:block !important;visibility:visible;color:#f1d98a !important;font-size:20px;font-weight:700;padding:14px 8px;border-bottom:1px solid #302713}
 .menu-backdrop{position:fixed;inset:0;background:#000c;opacity:0;pointer-events:none;transition:.2s;z-index:9000}
 .menu-backdrop.open{opacity:1;pointer-events:auto}
-nav{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px}
+nav{display:flex;align-items:center;color:var(--muted);font-size:12px}
 .top-links>a{white-space:nowrap}
-.top-links{padding-left:210px}
+.top-links{position:absolute;left:50%;top:67px;transform:translateX(-50%);padding-left:0;display:flex;align-items:center;gap:22px;white-space:nowrap}
 nav a:hover{color:var(--accent2)}.linkbtn{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit}
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:10px;border:1px solid var(--line);font-weight:800;cursor:pointer}.btn.small{padding:9px 14px}
 .primary{background:var(--accent);color:#021018;border-color:var(--accent);box-shadow:0 0 22px #d6b35a22}.ghost{background:#090806;color:var(--accent2)}.full{width:100%}
@@ -39,5 +39,5 @@ h1{font-size:clamp(44px,7vw,78px);line-height:1;letter-spacing:-3px;margin:12px 
 .chart-area{height:300px;margin-top:20px;border:1px solid var(--line);border-radius:14px;background:repeating-linear-gradient(0deg,#020202 0 49px,#0a0907 50px);display:grid;place-items:center}.line{font-size:45px;color:var(--accent);letter-spacing:5px}
 .orders{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:15px}.orders div{padding:16px;border:1px solid var(--line);border-radius:12px}.orders b{color:var(--accent2)}.orders span{display:block;color:var(--muted);font-size:13px;margin-top:7px}
 footer{border-top:1px solid var(--line);padding:25px 6%;color:var(--muted);font-size:12px}
-@media(max-width:1250px){.top-links>a{display:none}.top-links{padding-left:0;gap:8px}}
-@media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:60px}.grid,.stats,.rules,.orders{grid-template-columns:1fr}.nav{padding:0 4%}.top-links{gap:8px}.top-links>a{display:none}.top-links #authNav a{display:inline-flex}.top-links #authNav .linkbtn{display:inline-block}.brand{font-size:19px}.brand-mark{width:34px;height:34px}}
+@media(max-width:1250px){.top-links{gap:10px}.top-links>a{display:none}.top-links>a:first-child{display:inline}.top-links{padding-left:0}}
+@media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:60px}.grid,.stats,.rules,.orders{grid-template-columns:1fr}.nav{height:82px;padding:0 4%}.top-links{top:54px;gap:8px}.top-links>a{display:none}.top-links #authNav a{display:inline-flex}.top-links #authNav .linkbtn{display:inline-block}.brand{top:10px;font-size:19px}.brand-mark{width:34px;height:34px}}
