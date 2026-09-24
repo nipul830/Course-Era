@@ -127,12 +127,19 @@ ceAuth.onAuthStateChanged(async function(user){
       var pr=await fetch('https://course-era.onrender.com/api/profile',{headers:{Authorization:'Bearer '+token}});
       if(pr.ok){var pd=await pr.json();profilePhoto=pd.photoURL||profilePhoto}
     }catch(e){}
-    if(profilePhoto){img.src=profilePhoto;img.hidden=false}
+    if(profilePhoto){
+      try{localStorage.setItem('auraProfilePhoto',profilePhoto)}catch(e){}
+      img.hidden=false;img.style.display='block';img.src=profilePhoto;
+      img.onerror=function(){img.hidden=true;img.style.display='none'};
+    }
     if(menu){
       pname.textContent=user.displayName||'Trader';
       pemail.textContent=user.email||'';
-      if(profilePhoto){photo.src=profilePhoto;photo.hidden=false;blank.style.display='none'}
-      else{photo.hidden=true;blank.style.display='block'}
+      if(profilePhoto){
+        photo.hidden=false;photo.style.display='block';photo.src=profilePhoto;
+        photo.onerror=function(){photo.hidden=true;photo.style.display='none';blank.style.display='block'};
+        blank.style.display='none';
+      }else{photo.hidden=true;photo.style.display='none';blank.style.display='block'}
     }
     hero.href='courses.html';
     hero.textContent='Open Dashboard';
