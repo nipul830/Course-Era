@@ -14,7 +14,7 @@
 <button class="save-btn" type="submit">Save Changes</button>
 </form><p id="msg" class="profile-msg"></p>
 </div></main>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script><script src="firebase-config.js?v=8"></script>
 <script>
 const API='https://course-era.onrender.com';
 let currentUser;
@@ -42,13 +42,18 @@ document.getElementById('profileForm').addEventListener('submit',async e=>{
  }catch(err){msg(err.message)}
 });
 document.getElementById('photoInput').addEventListener('change',async e=>{
- const file=e.target.files[0];if(!file)return;msg('Uploading photo…');
+ const file=e.target.files[0];if(!file)return;
+ if(file.size>5*1024*1024){msg('Photo must be 5MB or smaller');return}
+ msg('Uploading photo…');
  try{
-  const fd=new FormData();fd.append('photo',file);
-  const res=await fetch(API+'/api/profile/photo',{method:'POST',headers:{Authorization:'Bearer '+await token()},body:fd});
-  const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not upload photo');
-  document.getElementById('photo').src=d.photoURL;
-  await currentUser.reload();msg('Profile photo updated successfully.');
- }catch(err){msg(err.message)}
+  const ref=firebase.storage().ref('users/'+currentUser.uid+'/profile-'+Date.now());
+  const snap=await ref.put(file,{contentType:file.type,cacheControl:'public,max-age=3600'});
+  const photoURL=await snap.ref.getDownloadURL();
+  const res=await fetch(API+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token()},body:JSON.stringify({name:document.getElementById('name').value,mobile:document.getElementById('mobile').value,photoURL})});
+  const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not save profile photo');
+  await currentUser.updateProfile({photoURL});
+  document.getElementById('photo').src=photoURL;
+  msg('Profile photo updated successfully.');
+ }catch(err){msg(err.message||'Could not update profile photo')}
 });
 </script></body></html>
