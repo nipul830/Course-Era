@@ -162,7 +162,7 @@ app.put("/api/profile", requireAuth, async (req, res) => {
     initFirebase();
     const name = String(req.body.name || "").trim().slice(0, 80);
     const mobile = String(req.body.mobile || "").trim().slice(0, 30);
-    const photoURL = String(req.body.photoURL || "").trim().slice(0, 1000);
+    const photoURL = String(req.body.photoURL || "").trim().slice(0, 900000);
     if (!name) return res.status(400).json({ error: "Name is required" });
     if (mobile && !/^[0-9+()\-\s]{7,20}$/.test(mobile)) {
       return res.status(400).json({ error: "Enter a valid mobile number" });
