@@ -131,7 +131,16 @@ ceAuth.onAuthStateChanged(async function(user){
       try{localStorage.setItem('auraProfilePhoto',profilePhoto)}catch(e){}
       img.hidden=false;img.style.display='block';img.src=profilePhoto;
       img.setAttribute('src',profilePhoto);
-      img.onerror=function(){img.hidden=true;img.style.display='none'};
+      var navAvatar=document.querySelector('.profile-nav-avatar');
+      if(navAvatar){
+        navAvatar.style.backgroundImage="url('"+profilePhoto.replace(/'/g,"\\'")+"')";
+        navAvatar.style.backgroundSize='cover';
+        navAvatar.style.backgroundPosition='center';
+      }
+      img.onerror=function(){
+        img.hidden=true;img.style.display='none';
+        if(navAvatar) navAvatar.style.backgroundImage='none';
+      };
     }
     if(menu){
       pname.textContent=user.displayName||'Trader';
