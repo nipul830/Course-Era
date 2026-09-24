@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Challenges — Aura Farming</title>
+<link rel="stylesheet" href="aura.css">
+<style>
+.challenge-page{max-width:1200px;margin:0 auto;padding:42px 5% 80px}
+.challenge-head{text-align:center;margin-bottom:34px}.challenge-head h1{font-size:44px;color:var(--text);margin:8px 0}.challenge-head p{color:var(--muted);max-width:680px;margin:auto;line-height:1.7}
+.challenge-tabs{display:flex;justify-content:center;gap:10px;margin:25px 0 34px;flex-wrap:wrap}
+.challenge-tab{border:1px solid var(--line);background:#050505;color:var(--muted);border-radius:12px;padding:13px 24px;font-weight:800;cursor:pointer}
+.challenge-tab.active{background:var(--accent);color:#080808;border-color:var(--accent)}
+.challenge-panel{display:none}.challenge-panel.active{display:block}
+.account-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.account-card{background:#060606;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 10px 30px #0008}
+.account-card h2{color:#fff;margin:0 0 6px;font-size:28px}.account-type{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.12em}
+.account-rule{margin:18px 0;color:var(--muted);line-height:1.8;font-size:14px}.account-rule b{color:#fff}
+.buy-now{width:100%;border:0;border-radius:12px;background:var(--accent);color:#080808;padding:14px;font-size:16px;font-weight:900;cursor:pointer}
+.buy-now:hover{background:var(--accent2)}
+.rule-box{margin-top:12px;padding-top:14px;border-top:1px solid var(--line)}
+@media(max-width:800px){.challenge-page{padding:30px 4% 60px}.challenge-head h1{font-size:34px}.account-grid{grid-template-columns:1fr}.challenge-tabs{display:grid;grid-template-columns:repeat(3,1fr)}.challenge-tab{padding:12px 6px;font-size:13px}}
+</style>
+</head>
+<body>
+<header class="nav">
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
+  <div class="side-menu" id="sideMenu">
+    <a href="index.html">Home</a>
+    <a href="challenge.html">Challenge</a>
+    <a href="index.html#transparency">Transparency</a>
+    <a href="index.html#reviews">Reviews</a>
+    <a href="index.html#leaderboard">Leaderboard</a>
+    <a href="index.html#spreads">Spreads</a>
+    <a href="terminal.html">Terminal</a>
+    <a href="index.html#affiliate">Affiliate</a>
+    <a href="index.html#faq">Help</a>
+  </div>
+  <div class="menu-backdrop" id="menuBackdrop"></div>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">
+<svg viewBox="0 0 64 64"><defs><linearGradient id="auraGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7df98"/><stop offset=".45" stop-color="#d6b35a"/><stop offset="1" stop-color="#9b671f"/></linearGradient></defs><path d="M12 53 31 9l21 44h-9l-5.3-12H25l-5 12zM28 34h7l-3.5-8z" fill="none" stroke="url(#auraGold)" stroke-width="4.2" stroke-linejoin="round"/><path d="M20 42C9 39 5 31 5 25c9 1 16 6 18 13-1 1-2 2-3 4z" fill="#1f7a32" stroke="#d6b35a" stroke-width="1.4"/><path d="M25 48c1-10 8-17 19-19-1 10-7 17-18 21z" fill="#39a844" stroke="#d6b35a" stroke-width="1.4"/></svg></span><span>Aura Farming</span></a>
+  <nav class="top-links"><a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="index.html#transparency">Transparency</a><a href="index.html#reviews">Reviews</a><a href="index.html#leaderboard">Leaderboard</a><a href="index.html#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="index.html#affiliate">Affiliate</a><a href="index.html#faq">Help</a></nav>
+  <div class="auth-nav"><a class="btn primary small" href="courses.html">Dashboard</a><button class="linkbtn" onclick="ceAuth.signOut()">Logout</button></div>
+</header>
+
+<main class="challenge-page">
+  <section class="challenge-head">
+    <p class="eyebrow">AURA FARMING</p>
+    <h1>Choose Your Challenge</h1>
+    <p>Select 1 Step, 2 Step or Instant. Every account is a separate simulated trading account with its own balance and rules.</p>
+  </section>
+
+  <div class="challenge-tabs">
+    <button class="challenge-tab active" data-tab="one">1 Step</button>
+    <button class="challenge-tab" data-tab="two">2 Step</button>
+    <button class="challenge-tab" data-tab="instant">Instant</button>
+  </div>
+
+  <section class="challenge-panel active" id="one">
+    <div class="account-grid">
+      <article class="account-card"><div class="account-type">1 STEP CHALLENGE</div><h2>$5K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Profit Target:</b> 10%</div><div class="rule-box">Single evaluation phase.</div></div><button class="buy-now" data-model="1 Step" data-size="$5K">Buy Now</button></article><article class="account-card"><div class="account-type">1 STEP CHALLENGE</div><h2>$10K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Profit Target:</b> 10%</div><div class="rule-box">Single evaluation phase.</div></div><button class="buy-now" data-model="1 Step" data-size="$10K">Buy Now</button></article><article class="account-card"><div class="account-type">1 STEP CHALLENGE</div><h2>$25K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Profit Target:</b> 10%</div><div class="rule-box">Single evaluation phase.</div></div><button class="buy-now" data-model="1 Step" data-size="$25K">Buy Now</button></article>
+    </div>
+  </section>
+
+  <section class="challenge-panel" id="two">
+    <div class="account-grid">
+      <article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$5K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$5K">Buy Now</button></article><article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$10K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$10K">Buy Now</button></article><article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$25K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$25K">Buy Now</button></article><article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$50K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$50K">Buy Now</button></article><article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$100K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$100K">Buy Now</button></article>
+    </div>
+  </section>
+
+  <section class="challenge-panel" id="instant">
+    <div class="account-grid">
+      <article class="account-card"><div class="account-type">INSTANT FUNDING</div><h2>$1K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 3%</div><div><b>Evaluation:</b> None</div><div class="rule-box">Funded-style simulated account from the start.</div></div><button class="buy-now" data-model="Instant" data-size="$1K">Buy Now</button></article><article class="account-card"><div class="account-type">INSTANT FUNDING</div><h2>$2.5K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 3%</div><div><b>Evaluation:</b> None</div><div class="rule-box">Funded-style simulated account from the start.</div></div><button class="buy-now" data-model="Instant" data-size="$2.5K">Buy Now</button></article>
+    </div>
+  </section>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=6"></script>
+<script>
+document.querySelectorAll('.challenge-tab').forEach(function(tab){
+  tab.addEventListener('click',function(){
+    document.querySelectorAll('.challenge-tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.challenge-panel').forEach(x=>x.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('.buy-now').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    localStorage.setItem('auraSelectedChallenge',JSON.stringify({model:btn.dataset.model,size:btn.dataset.size}));
+    if(!ceAuth.currentUser) location.href='login.html?next=challenge';
+    else alert('Selected '+btn.dataset.model+' '+btn.dataset.size+'. Checkout pricing/payment can be connected once the account price is configured.');
+  });
+});
+(function(){
+ const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
+ if(toggle&&menu&&back){
+  toggle.addEventListener('click',function(){const open=menu.classList.toggle('open');back.classList.toggle('open',open);toggle.classList.toggle('open',open);toggle.setAttribute('aria-expanded',open?'true':'false')});
+  back.addEventListener('click',function(){menu.classList.remove('open');back.classList.remove('open');toggle.classList.remove('open');toggle.setAttribute('aria-expanded','false')});
+ }
+})();
+</script>
+</body>
+</html>
