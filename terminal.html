@@ -37,10 +37,19 @@ body{background:#fff;color:#182332}
  .chart-wrap{position:relative;height:calc(100vh - 168px);margin:8px 0 0}
  .tv-mobile{height:100%;width:100%;background:#fff}
  .tv-mobile iframe{border:0}
- .top-quotes{padding:0 12px;margin:0;gap:10px}
- .top-quotes .quote{min-height:82px;border-radius:17px}
- .top-quotes .quote .label{font-size:16px}.top-quotes .quote .price{font-size:23px;margin-top:3px}
- .top-quotes .spread{font-size:12px;padding:4px 7px}
+ .top-quotes{padding:0 12px;margin:0;gap:8px}
+ .top-quotes .quote{min-height:58px;border-radius:13px}
+ .top-quotes .quote .label{font-size:14px}.top-quotes .quote .price{font-size:19px;margin-top:2px}
+ .top-quotes .spread{font-size:10px;padding:3px 6px}
+ .order-tools{display:flex;align-items:center;gap:8px;padding:8px 12px 0}
+ .lot-control{display:flex;align-items:center;gap:6px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;padding:5px 8px;color:#344252;font-size:12px;font-weight:700}
+ .lot-control input{width:52px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332}
+ .pending-btn{flex:1;border:1px solid #cfd7df;border-radius:10px;background:#182839;color:#fff;padding:9px 10px;font-size:12px;font-weight:800}
+ .pending-menu{display:none;margin:7px 12px 0;border:1px solid #dce2e7;border-radius:12px;background:#fff;box-shadow:0 8px 22px #0002;overflow:hidden}
+ .pending-menu.open{display:grid;grid-template-columns:1fr 1fr}
+ .pending-menu button{border:0;border-bottom:1px solid #eef1f4;background:#fff;padding:10px 6px;font-size:12px;font-weight:700;color:#253342}
+ .pending-menu button:nth-child(odd){border-right:1px solid #eef1f4}
+ .pending-menu button:active{background:#f2f5f7}
  .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(5,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
  .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
@@ -73,6 +82,16 @@ body{background:#fff;color:#182332}
    <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
    <div class="spread">0.56</div>
  </div>
+ <div class="order-tools">
+   <label class="lot-control">Lot <input id="lotSize" type="number" min="0.01" step="0.01" value="0.10" inputmode="decimal"></label>
+   <button class="pending-btn" id="pendingBtn" type="button">Pending Order ▾</button>
+ </div>
+ <div class="pending-menu" id="pendingMenu">
+   <button type="button" data-pending="Buy Limit">Buy Limit</button>
+   <button type="button" data-pending="Sell Limit">Sell Limit</button>
+   <button type="button" data-pending="Buy Stop">Buy Stop</button>
+   <button type="button" data-pending="Sell Stop">Sell Stop</button>
+ </div>
  <div class="chart-wrap"><div class="tv-mobile" id="tvMobile"></div></div>
  <nav class="bottom-nav">
    <a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a>
@@ -90,8 +109,24 @@ body{background:#fff;color:#182332}
 ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');});
 function placeSimulatedOrder(side){
   const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell'));
-  if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
+  if(btn){
+    btn.style.transform='scale(.98)';
+    setTimeout(()=>btn.style.transform='',120);
+  }
 }
+(function(){
+  const pendingBtn=document.getElementById('pendingBtn');
+  const pendingMenu=document.getElementById('pendingMenu');
+  if(pendingBtn&&pendingMenu){
+    pendingBtn.addEventListener('click',function(){pendingMenu.classList.toggle('open')});
+    pendingMenu.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        pendingBtn.textContent=btn.dataset.pending+' ✓';
+        pendingMenu.classList.remove('open');
+      });
+    });
+  }
+})();
 let currentSymbol='OANDA:XAUUSD';
 function mountChart(id,symbol){
   const el=document.getElementById(id); if(!el)return;
