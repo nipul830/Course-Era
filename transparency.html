@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transparency — Aura Farming</title><link rel="stylesheet" href="aura.css">
+<style>
+.trans-wrap{max-width:980px;margin:auto;padding:70px 5% 100px}
+.trans-hero{text-align:center;margin-bottom:42px}.trans-hero h1{font-size:clamp(42px,8vw,72px);margin:10px 0}.trans-hero p{max-width:700px;margin:auto;color:var(--muted);line-height:1.7}
+.trans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.trans-card{background:linear-gradient(145deg,#0c0a06,#030303);border:1px solid #403318;border-radius:18px;padding:24px}.trans-card.full{grid-column:1/-1}.trans-icon{font-size:24px;color:var(--accent);margin-bottom:14px}.trans-card h2{margin:0 0 10px;color:var(--accent2);font-size:21px}.trans-card p,.trans-card li{color:var(--muted);line-height:1.65}.trans-card ul{padding-left:20px;margin-bottom:0}.notice{margin-top:24px;padding:20px;border:1px solid #56431d;border-radius:16px;background:#0b0905;color:var(--muted);line-height:1.65}.notice strong{color:var(--accent2)}
+@media(max-width:700px){.trans-wrap{padding:45px 5% 80px}.trans-grid{grid-template-columns:1fr}.trans-card.full{grid-column:auto}}
+</style></head>
+<body>
+<header class="nav">
+<button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
+<div class="side-menu" id="sideMenu">
+<a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="transparency.html">Transparency</a><a href="#reviews">Reviews</a><a href="#leaderboard">Leaderboard</a><a href="#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="affiliate.html">Affiliate</a><a href="#faq">Help</a>
+</div><div class="menu-backdrop" id="menuBackdrop"></div>
+<a class="brand" href="index.html">Aura Farming</a>
+</header>
+<main class="trans-wrap">
+<section class="trans-hero"><p class="eyebrow">AURA FARMING</p><h1>Transparency</h1><p>Clear information about our simulated trading environment, challenge rules and account mechanics.</p></section>
+<section class="trans-grid">
+<article class="trans-card full"><div class="trans-icon">◈</div><h2>Simulation Disclosure</h2><p>Aura Farming provides a simulated CFD-style trading environment. Account balances, positions and trading results shown in the terminal are simulated. No real brokerage order is sent from the terminal.</p></article>
+<article class="trans-card"><div class="trans-icon">✓</div><h2>Challenge Rules</h2><ul><li>1 Step: 4% daily drawdown, 8% total drawdown, 10% profit target.</li><li>2 Step: 4% daily drawdown, 8% total drawdown, 8% Phase 1 and 6% Phase 2 profit targets.</li><li>Instant: 3% daily drawdown.</li></ul></article>
+<article class="trans-card"><div class="trans-icon">◌</div><h2>Trading Conditions</h2><p>The terminal supports simulated market orders, pending-order controls, adjustable lot sizes and multiple supported symbols. Displayed market data may depend on the underlying chart-data provider.</p></article>
+<article class="trans-card"><div class="trans-icon">$</div><h2>Account & Balance</h2><p>Challenge account size determines the simulated starting balance when the corresponding account is activated. Balance, equity and simulated P&amp;L are tracked separately from any real brokerage account.</p></article>
+<article class="trans-card"><div class="trans-icon">!</div><h2>Risk Management</h2><p>Drawdown rules are part of the challenge evaluation. Traders should review the applicable challenge rules before placing simulated trades.</p></article>
+<article class="trans-card"><div class="trans-icon">♢</div><h2>Data & Account Security</h2><p>Authentication is handled through Firebase. Profile and account information is associated with the signed-in trader account and used to provide the platform experience.</p></article>
+<article class="trans-card"><div class="trans-icon">↗</div><h2>Affiliate Disclosure</h2><p>The Aura Farming affiliate program is currently in beta. Affiliate terms and benefits may change as the program develops.</p></article>
+<article class="trans-card"><div class="trans-icon">?</div><h2>Support</h2><p>For account, challenge or platform questions, use the available Aura Farming support channel. Keep your account details secure when requesting assistance.</p></article>
+</section>
+<div class="notice"><strong>Important:</strong> Aura Farming is a simulated trading environment. This page describes the current platform setup; specific challenge terms should always be checked against the challenge selected at purchase.</div>
+</main>
+<footer>© 2026 Aura Farming · Simulated trading environment. No real brokerage execution.</footer>
+<script>
+document.getElementById('menuToggle').addEventListener('click',function(){var o=document.getElementById('sideMenu').classList.toggle('open');document.getElementById('menuBackdrop').classList.toggle('open',o);this.classList.toggle('open',o);this.setAttribute('aria-expanded',o?'true':'false')});
+document.getElementById('menuBackdrop').addEventListener('click',function(){document.getElementById('sideMenu').classList.remove('open');this.classList.remove('open');document.getElementById('menuToggle').classList.remove('open')});
+</script>
+</body></html>
