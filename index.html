@@ -64,6 +64,25 @@
     </div>
   </section>
 
+  <section id="profile" class="section profile-section" style="display:none">
+    <div class="profile-panel">
+      <div class="profile-avatar" id="profileAvatar">A</div>
+      <div class="profile-main">
+        <p class="eyebrow">TRADER PROFILE</p>
+        <h2 id="profileName">Trader</h2>
+        <p id="profileEmail" class="muted"></p>
+        <div class="profile-meta">
+          <span><b>Account</b><strong id="profileAccount">AURA-100001</strong></span>
+          <span><b>Status</b><strong>Active</strong></span>
+        </div>
+      </div>
+      <div class="profile-actions">
+        <a class="btn primary small" href="courses.html">Dashboard</a>
+        <button class="btn ghost small" type="button" onclick="ceAuth.signOut()">Logout</button>
+      </div>
+    </div>
+  </section>
+
   <section class="section">
     <div class="panel">
       <p class="eyebrow">ABOUT THE FIRM</p>
@@ -98,10 +117,20 @@ ceAuth.onAuthStateChanged(function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
   if(user){
-    nav.innerHTML='<button class="linkbtn" onclick="ceAuth.signOut()">Logout</button>';
+    nav.innerHTML='<a class="profile-nav" href="#profile"><span class="profile-nav-avatar">'+((user.displayName||user.email||'A').charAt(0).toUpperCase())+'</span><span>Profile</span></a><button class="linkbtn" onclick="ceAuth.signOut()">Logout</button>';
     hero.href='courses.html';
     hero.textContent='Open Dashboard';
+    var profile=document.getElementById('profile');
+    if(profile) profile.style.display='block';
+    var name=document.getElementById('profileName');
+    var email=document.getElementById('profileEmail');
+    var avatar=document.getElementById('profileAvatar');
+    if(name) name.textContent=user.displayName||'Trader';
+    if(email) email.textContent=user.email||'';
+    if(avatar) avatar.textContent=(user.displayName||user.email||'A').charAt(0).toUpperCase();
   }else{
+    var profile=document.getElementById('profile');
+    if(profile) profile.style.display='none';
     nav.innerHTML='<a class="btn primary small" href="login.html">Login</a>';
     hero.href='login.html';
     hero.textContent='Trader Login';
