@@ -633,6 +633,151 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
   }
 });
 
+app.get("/api/trading-account", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+
+    const accountRef = db.collection("users").doc(req.user.uid).collection("trading").doc("account");
+    const existing = await accountRef.get();
+
+    if (existing.exists) {
+      const account = existing.data() || {};
+      return res.json({
+        account: {
+          id: "account",
+          startingBalance: Number(account.startingBalance || 0),
+          balance: Number(account.balance ?? account.startingBalance ?? 0),
+          equity: Number(account.equity ?? account.balance ?? account.startingBalance ?? 0),
+          pnl: Number(account.pnl ?? ((account.balance ?? 0) - (account.startingBalance ?? 0))),
+          currency: account.currency || "USD",
+          challenge: account.challenge || "Funded Account",
+          sourcePaymentId: account.sourcePaymentId || ""
+        }
+      });
+    }
+
+    const approved = await db.collection("payments")
+      .where("userId", "==", req.user.uid)
+      .where("status", "==", "approved")
+      .get();
+
+    if (approved.empty) {
+      return res.status(404).json({ error: "No approved funded account found" });
+    }
+
+    const payment = approved.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const at = a.reviewedAt?.toMillis?.() || 0;
+        const bt = b.reviewedAt?.toMillis?.() || 0;
+        return bt - at;
+      })[0];
+
+    const courseSnap = await db.collection("courses").doc(payment.courseId).get();
+    const course = courseSnap.exists ? courseSnap.data() : {};
+
+    const startingBalance = Number(
+      course.accountSize ??
+      course.startingBalance ??
+      course.fundedBalance ??
+      10000
+    );
+
+    if (!Number.isFinite(startingBalance) || startingBalance <= 0) {
+      return res.status(500).json({ error: "Funded account size is not configured" });
+    }
+
+    const account = {
+      startingBalance,
+      balance: startingBalance,
+      equity: startingBalance,
+      pnl: 0,
+      currency: "USD",
+      challenge: course.title || "Funded Account",
+      sourcePaymentId: payment.id,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await accountRef.create(account);
+
+    res.json({
+      account: {
+        id: "account",
+        startingBalance,
+        balance: startingBalance,
+        equity: startingBalance,
+        pnl: 0,
+        currency: "USD",
+        challenge: account.challenge,
+        sourcePaymentId: payment.id
+      }
+    });
+  } catch (e) {
+    if (e?.code === 6 || e?.code === "already-exists") {
+      const snap = await db.collection("users").doc(req.user.uid).collection("trading").doc("account").get();
+      const account = snap.data() || {};
+      return res.json({
+        account: {
+          id: "account",
+          startingBalance: Number(account.startingBalance || 0),
+          balance: Number(account.balance ?? account.startingBalance ?? 0),
+          equity: Number(account.equity ?? account.balance ?? account.startingBalance ?? 0),
+          pnl: Number(account.pnl ?? 0),
+          currency: account.currency || "USD",
+          challenge: account.challenge || "Funded Account",
+          sourcePaymentId: account.sourcePaymentId || ""
+        }
+      });
+    }
+    res.status(500).json({ error: "Could not load trading account", detail: e.message });
+  }
+});
+
+app.post("/api/trading-account/adjust", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+
+    const delta = Number(req.body.delta);
+    if (!Number.isFinite(delta) || Math.abs(delta) > 1000000) {
+      return res.status(400).json({ error: "Invalid simulated P&L adjustment" });
+    }
+
+    const accountRef = db.collection("users").doc(req.user.uid).collection("trading").doc("account");
+
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(accountRef);
+      if (!snap.exists) throw new Error("Trading account not found");
+      const a = snap.data() || {};
+      const startingBalance = Number(a.startingBalance || 0);
+      const balance = Number(a.balance ?? startingBalance) + delta;
+      const pnl = balance - startingBalance;
+      tx.update(accountRef, {
+        balance,
+        equity: balance,
+        pnl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+
+    const snap = await accountRef.get();
+    const a = snap.data() || {};
+    res.json({
+      account: {
+        id: "account",
+        startingBalance: Number(a.startingBalance || 0),
+        balance: Number(a.balance ?? 0),
+        equity: Number(a.equity ?? a.balance ?? 0),
+        pnl: Number(a.pnl ?? 0),
+        currency: a.currency || "USD",
+        challenge: a.challenge || "Funded Account"
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update trading account", detail: e.message });
+  }
+});
+
 app.get("/api/my-courses", requireAuth, async (req, res) => {
   try {
     initFirebase();
