@@ -14,7 +14,7 @@
 <button class="save-btn" type="submit">Save Changes</button>
 </form><p id="msg" class="profile-msg"></p>
 </div></main>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script><script src="firebase-config.js?v=8"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=9"></script>
 <script>
 const API='https://course-era.onrender.com';
 let currentUser;
@@ -43,17 +43,38 @@ document.getElementById('profileForm').addEventListener('submit',async e=>{
 });
 document.getElementById('photoInput').addEventListener('change',async e=>{
  const file=e.target.files[0];if(!file)return;
- if(file.size>5*1024*1024){msg('Photo must be 5MB or smaller');return}
- msg('Uploading photo…');
+ if(!file.type.startsWith('image/')){msg('Please choose an image');return}
+ if(file.size>10*1024*1024){msg('Photo must be 10MB or smaller');return}
+ msg('Preparing photo…');
  try{
-  const ref=firebase.storage().ref('users/'+currentUser.uid+'/profile-'+Date.now());
-  const snap=await ref.put(file,{contentType:file.type,cacheControl:'public,max-age=3600'});
-  const photoURL=await snap.ref.getDownloadURL();
-  const res=await fetch(API+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token()},body:JSON.stringify({name:document.getElementById('name').value,mobile:document.getElementById('mobile').value,photoURL})});
+  const photoURL=await compressPhoto(file);
+  msg('Saving photo…');
+  const res=await fetch(API+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token()},body:JSON.stringify({
+    name:document.getElementById('name').value,
+    mobile:document.getElementById('mobile').value,
+    photoURL
+  })});
   const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not save profile photo');
-  await currentUser.updateProfile({photoURL});
   document.getElementById('photo').src=photoURL;
   msg('Profile photo updated successfully.');
  }catch(err){msg(err.message||'Could not update profile photo')}
 });
+function compressPhoto(file){
+ return new Promise((resolve,reject)=>{
+  const img=new Image(), reader=new FileReader();
+  reader.onerror=()=>reject(new Error('Could not read photo'));
+  reader.onload=()=>{img.src=reader.result};
+  img.onerror=()=>reject(new Error('Could not open photo'));
+  img.onload=()=>{
+   const max=512, scale=Math.min(1,max/Math.max(img.width,img.height));
+   const canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+   const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
+   const data=canvas.toDataURL('image/jpeg',0.78);
+   if(data.length>900000) return reject(new Error('Photo is still too large. Please choose a smaller image.'));
+   resolve(data);
+  };
+  reader.readAsDataURL(file);
+ }); 
+}
 </script></body></html>
