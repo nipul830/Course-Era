@@ -21,7 +21,7 @@ body{background:#fff;color:#182332}
  body{background:#fff}
  .nav{display:none}
  .terminal-page{display:none}
- .mobile-terminal{display:block;min-height:100vh;padding:18px 0 88px;background:#fff;font-family:Arial,Helvetica,sans-serif}
+ .mobile-terminal{display:block;height:100vh;min-height:100vh;padding:10px 0 84px;background:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;position:relative}
  .m-top{display:flex;align-items:center;justify-content:space-between;padding:0 28px 10px}
  .balance{display:flex;align-items:center;gap:10px;background:#f4f5f7;border-radius:30px;padding:8px 14px 8px 8px;font-weight:800;color:#1c2633}
  .balance-icon{width:38px;height:38px;border-radius:14px;background:#f6ad18;color:#fff;display:grid;place-items:center;font-size:19px}
@@ -33,27 +33,17 @@ body{background:#fff;color:#182332}
  .instrument-name{font-size:27px;font-weight:800;color:#101820;line-height:1}
  .instrument-sub{margin-top:7px;font-size:16px;color:#d64f4f}
  .instrument-sub span{color:#98a3ad}.instrument-tools{display:flex;gap:10px}.instrument-name{cursor:pointer}.instrument-name .chev{font-size:18px;margin-left:3px}.watchlist{position:absolute;left:28px;right:28px;top:76px;background:#fff;border:1px solid #dce2e7;border-radius:16px;box-shadow:0 12px 30px #0002;max-height:360px;overflow-y:auto;display:none;z-index:30}.watchlist.open{display:block}.watch-group{padding:10px 14px 6px;font-size:11px;font-weight:800;color:#8a96a2;text-transform:uppercase;border-bottom:1px solid #eef1f4}.watch-item{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:#fff;text-align:left;color:#17212b}.watch-item:last-child{border-bottom:0}.watch-item strong{font-size:15px}.watch-item span{font-size:11px;color:#7c8995}.watch-item:active{background:#f3f6f8}
- .more{width:58px;height:58px;border:1px solid #d7dde2;border-radius:16px;background:#fff;font-size:25px}
- .chart-wrap{margin:0 0 0;position:relative}
- .tv-mobile{height:610px;width:100%;background:#fff}
+
+ .chart-wrap{position:relative;height:calc(100vh - 168px);margin:8px 0 0}
+ .tv-mobile{height:100%;width:100%;background:#fff}
  .tv-mobile iframe{border:0}
- .trade-controls{padding:0 28px}
- .time-row{display:flex;align-items:center;justify-content:space-between;margin:0 0 16px}
- .candle-btn,.expand-btn{width:56px;height:56px;border:1px solid #dce2e7;background:#fff;border-radius:15px;font-size:24px;color:#617080}
- .timeframes{display:flex;gap:22px;align-items:center;color:#697887;font-weight:800;font-size:18px}
- .timeframes .active{background:#182839;color:#fff;border-radius:50%;width:48px;height:48px;display:grid;place-items:center}
- .quote-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative}
- .quote{border:0;border-radius:19px;color:#fff;min-height:98px;font-weight:800;box-shadow:0 4px 8px #00000012}
- .quote.sell{background:#ec0050}.quote.buy{background:#00bd84}
- .quote .label{font-size:17px}.quote .price{font-size:25px;margin-top:4px}
- .spread{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:9px;padding:5px 8px;font-size:14px;font-weight:800;color:#202a35;box-shadow:0 2px 7px #0002;z-index:2}
- .position-card{margin:28px 28px 0;background:#f5f6f8;border-radius:24px;padding:18px 18px 20px;min-height:130px}
- .position-head{display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:#1a2530}.pnl{color:#e25b5b}
- .position-sub{margin-top:18px;color:#687687;font-size:13px}
+ .top-quotes{padding:0 12px;margin:0;gap:10px}
+ .top-quotes .quote{min-height:82px;border-radius:17px}
+ .top-quotes .quote .label{font-size:16px}.top-quotes .quote .price{font-size:23px;margin-top:3px}
+ .top-quotes .spread{font-size:12px;padding:4px 7px}
  .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(5,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
  .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
- .sim-note{text-align:center;margin:10px 28px;color:#9aa5ae;font-size:10px}
 }
 </style>
 </head>
@@ -78,46 +68,12 @@ body{background:#fff;color:#182332}
 </main>
 
 <main class="mobile-terminal">
- <div class="m-top">
-   <div class="balance"><div class="balance-icon">D</div><div id="accountBalance">Loading…</div><div class="balance-loss" id="accountPnl">—</div><div class="balance-chevron">⌄</div></div>
-   <button class="wallet" aria-label="Wallet">▱</button>
- </div>
- <div class="instrument">
-   <div class="instrument-left"><div class="gold-icon" id="instrumentIcon">▰</div><div><div class="instrument-name" id="instrumentName">GOLD<span class="chev">⌄</span></div><div class="instrument-sub" id="instrumentSub">−3.44 ↘ −0.08% <span>• 1 Day</span></div></div></div>
-   <div class="instrument-tools"><button class="more">⋮</button></div>
-   <div class="watchlist" id="watchlist">
-     <div class="watch-group">Gold</div>
-     <button class="watch-item" data-symbol="OANDA:XAUUSD" data-name="GOLD" data-sub="Gold Spot / U.S. Dollar"><strong>GOLD</strong><span>XAUUSD</span></button>
-     <div class="watch-group">Forex</div>
-     <button class="watch-item" data-symbol="FX:EURUSD" data-name="EUR/USD" data-sub="Euro / U.S. Dollar"><strong>EUR/USD</strong><span>EURUSD</span></button>
-     <button class="watch-item" data-symbol="FX:GBPUSD" data-name="GBP/USD" data-sub="British Pound / U.S. Dollar"><strong>GBP/USD</strong><span>GBPUSD</span></button>
-     <button class="watch-item" data-symbol="FX:USDJPY" data-name="USD/JPY" data-sub="U.S. Dollar / Japanese Yen"><strong>USD/JPY</strong><span>USDJPY</span></button>
-     <button class="watch-item" data-symbol="FX:AUDUSD" data-name="AUD/USD" data-sub="Australian Dollar / U.S. Dollar"><strong>AUD/USD</strong><span>AUDUSD</span></button>
-     <div class="watch-group">Crypto</div>
-     <button class="watch-item" data-symbol="BINANCE:BTCUSDT" data-name="BTC/USD" data-sub="Bitcoin / U.S. Dollar"><strong>BTC/USD</strong><span>BTCUSDT</span></button>
-     <button class="watch-item" data-symbol="BINANCE:ETHUSDT" data-name="ETH/USD" data-sub="Ethereum / U.S. Dollar"><strong>ETH/USD</strong><span>ETHUSDT</span></button>
-     <button class="watch-item" data-symbol="BINANCE:SOLUSDT" data-name="SOL/USD" data-sub="Solana / U.S. Dollar"><strong>SOL/USD</strong><span>SOLUSDT</span></button>
-     <button class="watch-item" data-symbol="BINANCE:XRPUSDT" data-name="XRP/USD" data-sub="XRP / U.S. Dollar"><strong>XRP/USD</strong><span>XRPUSDT</span></button>
-   </div>
+ <div class="quote-row top-quotes">
+   <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
+   <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
+   <div class="spread">0.56</div>
  </div>
  <div class="chart-wrap"><div class="tv-mobile" id="tvMobile"></div></div>
- <div class="trade-controls">
-   <div class="time-row">
-     <button class="candle-btn">♮</button>
-     <div class="timeframes"><span>1H</span><span class="active">1D</span><span>1W</span><span>1M</span><span>3M</span><span>1Y</span></div>
-     <button class="expand-btn">⛶</button>
-   </div>
-   <div class="quote-row">
-     <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
-     <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
-     <div class="spread">0.56</div>
-   </div>
- </div>
- <section class="position-card">
-   <div class="position-head"><span>▣ Open Positions</span><span class="pnl" id="pnl">−$82.00</span></div>
-   <div class="position-sub" id="positionText">GOLD · 100 Troy Ounce(s) · simulated</div>
- </section>
- <div class="sim-note">Quotes and order controls shown here are simulation UI. No real brokerage order is sent.</div>
  <nav class="bottom-nav">
    <a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a>
    <a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Markets</span></a>
@@ -131,36 +87,10 @@ body{background:#fff;color:#182332}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');else loadTradingAccount();});
-async function loadTradingAccount(){
-  try{
-    const user=ceAuth.currentUser;
-    if(!user)return;
-    const token=await user.getIdToken();
-    const res=await fetch("https://course-era.onrender.com/api/trading-account",{headers:{Authorization:"Bearer "+token}});
-    const data=await res.json();
-    if(!res.ok)throw new Error(data.error||"Account unavailable");
-    const a=data.account||{};
-    const balance=Number(a.balance||0), pnl=Number(a.pnl||0);
-    document.getElementById("accountBalance").textContent="$"+balance.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-    const pnlEl=document.getElementById("accountPnl");
-    pnlEl.textContent=(pnl>=0?"+":"−")+"$"+Math.abs(pnl).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-    pnlEl.style.color=pnl>=0?"#00a873":"#e35b63";
-    const openPnl=document.getElementById("pnl");
-    if(openPnl){openPnl.textContent=(pnl>=0?"+":"−")+"$"+Math.abs(pnl).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});openPnl.style.color=pnl>=0?"#00a873":"#e25b5b";}
-  }catch(e){
-    document.getElementById("accountBalance").textContent="—";
-    document.getElementById("accountPnl").textContent="No account";
-    document.getElementById("accountPnl").style.color="#8a96a2";
-  }
-}
+ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');});
 function placeSimulatedOrder(side){
-  const pnl=document.getElementById('pnl'), text=document.getElementById('positionText');
-  if(!pnl||!text)return;
-  pnl.textContent=side==='BUY'?'$0.00':'−$0.00';
-  pnl.style.color=side==='BUY'?'#00a873':'#e25b5b';
-  text.textContent=document.getElementById('instrumentName').innerText.replace('⌄','')+' · 100 units · '+side+' · simulated';
-  loadTradingAccount();
+  const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell'));
+  if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
 }
 let currentSymbol='OANDA:XAUUSD';
 function mountChart(id,symbol){
@@ -171,7 +101,7 @@ function mountChart(id,symbol){
   s.async=true;
   s.innerHTML=JSON.stringify({
    autosize:true,width:"100%",height:"100%",symbol:symbol,interval:"15",timezone:"exchange",
-   theme:"light",style:"1",withdateranges:true,hide_side_toolbar:false,allow_symbol_change:true,
+   theme:"light",style:"1",withdateranges:false,hide_side_toolbar:true,allow_symbol_change:false,
    save_image:false,calendar:false,locale:"en",support_host:"https://www.tradingview.com",
    watchlist:["OANDA:XAUUSD","FX:EURUSD","FX:GBPUSD","FX:USDJPY","FX:AUDUSD","BINANCE:BTCUSDT","BINANCE:ETHUSDT","BINANCE:SOLUSDT","BINANCE:XRPUSDT"]
   });
@@ -179,24 +109,6 @@ function mountChart(id,symbol){
 }
 (function(){
  mountChart('tvChart',currentSymbol); mountChart('tvMobile',currentSymbol);
- const name=document.getElementById('instrumentName');
- const list=document.getElementById('watchlist');
- if(name&&list){
-   name.addEventListener('click',function(){list.classList.toggle('open')});
-   list.querySelectorAll('.watch-item').forEach(function(item){
-     item.addEventListener('click',function(){
-       currentSymbol=item.dataset.symbol;
-       name.innerHTML=item.dataset.name+'<span class="chev">⌄</span>';
-       document.getElementById('instrumentSub').innerHTML=item.dataset.sub+' <span>• 15m</span>';
-       list.classList.remove('open');
-       mountChart('tvMobile',currentSymbol);
-       mountChart('tvChart',currentSymbol);
-     });
-   });
-   document.addEventListener('click',function(e){
-     if(!e.target.closest('#instrumentName')&&!e.target.closest('#watchlist'))list.classList.remove('open');
-   });
- }
 })();
 (function(){
  const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
