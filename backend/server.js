@@ -162,16 +162,21 @@ app.put("/api/profile", requireAuth, async (req, res) => {
     initFirebase();
     const name = String(req.body.name || "").trim().slice(0, 80);
     const mobile = String(req.body.mobile || "").trim().slice(0, 30);
+    const photoURL = String(req.body.photoURL || "").trim().slice(0, 1000);
     if (!name) return res.status(400).json({ error: "Name is required" });
     if (mobile && !/^[0-9+()\-\s]{7,20}$/.test(mobile)) {
       return res.status(400).json({ error: "Enter a valid mobile number" });
     }
     await db.collection("users").doc(req.user.uid).set({
       name, mobile,
+      ...(photoURL ? { photoURL } : {}),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    await admin.auth().updateUser(req.user.uid, { displayName: name });
-    res.json({ message: "Profile updated", name, mobile });
+    await admin.auth().updateUser(req.user.uid, {
+      displayName: name,
+      ...(photoURL ? { photoURL } : {})
+    });
+    res.json({ message: "Profile updated", name, mobile, photoURL });
   } catch (e) {
     res.status(500).json({ error: "Could not update profile" });
   }
