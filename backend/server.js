@@ -395,12 +395,15 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
     const challengeId = String(req.body.challengeId || "").trim();
     const transactionId = String(req.body.transactionId || "").trim();
     const method = String(req.body.method || "UPI").trim();
+    const currency = String(req.body.currency || (method === "USDT" ? "USDT" : "INR")).trim().toUpperCase();
     const amount = positiveAmount(req.body.amount);
     if (!challengeId || !transactionId || amount === null) return res.status(400).json({ error:"challengeId, transactionId and valid amount are required" });
+    if (!["INR","USDT"].includes(currency)) return res.status(400).json({ error:"Currency must be INR or USDT" });
     const catalog = await getChallengeCatalog();
     const challenge = catalog.find(x => x.id === challengeId);
     if (!challenge) return res.status(404).json({ error:"Challenge not found" });
-    if (Math.abs(Number(challenge.price) - amount) > 0.01) return res.status(400).json({ error:"Payment amount does not match challenge price" });
+    const expectedAmount = currency === "INR" ? Math.round(Number(challenge.price) * 98) : Number(challenge.price);
+    if (Math.abs(expectedAmount - amount) > 0.01) return res.status(400).json({ error:"Payment amount does not match selected currency price" });
 
     const duplicate = await db.collection("payments").where("transactionId","==",transactionId).limit(1).get();
     if (!duplicate.empty) return res.status(409).json({ error:"This transaction/reference ID was already submitted" });
@@ -419,7 +422,7 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
       userId:req.user.uid,userEmail:req.user.email||"",type:"challenge",
       challengeId,challengeModel:challenge.model,challengeSize:challenge.size,
       accountSize:Number(challenge.accountSize),courseId:"",courseTitle:"Aura Farming "+challenge.model+" "+challenge.size,
-      method,transactionId,amount,screenshotUrl,screenshotPath,status:"pending",
+      method,currency,transactionId,amount,screenshotUrl,screenshotPath,status:"pending",
       submittedAt:admin.firestore.FieldValue.serverTimestamp(),reviewedAt:null,reviewedBy:null
     });
     res.status(201).json({id:ref.id,status:"pending",message:"Challenge payment submitted for verification"});
