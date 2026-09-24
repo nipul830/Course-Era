@@ -8,6 +8,11 @@
 </head>
 <body>
 <header class="nav">
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
+  <div class="side-menu" id="sideMenu">
+    <a href="index.html">Home</a>
+  </div>
+  <div class="menu-backdrop" id="menuBackdrop"></div>
   <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">
 <svg viewBox="0 0 64 64" role="img">
   <defs>
@@ -20,10 +25,7 @@
   <path d="M25 48c1-10 8-17 19-19-1 10-7 17-18 21z" fill="#39a844" stroke="#d6b35a" stroke-width="1.4"/>
 </svg>
 </span><span>Aura Farming</span></a>
-  <nav>
-    <a href="#faq">FAQ</a>
-    <span id="authNav"></span>
-  </nav>
+  <nav><span id="authNav"></span></nav>
 </header>
 
 <main>
@@ -86,6 +88,17 @@ ceAuth.onAuthStateChanged(function(user){
     hero.textContent='Trader Login';
   }
 });
+  document.getElementById('menuToggle').addEventListener('click',function(){
+    var open=document.getElementById('sideMenu').classList.toggle('open');
+    document.getElementById('menuBackdrop').classList.toggle('open',open);
+    this.classList.toggle('open',open);
+    this.setAttribute('aria-expanded',open?'true':'false');
+  });
+  document.getElementById('menuBackdrop').addEventListener('click',function(){
+    document.getElementById('sideMenu').classList.remove('open');
+    document.getElementById('menuBackdrop').classList.remove('open');
+    document.getElementById('menuToggle').classList.remove('open');
+  });
 </script>
 </body>
 </html>
