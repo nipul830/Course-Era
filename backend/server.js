@@ -256,6 +256,49 @@ app.post("/api/reviews", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/competition/entry", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("competitionParticipants").doc(req.user.uid).get();
+    if (!snap.exists) return res.json({ joined: false });
+    const d = snap.data();
+    res.json({ joined: true, competitionId: d.competitionId, name: d.name || "Trader" });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load competition entry" });
+  }
+});
+
+app.post("/api/competition/join", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const ref = db.collection("competitionParticipants").doc(req.user.uid);
+    const result = await db.runTransaction(async tx => {
+      const existing = await tx.get(ref);
+      if (existing.exists) {
+        const d = existing.data();
+        return { competitionId: d.competitionId, name: d.name || "Trader", existing: true };
+      }
+      const competitionId = "AF-" + new Date().getFullYear() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+      const name = req.user.name || req.user.email?.split("@")[0] || "Trader";
+      tx.set(ref, {
+        userId: req.user.uid,
+        competitionId,
+        name,
+        joinedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return { competitionId, name, existing: false };
+    });
+    res.status(result.existing ? 200 : 201).json({
+      joined: true,
+      competitionId: result.competitionId,
+      name: result.name,
+      message: result.existing ? "Already joined" : "Competition joined successfully"
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not join competition" });
+  }
+});
+
 app.get("/api/payment-settings", requireAuth, async (req, res) => {
   try {
     initFirebase();
