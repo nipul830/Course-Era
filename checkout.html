@@ -1,14 +1,14 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout — Aura Farming</title><link rel="stylesheet" href="aura.css"><style>
-.checkout{max-width:760px;margin:auto;padding:50px 5% 80px}.box{background:#050505;border:1px solid #302713;border-radius:18px;padding:24px;margin-top:18px}.summary{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid #302713;padding-bottom:18px}.summary h2{margin:5px 0;color:#fff}.price{font-size:28px;font-weight:900;color:#f1d98a}.pay{margin-top:22px}.pay label{display:block;color:#9b8552;font-size:12px;font-weight:800;margin:14px 0 7px}.pay input,.pay select{width:100%;padding:13px;border-radius:10px;border:1px solid #302713;background:#090806;color:#fff}.pay input[type=file]{padding:9px}.pay button{margin-top:18px;width:100%}.method-info{padding:14px;border:1px solid #302713;border-radius:12px;background:#090806;color:#d6b35a;line-height:1.7;font-size:13px}.status{margin-top:16px;color:#f1d98a;font-size:13px;line-height:1.6}.back{display:inline-block;margin-top:18px;color:#9b8552}
+.checkout{max-width:760px;margin:auto;padding:50px 5% 80px}.box{background:#050505;border:1px solid #302713;border-radius:18px;padding:24px;margin-top:18px}.summary{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid #302713;padding-bottom:18px}.summary h2{margin:5px 0;color:#fff}.price{font-size:28px;font-weight:900;color:#f1d98a}.currency-note{font-size:13px;color:#9b8552;margin-top:5px}.currency-choice{display:flex;gap:10px;margin:10px 0 18px}.currency-choice button{flex:1;border:1px solid #302713;border-radius:10px;background:#090806;color:#9b8552;padding:12px;font-weight:900;cursor:pointer}.currency-choice button.active{background:#f1d98a;color:#080808;border-color:#f1d98a}.pay{margin-top:22px}.pay label{display:block;color:#9b8552;font-size:12px;font-weight:800;margin:14px 0 7px}.pay input,.pay select{width:100%;padding:13px;border-radius:10px;border:1px solid #302713;background:#090806;color:#fff}.pay input[type=file]{padding:9px}.pay button{margin-top:18px;width:100%}.method-info{padding:14px;border:1px solid #302713;border-radius:12px;background:#090806;color:#d6b35a;line-height:1.7;font-size:13px}.status{margin-top:16px;color:#f1d98a;font-size:13px;line-height:1.6}.back{display:inline-block;margin-top:18px;color:#9b8552}
 </style></head><body><header class="nav"><a class="brand" href="index.html"><span>Aura Farming</span></a></header>
 <main class="checkout"><p class="eyebrow">AURA FARMING</p><h1 style="font-size:48px">Checkout</h1><div class="box"><div class="summary"><div><small style="color:#9b8552">Selected account</small><h2 id="challengeName">Loading…</h2><div id="challengeBalance" style="color:#9b8552"></div></div><div class="price" id="challengePrice">—</div></div>
-<div class="pay"><label>Payment Method</label><select id="method"><option value="UPI">UPI</option><option value="USDT">USDT</option></select><div class="method-info" id="methodInfo">Loading payment details…</div>
+<div class="pay"><label>Payment Currency</label><div class="currency-choice"><button type="button" id="inrBtn">INR</button><button type="button" id="usdtBtn">USDT</button></div><div class="method-info" id="methodInfo">Loading payment details…</div>
 <label>Transaction / Reference ID</label><input id="transactionId" placeholder="Enter your payment reference ID">
 <label>Payment Screenshot</label><input id="screenshot" type="file" accept="image/*">
 <button class="btn primary" id="submit">Submit Payment</button><div class="status" id="status"></div></div></div><a class="back" href="challenge.html">← Back to challenges</a></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=6"></script>
 <script>
-const API='https://course-era.onrender.com';let challenge=null,settings=null;
+const API='https://course-era.onrender.com';let challenge=null,settings=null,currency=localStorage.getItem('auraSelectedCurrency')||'INR';
 async function token(){return await ceAuth.currentUser.getIdToken();}
 async function api(path,opt={}){const h=opt.headers||{};h.Authorization='Bearer '+await token();const r=await fetch(API+path,{...opt,headers:h});let d={};try{d=await r.json()}catch(e){}if(!r.ok)throw Error(d.error||'Request failed');return d}
 async function init(){
@@ -18,7 +18,22 @@ async function init(){
    const [cr,ps]=await Promise.all([fetch(API+'/api/challenges').then(r=>r.json()),api('/api/payment-settings')]);
    settings=ps.settings||{};const id=localStorage.getItem('auraSelectedChallengeId');challenge=(cr.challenges||[]).find(x=>x.id===id);
    if(!challenge){location.replace('challenge.html');return;}
-   challengeName.textContent=challenge.model+' '+challenge.size;challengePrice.textContent='$'+Number(challenge.price).toFixed(2);challengeBalance.textContent='Starting simulated balance: $'+Number(challenge.accountSize).toLocaleString('en-US');showMethod();
+   challengeName.textContent=challenge.model+' '+challenge.size;challengeBalance.textContent='Starting simulated balance: 
+  }catch(e){status.textContent=e.message}
+ });
+}
+function setCurrency(next){currency=next==='USDT'?'USDT':'INR';inrBtn.classList.toggle('active',currency==='INR');usdtBtn.classList.toggle('active',currency==='USDT');const inr=Math.round(Number(challenge.price)*98);challengePrice.innerHTML=currency==='INR'?'₹'+inr.toLocaleString('en-IN')+'<div class="currency-note">INR • ₹98 per $1</div>':Number(challenge.price).toFixed(2)+' USDT<div class="currency-note">USDT • same as USD price</div>';showMethod();localStorage.setItem('auraSelectedCurrency',currency);}
+function showMethod(){if(currency==='INR'){methodInfo.innerHTML='UPI payment<br>Google Pay: <b>'+(settings.googlePayUpi||'Not configured')+'</b><br>PhonePe: <b>'+(settings.phonePeUpi||'Not configured')+'</b>'+(settings.qrImageUrl?'<br><img src="'+settings.qrImageUrl+'" style="max-width:220px;margin-top:10px;border-radius:10px">':'')}else{methodInfo.innerHTML='USDT payment<br>USDT wallet: <b>'+(settings.usdtWallet||'Not configured')+'</b>'}}
+inrBtn.onclick=()=>setCurrency('INR');usdtBtn.onclick=()=>setCurrency('USDT');
+submit.onclick=async function(){
+ if(!challenge)return;submit.disabled=true;status.textContent='Submitting payment…';
+ try{
+  const fd=new FormData();fd.append('challengeId',challenge.id);fd.append('currency',currency);fd.append('amount',currency==='INR'?Math.round(Number(challenge.price)*98):Number(challenge.price));fd.append('method',currency==='INR'?'UPI':'USDT');fd.append('transactionId',transactionId.value.trim());if(screenshot.files[0])fd.append('screenshot',screenshot.files[0]);
+  const d=await api('/api/challenge-payments',{method:'POST',body:fd});status.textContent='Payment submitted. Your account will activate after admin approval.';submit.textContent='Payment Submitted';localStorage.removeItem('auraSelectedChallengeId');
+ }catch(e){status.textContent=e.message;submit.disabled=false}
+};
+init();
+</script></body></html>+Number(challenge.accountSize).toLocaleString('en-US');setCurrency(currency);
   }catch(e){status.textContent=e.message}
  });
 }
