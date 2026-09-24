@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Affiliate Program — Aura Farming</title>
+<link rel="stylesheet" href="aura.css">
+<style>
+.affiliate-wrap{max-width:900px;margin:auto;padding:70px 6% 100px}
+.affiliate-hero{text-align:center;margin-bottom:38px}
+.affiliate-hero h1{font-size:clamp(38px,7vw,64px);margin:12px 0 18px;letter-spacing:-2px}
+.affiliate-hero p{max-width:650px;margin:auto;color:var(--muted);line-height:1.7;font-size:16px}
+.beta{display:inline-flex;padding:7px 11px;border-radius:8px;background:#211b0d;border:1px solid var(--line);color:var(--accent);font-size:12px;font-weight:800}
+.affiliate-panel{background:linear-gradient(145deg,#0d0b07,#020202);border:1px solid #4a3b1d;border-radius:22px;padding:32px}
+.affiliate-panel h2{color:var(--accent2);font-size:18px;letter-spacing:2px;margin:0 0 20px}
+.affiliate-card{padding:22px;margin:14px 0;background:#080806;border:1px solid var(--line);border-radius:16px}
+.affiliate-card h3{margin:0 0 10px;color:#fff;font-size:19px}
+.affiliate-card p{margin:0;color:var(--muted);line-height:1.65}
+.affiliate-icon{width:46px;height:46px;border-radius:12px;background:#211b0d;display:grid;place-items:center;color:var(--accent);font-size:23px;margin-bottom:15px}
+.affiliate-note{padding:18px;border:1px solid #4a3b1d;border-radius:14px;color:var(--muted);line-height:1.6;margin-top:22px}
+.affiliate-actions{text-align:center;margin-top:28px}
+@media(max-width:760px){.affiliate-wrap{padding:45px 5% 80px}.affiliate-panel{padding:20px}.affiliate-card{padding:18px}}
+</style>
+</head>
+<body>
+<header class="nav">
+<button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
+<div class="side-menu" id="sideMenu">
+<a href="index.html">Home</a><a href="challenge.html">Challenge</a><a href="#transparency">Transparency</a><a href="#reviews">Reviews</a><a href="#leaderboard">Leaderboard</a><a href="#spreads">Spreads</a><a href="terminal.html">Terminal</a><a href="affiliate.html">Affiliate</a><a href="#faq">Help</a>
+</div><div class="menu-backdrop" id="menuBackdrop"></div>
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M12 53 31 9l21 44h-9l-5.3-12H25l-5 12zM28 34h7l-3.5-8z" fill="none" stroke="#d6b35a" stroke-width="4.2"/><path d="M20 42C9 39 5 31 5 25c9 1 16 6 18 13-1 1-2 2-3 4z" fill="#1f7a32"/><path d="M25 48c1-10 8-17 19-19-1 10-7 17-18 21z" fill="#39a844"/></svg></span><span>Aura Farming</span></a>
+<div class="auth-nav" id="authNav"></div>
+</header>
+<main class="affiliate-wrap">
+<section class="affiliate-hero">
+<div class="eyebrow">AURA FARMING AFFILIATE</div>
+<h1>Affiliate Program <span class="beta">Beta</span></h1>
+<p>Share Aura Farming with your trading community and help traders discover our simulated challenge environment.</p>
+</section>
+<section class="affiliate-panel">
+<h2>WHAT WE EXPECT FROM AFFILIATES</h2>
+<div class="affiliate-card"><div class="affiliate-icon">↗</div><h3>Active promotion</h3><p>Promote Aura Farming through your social media, community, website or other channels.</p></div>
+<div class="affiliate-card"><div class="affiliate-icon">👥</div><h3>Growing audience</h3><p>A genuine audience is preferred. Build your reach through real content and an engaged trading community.</p></div>
+<div class="affiliate-card"><div class="affiliate-icon">✓</div><h3>Verified account</h3><p>Use a complete Aura Farming account with accurate profile details before joining the program.</p></div>
+<div class="affiliate-card"><div class="affiliate-icon">◈</div><h3>Honest promotion</h3><p>Use truthful claims only. Do not spam, impersonate Aura Farming, or make promises about trading results.</p></div>
+<div class="affiliate-note"><strong>Beta program:</strong> Applications are reviewed individually. Program terms and benefits may be updated as the affiliate program develops.</div>
+<div class="affiliate-actions"><a class="btn primary" href="profile.html">Complete My Profile</a></div>
+</section>
+</main>
+<footer>© 2026 Aura Farming · Simulated trading environment. No real brokerage execution.</footer>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=6"></script>
+<script>
+ceAuth.onAuthStateChanged(function(user){
+ var nav=document.getElementById('authNav');
+ if(user) nav.innerHTML='<button type="button" class="profile-nav" onclick="location.href=\'index.html\'">Profile</button>';
+ else nav.innerHTML='<a class="btn primary small" href="login.html">Login</a>';
+});
+document.getElementById('menuToggle').addEventListener('click',function(){
+ var open=document.getElementById('sideMenu').classList.toggle('open');document.getElementById('menuBackdrop').classList.toggle('open',open);this.classList.toggle('open',open);
+});
+document.getElementById('menuBackdrop').addEventListener('click',function(){
+ document.getElementById('sideMenu').classList.remove('open');document.getElementById('menuBackdrop').classList.remove('open');document.getElementById('menuToggle').classList.remove('open');
+});
+</script>
+</body>
+</html>
