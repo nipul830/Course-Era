@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Terminal — Aura Farming</title>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://s3.tradingview.com" crossorigin>
 <link rel="stylesheet" href="aura.css">
 <style>
 *{box-sizing:border-box}
@@ -141,13 +143,20 @@ function placeSimulatedOrder(side){
 (function(){
   const lot=document.getElementById('lotSize');
   if(lot){
-    for(let i=1;i<=10000;i++){
-      const v=(i/100).toFixed(2);
-      const o=document.createElement('option');
-      o.value=v;o.textContent=v;
-      if(v==='0.10')o.selected=true;
-      lot.appendChild(o);
-    }
+    const fillLots=()=>{
+      if(lot.options.length>1)return;
+      const frag=document.createDocumentFragment();
+      for(let i=1;i<=10000;i++){
+        const v=(i/100).toFixed(2);
+        const o=document.createElement('option');
+        o.value=v;o.textContent=v;
+        if(v==='0.10')o.selected=true;
+        frag.appendChild(o);
+      }
+      lot.appendChild(frag);
+    };
+    if('requestIdleCallback' in window) requestIdleCallback(fillLots,{timeout:1200});
+    else setTimeout(fillLots,0);
   }
   const pendingBtn=document.getElementById('pendingBtn');
   const pendingMenu=document.getElementById('pendingMenu');
@@ -194,7 +203,8 @@ function mountChart(id,symbol){
   el.appendChild(s);
 }
 (function(){
- mountChart('tvChart',currentSymbol); mountChart('tvMobile',currentSymbol);
+ const mobile=window.matchMedia('(max-width:760px)').matches;
+ mountChart(mobile?'tvMobile':'tvChart',currentSymbol);
 })();
 (function(){
  const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
