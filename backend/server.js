@@ -141,6 +141,70 @@ app.get("/api/config", (req, res) => {
   });
 });
 
+app.get("/api/profile", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("users").doc(req.user.uid).get();
+    const d = snap.exists ? snap.data() : {};
+    res.json({
+      name: req.user.name || d.name || "",
+      email: req.user.email || "",
+      mobile: d.mobile || "",
+      photoURL: req.user.picture || d.photoURL || ""
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load profile" });
+  }
+});
+
+app.put("/api/profile", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const name = String(req.body.name || "").trim().slice(0, 80);
+    const mobile = String(req.body.mobile || "").trim().slice(0, 30);
+    if (!name) return res.status(400).json({ error: "Name is required" });
+    if (mobile && !/^[0-9+()\-\s]{7,20}$/.test(mobile)) {
+      return res.status(400).json({ error: "Enter a valid mobile number" });
+    }
+    await db.collection("users").doc(req.user.uid).set({
+      name, mobile,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    await admin.auth().updateUser(req.user.uid, { displayName: name });
+    res.json({ message: "Profile updated", name, mobile });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update profile" });
+  }
+});
+
+app.post("/api/profile/photo", requireAuth, upload.single("photo"), async (req, res) => {
+  try {
+    initFirebase();
+    if (!bucket) return res.status(500).json({ error: "Firebase Storage is not configured" });
+    if (!req.file) return res.status(400).json({ error: "Photo is required" });
+    if (!String(req.file.mimetype || "").startsWith("image/")) return res.status(400).json({ error: "Only image files are allowed" });
+    if (req.file.size > 5 * 1024 * 1024) return res.status(400).json({ error: "Photo must be 5MB or smaller" });
+    const path = "users/" + req.user.uid + "/profile-" + Date.now();
+    const file = bucket.file(path);
+    const token = crypto.randomUUID();
+    await file.save(req.file.buffer, {
+      metadata: {
+        contentType: req.file.mimetype,
+        cacheControl: "public,max-age=3600",
+        metadata: { firebaseStorageDownloadTokens: token }
+      }
+    });
+    const photoURL = "https://firebasestorage.googleapis.com/v0/b/" + encodeURIComponent(bucket.name) + "/o/" + encodeURIComponent(path) + "?alt=media&token=" + encodeURIComponent(token);
+    await admin.auth().updateUser(req.user.uid, { photoURL });
+    await db.collection("users").doc(req.user.uid).set({
+      photoURL, updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    res.json({ message: "Profile photo updated", photoURL });
+  } catch (e) {
+    res.status(500).json({ error: "Could not update profile photo" });
+  }
+});
+
 app.get("/api/payment-settings", requireAuth, async (req, res) => {
   try {
     initFirebase();
