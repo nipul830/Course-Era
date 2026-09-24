@@ -108,7 +108,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-ceAuth.onAuthStateChanged(function(user){
+ceAuth.onAuthStateChanged(async function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
   var menu=document.getElementById('profileMenu');
