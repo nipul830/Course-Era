@@ -30,6 +30,10 @@ body{background:#fff}
  .terminal-page{display:none}
  .mobile-terminal{display:flex;flex-direction:column;height:100dvh;min-height:100vh;padding:10px 0 84px;background:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;position:relative}
  .m-top{display:flex;align-items:center;justify-content:space-between;padding:0 28px 10px}
+ .account-label{font-size:11px;color:#7b8793;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+ .account-values{display:flex;align-items:center;gap:12px}
+ .account-values span{font-size:13px;color:#182332;font-weight:800}
+ .account-values b{font-size:15px}
  .balance{display:flex;align-items:center;gap:10px;background:#f4f5f7;border-radius:30px;padding:8px 14px 8px 8px;font-weight:800;color:#1c2633}
  .balance-icon{width:38px;height:38px;border-radius:14px;background:#f6ad18;color:#fff;display:grid;place-items:center;font-size:19px}
  .balance-loss{color:#e35b63;font-weight:700}.balance-chevron{font-size:22px;color:#455160;margin-left:2px}
@@ -97,6 +101,13 @@ body{background:#fff}
 </main>
 
 <main class="mobile-terminal">
+ <div class="m-top">
+   <div>
+     <div class="account-label">Trading Account</div>
+     <div class="account-values"><span>Balance <b id="terminalBalance">—</b></span><span>Equity <b id="terminalEquity">—</b></span></div>
+   </div>
+   <span class="status">SIMULATED</span>
+ </div>
  <div class="quote-row top-quotes">
    <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
    <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
@@ -137,8 +148,14 @@ body{background:#fff}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
+<script src="aura-account.js"></script>
 <script>
-ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');});
+ceAuth.onAuthStateChanged(async function(user){
+  if(!user){location.replace('login.html?next=terminal');return;}
+  const account=await auraAccount();
+  const b=document.getElementById('terminalBalance'),e=document.getElementById('terminalEquity');
+  if(account){if(b)b.textContent=auraMoney(account.balance);if(e)e.textContent=auraMoney(account.equity);}
+});
 function placeSimulatedOrder(side){
   const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell')) || document.querySelector('.desktop-orders .'+(side==='BUY'?'buy':'sell'));
   if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
