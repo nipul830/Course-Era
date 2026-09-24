@@ -147,7 +147,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
     const snap = await db.collection("users").doc(req.user.uid).get();
     const d = snap.exists ? snap.data() : {};
     res.json({
-      name: req.user.name || d.name || "",
+      name: d.name || req.user.name || req.user.displayName || "",
       email: req.user.email || "",
       mobile: d.mobile || "",
       photoURL: d.photoURL || req.user.picture || ""
