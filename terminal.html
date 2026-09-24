@@ -118,9 +118,8 @@ body{background:#fff;color:#182332}
  <div class="chart-wrap"><div class="tv-mobile" id="tvMobile"></div></div>
  <nav class="bottom-nav">
    <a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a>
-   <a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Markets</span></a>
-   <a href="terminal.html" class="active"><span class="bn-icon">♮</span><span class="bn-label">Trade</span></a>
-   <a href="courses.html"><span class="bn-icon">▢</span><span class="bn-label">Portfolio</span></a>
+   <a href="terminal.html" class="active"><span class="bn-icon">▱</span><span class="bn-label">Charts</span></a>
+   <a href="position.html"><span class="bn-icon">♮</span><span class="bn-label">Position</span></a>
    <a href="index.html"><span class="bn-icon">▦</span><span class="bn-label">More</span></a>
  </nav>
 </main>
@@ -133,6 +132,12 @@ ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?n
 function placeSimulatedOrder(side){
   const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell'));
   if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
+  const lot=document.getElementById('lotSize');
+  const size=lot?lot.value:'0.10';
+  const position={id:Date.now(),side:side,symbol:currentSymbol,lot:size,price:(side==='BUY'?'4,288.89':'4,288.33'),time:new Date().toLocaleTimeString()};
+  const positions=JSON.parse(localStorage.getItem('auraPositions')||'[]');
+  positions.unshift(position);
+  localStorage.setItem('auraPositions',JSON.stringify(positions));
 }
 (function(){
   const lot=document.getElementById('lotSize');
