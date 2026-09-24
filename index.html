@@ -108,46 +108,6 @@
   }
   list.innerHTML=rows;
 })();
-async function loadSupport(){
-  try{
-    var res=await fetch('https://course-era.onrender.com/api/support-settings');
-    var d=await res.json(),s=d.support||{};
-    var wa=document.getElementById('supportWhatsapp'),tg=document.getElementById('supportTelegram'),em=document.getElementById('supportEmail'),ec=document.getElementById('supportEmailCard');
-    if(s.whatsapp){var digits=String(s.whatsapp).replace(/\D/g,'');wa.innerHTML='<a href="https://wa.me/'+digits+'" target="_blank" rel="noopener">+'+digits+'</a>'}else wa.textContent='Not available';
-    if(s.telegram){var handle=String(s.telegram).replace(/^@/,'');tg.innerHTML='<a href="https://t.me/'+handle+'" target="_blank" rel="noopener">@'+escapeHtml(handle)+'</a>'}else tg.textContent='Not available';
-    if(s.email){ec.style.display='block';em.innerHTML='<a href="mailto:'+escapeHtml(s.email)+'">'+escapeHtml(s.email)+'</a>'}
-  }catch(e){}
-}
-loadSupport();
-async function loadReviews(){
-  var list=document.getElementById('reviewsList');
-  try{
-    var res=await fetch('https://course-era.onrender.com/api/reviews');
-    var data=await res.json();
-    if(!data.reviews||!data.reviews.length){list.innerHTML='<article class="card"><h3>No reviews yet</h3><p>Be among the first traders to share your Aura Farming experience.</p></article>';return}
-    list.innerHTML=data.reviews.map(function(r){
-      var stars='★★★★★'.slice(0,r.rating)+'☆☆☆☆☆'.slice(0,5-r.rating);
-      return '<article class="card"><div style="color:#d6b35a;letter-spacing:2px">'+stars+'</div><h3>'+escapeHtml(r.name)+'</h3><p>'+escapeHtml(r.text)+'</p></article>';
-    }).join('');
-  }catch(e){list.innerHTML='<article class="card"><p>Reviews are temporarily unavailable.</p></article>'}
-}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-loadReviews();
-document.getElementById('reviewForm').addEventListener('submit',async function(e){
-  e.preventDefault();
-  var user=ceAuth.currentUser, msg=document.getElementById('reviewMsg');
-  if(!user){msg.textContent='Please login to submit a review.';return}
-  msg.textContent='Submitting…';
-  try{
-    var token=await user.getIdToken();
-    var res=await fetch('https://course-era.onrender.com/api/reviews',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({rating:Number(document.getElementById('reviewRating').value),text:document.getElementById('reviewText').value})});
-    var data=await res.json();
-    if(!res.ok)throw new Error(data.error||'Could not submit review');
-    msg.textContent='Review submitted successfully.';
-    document.getElementById('reviewText').value='';
-    loadReviews();
-  }catch(err){msg.textContent=err.message}
-});
 ceAuth.onAuthStateChanged(async function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
