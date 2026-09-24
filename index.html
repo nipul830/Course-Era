@@ -128,13 +128,13 @@
   </section>
 
   <section id="faq" class="section">
-    <p class="eyebrow">FREQUENTLY ASKED QUESTIONS</p>
-    <h2>Firm FAQ</h2>
-    <div class="grid">
-      <article class="card"><h3>What is Aura Farming?</h3><p>Aura Farming is a simulated prop-trading environment focused on risk management and trading performance.</p></article>
-      <article class="card"><h3>Is trading real?</h3><p>No. The trading environment and account balances are simulated and do not execute real brokerage trades.</p></article>
-      <article class="card"><h3>What are the challenge rules?</h3><p>Challenge rules cover areas such as daily drawdown, maximum drawdown, profit targets and trade history.</p></article>
-      <article class="card"><h3>How do I access my account?</h3><p>Use the account access option above to access the trader portal with your existing account.</p></article>
+    <p class="eyebrow">HELP & SUPPORT</p>
+    <h2>Need Help?</h2>
+    <p class="muted">Contact Aura Farming support through the channels below.</p>
+    <div class="grid" id="supportCards" style="margin-top:20px">
+      <article class="card"><h3>WhatsApp</h3><p id="supportWhatsapp">Loading…</p></article>
+      <article class="card"><h3>Telegram</h3><p id="supportTelegram">Loading…</p></article>
+      <article class="card" id="supportEmailCard" style="display:none"><h3>Email</h3><p id="supportEmail"></p></article>
     </div>
   </section>
 </main>
@@ -153,6 +153,17 @@
   }
   list.innerHTML=rows;
 })();
+async function loadSupport(){
+  try{
+    var res=await fetch('https://course-era.onrender.com/api/support-settings');
+    var d=await res.json(),s=d.support||{};
+    var wa=document.getElementById('supportWhatsapp'),tg=document.getElementById('supportTelegram'),em=document.getElementById('supportEmail'),ec=document.getElementById('supportEmailCard');
+    if(s.whatsapp){var digits=String(s.whatsapp).replace(/\D/g,'');wa.innerHTML='<a href="https://wa.me/'+digits+'" target="_blank" rel="noopener">+'+digits+'</a>'}else wa.textContent='Not available';
+    if(s.telegram){var handle=String(s.telegram).replace(/^@/,'');tg.innerHTML='<a href="https://t.me/'+handle+'" target="_blank" rel="noopener">@'+escapeHtml(handle)+'</a>'}else tg.textContent='Not available';
+    if(s.email){ec.style.display='block';em.innerHTML='<a href="mailto:'+escapeHtml(s.email)+'">'+escapeHtml(s.email)+'</a>'}
+  }catch(e){}
+}
+loadSupport();
 async function loadReviews(){
   var list=document.getElementById('reviewsList');
   try{
