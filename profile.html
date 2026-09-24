@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Profile — Aura Farming</title><link rel="stylesheet" href="aura.css"><style>
+.profile-page{max-width:620px;margin:0 auto;padding:42px 20px 70px}.profile-page h1{color:var(--accent2);margin:0 0 8px}.profile-card{background:#050505;border:1px solid #3a2c13;border-radius:18px;padding:24px;margin-top:24px}.profile-photo-wrap{text-align:center;margin-bottom:24px}.profile-photo{width:110px;height:110px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);background:#171208;display:block;margin:0 auto 12px}.photo-btn{display:inline-block;color:var(--accent2);font-weight:700;cursor:pointer}.profile-form label{display:block;color:var(--accent2);font-weight:700;margin:16px 0}.profile-form input{width:100%;box-sizing:border-box;margin-top:8px;padding:13px;border-radius:10px;border:1px solid #3a2c13;background:#090806;color:#fff;font-size:16px}.profile-form input[readonly]{opacity:.65}.save-btn{width:100%;margin-top:8px;padding:14px;border:0;border-radius:11px;background:var(--accent);color:#080808;font-weight:900;font-size:16px}.profile-msg{min-height:22px;margin-top:12px;color:var(--accent2);text-align:center}.back-link{color:var(--accent2);text-decoration:none}
+</style></head><body>
+<header class="nav"><a class="brand" href="index.html">Aura Farming</a><nav><a href="index.html">Home</a></nav></header>
+<main class="profile-page"><a class="back-link" href="index.html">← Back</a><div class="profile-card">
+<h1>My Profile</h1>
+<p class="muted">Update your trader account details.</p>
+<div class="profile-photo-wrap"><img id="photo" class="profile-photo" alt="Profile photo"><label class="photo-btn" for="photoInput">Change profile photo</label><input id="photoInput" type="file" accept="image/*" hidden></div>
+<form id="profileForm" class="profile-form">
+<label>Change name<input id="name" maxlength="80" required></label>
+<label>Change mobile number<input id="mobile" type="tel" maxlength="30" placeholder="+91 98765 43210"></label>
+<label>Email<input id="email" type="email" readonly></label>
+<button class="save-btn" type="submit">Save Changes</button>
+</form><p id="msg" class="profile-msg"></p>
+</div></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script>
+<script>
+const API='https://course-era.onrender.com';
+let currentUser;
+function msg(t){document.getElementById('msg').textContent=t}
+async function token(){return currentUser.getIdToken()}
+async function loadProfile(){
+ const res=await fetch(API+'/api/profile',{headers:{Authorization:'Bearer '+await token()}});
+ if(!res.ok) throw new Error('Could not load profile');
+ const d=await res.json();
+ document.getElementById('name').value=d.name||currentUser.displayName||'';
+ document.getElementById('email').value=d.email||currentUser.email||'';
+ document.getElementById('mobile').value=d.mobile||'';
+ document.getElementById('photo').src=d.photoURL||currentUser.photoURL||'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22110%22 height=%22110%22%3E%3Crect width=%22110%22 height=%22110%22 fill=%22%23171208%22/%3E%3C/svg%3E';
+}
+ceAuth.onAuthStateChanged(async user=>{
+ if(!user){location.href='login.html?next=profile';return}
+ currentUser=user;try{await loadProfile()}catch(e){msg(e.message)}
+});
+document.getElementById('profileForm').addEventListener('submit',async e=>{
+ e.preventDefault();msg('Saving…');
+ try{
+  const res=await fetch(API+'/api/profile',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token()},body:JSON.stringify({name:document.getElementById('name').value,mobile:document.getElementById('mobile').value})});
+  const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not save');
+  await currentUser.reload();msg('Profile updated successfully.');
+ }catch(err){msg(err.message)}
+});
+document.getElementById('photoInput').addEventListener('change',async e=>{
+ const file=e.target.files[0];if(!file)return;msg('Uploading photo…');
+ try{
+  const fd=new FormData();fd.append('photo',file);
+  const res=await fetch(API+'/api/profile/photo',{method:'POST',headers:{Authorization:'Bearer '+await token()},body:fd});
+  const d=await res.json();if(!res.ok)throw new Error(d.error||'Could not upload photo');
+  document.getElementById('photo').src=d.photoURL;
+  await currentUser.reload();msg('Profile photo updated successfully.');
+ }catch(err){msg(err.message)}
+});
+</script></body></html>
