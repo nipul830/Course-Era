@@ -37,13 +37,20 @@ body{background:#fff;color:#182332}
  .chart-wrap{position:relative;height:calc(100vh - 168px);margin:8px 0 0}
  .tv-mobile{height:100%;width:100%;background:#fff}
  .tv-mobile iframe{border:0}
- .top-quotes{padding:0 12px;margin:0;gap:8px}
+ .top-quotes{padding:0 12px;margin:0;gap:8px;grid-template-columns:1fr 1fr 1.15fr}
  .top-quotes .quote{min-height:58px;border-radius:13px}
+ .symbol-picker{position:relative}
+ .symbol-btn{width:100%;height:58px;border:1px solid #dce2e7;border-radius:13px;background:#f7f8fa;color:#182332;font-size:13px;font-weight:800}
+ .symbol-list{display:none;position:absolute;right:0;top:64px;width:190px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #dce2e7;border-radius:13px;box-shadow:0 10px 28px #0003;z-index:40}
+ .symbol-list.open{display:block}
+ .symbol-list button{display:flex;justify-content:space-between;width:100%;padding:11px 12px;border:0;border-bottom:1px solid #eef1f4;background:#fff;color:#1d2a36;font-size:12px;font-weight:700}
+ .symbol-list button span{color:#82909c;font-weight:500}
+ .symbol-list button:active{background:#f2f5f7}
  .top-quotes .quote .label{font-size:14px}.top-quotes .quote .price{font-size:19px;margin-top:2px}
  .top-quotes .spread{font-size:10px;padding:3px 6px}
  .order-tools{display:flex;align-items:center;gap:8px;padding:8px 12px 0}
  .lot-control{display:flex;align-items:center;gap:6px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;padding:5px 8px;color:#344252;font-size:12px;font-weight:700}
- .lot-control input{width:52px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332}
+ .lot-control select{width:70px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332}
  .pending-btn{flex:1;border:1px solid #cfd7df;border-radius:10px;background:#182839;color:#fff;padding:9px 10px;font-size:12px;font-weight:800}
  .pending-menu{display:none;margin:7px 12px 0;border:1px solid #dce2e7;border-radius:12px;background:#fff;box-shadow:0 8px 22px #0002;overflow:hidden}
  .pending-menu.open{display:grid;grid-template-columns:1fr 1fr}
@@ -80,10 +87,24 @@ body{background:#fff;color:#182332}
  <div class="quote-row top-quotes">
    <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
    <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
+   <div class="symbol-picker">
+     <button class="symbol-btn" id="symbolBtn" type="button">GOLD ▾</button>
+     <div class="symbol-list" id="symbolList">
+       <button type="button" data-symbol="OANDA:XAUUSD" data-name="GOLD"><strong>GOLD</strong><span>XAUUSD</span></button>
+       <button type="button" data-symbol="FX:EURUSD" data-name="EUR/USD"><strong>EUR/USD</strong><span>EURUSD</span></button>
+       <button type="button" data-symbol="FX:GBPUSD" data-name="GBP/USD"><strong>GBP/USD</strong><span>GBPUSD</span></button>
+       <button type="button" data-symbol="FX:USDJPY" data-name="USD/JPY"><strong>USD/JPY</strong><span>USDJPY</span></button>
+       <button type="button" data-symbol="FX:AUDUSD" data-name="AUD/USD"><strong>AUD/USD</strong><span>AUDUSD</span></button>
+       <button type="button" data-symbol="BINANCE:BTCUSDT" data-name="BTC/USD"><strong>BTC/USD</strong><span>BTCUSDT</span></button>
+       <button type="button" data-symbol="BINANCE:ETHUSDT" data-name="ETH/USD"><strong>ETH/USD</strong><span>ETHUSDT</span></button>
+       <button type="button" data-symbol="BINANCE:SOLUSDT" data-name="SOL/USD"><strong>SOL/USD</strong><span>SOLUSDT</span></button>
+       <button type="button" data-symbol="BINANCE:XRPUSDT" data-name="XRP/USD"><strong>XRP/USD</strong><span>XRPUSDT</span></button>
+     </div>
+   </div>
    <div class="spread">0.56</div>
  </div>
  <div class="order-tools">
-   <label class="lot-control">Lot <input id="lotSize" type="number" min="0.01" step="0.01" value="0.10" inputmode="decimal"></label>
+   <label class="lot-control">Lot <select id="lotSize" aria-label="Lot size"></select></label>
    <button class="pending-btn" id="pendingBtn" type="button">Pending Order ▾</button>
  </div>
  <div class="pending-menu" id="pendingMenu">
@@ -109,12 +130,19 @@ body{background:#fff;color:#182332}
 ceAuth.onAuthStateChanged(function(user){if(!user)location.replace('login.html?next=terminal');});
 function placeSimulatedOrder(side){
   const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell'));
-  if(btn){
-    btn.style.transform='scale(.98)';
-    setTimeout(()=>btn.style.transform='',120);
-  }
+  if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
 }
 (function(){
+  const lot=document.getElementById('lotSize');
+  if(lot){
+    for(let i=1;i<=10000;i++){
+      const v=(i/100).toFixed(2);
+      const o=document.createElement('option');
+      o.value=v;o.textContent=v;
+      if(v==='0.10')o.selected=true;
+      lot.appendChild(o);
+    }
+  }
   const pendingBtn=document.getElementById('pendingBtn');
   const pendingMenu=document.getElementById('pendingMenu');
   if(pendingBtn&&pendingMenu){
@@ -124,6 +152,23 @@ function placeSimulatedOrder(side){
         pendingBtn.textContent=btn.dataset.pending+' ✓';
         pendingMenu.classList.remove('open');
       });
+    });
+  }
+  const symbolBtn=document.getElementById('symbolBtn');
+  const symbolList=document.getElementById('symbolList');
+  if(symbolBtn&&symbolList){
+    symbolBtn.addEventListener('click',function(e){e.stopPropagation();symbolList.classList.toggle('open')});
+    symbolList.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        currentSymbol=btn.dataset.symbol;
+        symbolBtn.textContent=btn.dataset.name+' ▾';
+        symbolList.classList.remove('open');
+        mountChart('tvMobile',currentSymbol);
+        mountChart('tvChart',currentSymbol);
+      });
+    });
+    document.addEventListener('click',function(e){
+      if(!e.target.closest('.symbol-picker'))symbolList.classList.remove('open');
     });
   }
 })();
