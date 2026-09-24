@@ -16,7 +16,7 @@
 .account-card{background:#060606;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 10px 30px #0008}
 .account-card h2{color:#fff;margin:0 0 6px;font-size:28px}.account-type{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.12em}
 .account-rule{margin:18px 0;color:var(--muted);line-height:1.8;font-size:14px}.account-rule b{color:#fff}
-.buy-now{width:100%;border:0;border-radius:12px;background:var(--accent);color:#080808;padding:14px;font-size:16px;font-weight:900;cursor:pointer}
+.buy-now{width:100%;border:0;border-radius:12px;background:var(--accent);color:#080808;padding:14px;font-size:16px;font-weight:900;cursor:pointer}.price{font-size:22px;color:#fff;font-weight:900;margin:8px 0 4px}.challenge-status{text-align:center;color:var(--muted);margin:-12px 0 24px;font-size:13px}
 .buy-now:hover{background:var(--accent2)}
 .rule-box{margin-top:12px;padding-top:14px;border-top:1px solid var(--line)}
 @media(max-width:800px){.challenge-page{padding:30px 4% 60px}.challenge-head h1{font-size:34px}.account-grid{grid-template-columns:1fr}.challenge-tabs{display:grid;grid-template-columns:repeat(3,1fr)}.challenge-tab{padding:12px 6px;font-size:13px}}
@@ -44,70 +44,46 @@
 </header>
 
 <main class="challenge-page">
-  <section class="challenge-head">
-    <p class="eyebrow">AURA FARMING</p>
-    <h1>Choose Your Challenge</h1>
-    <p>Select 1 Step, 2 Step or Instant. Every account is a separate simulated trading account with its own balance and rules.</p>
-  </section>
-
+  <section class="challenge-head"><p class="eyebrow">AURA FARMING</p><h1>Choose Your Challenge</h1><p>Select your simulated account. Prices and account sizes are loaded from the backend.</p></section>
   <div class="challenge-tabs">
-    <button class="challenge-tab active" data-tab="one">1 Step</button>
-    <button class="challenge-tab" data-tab="two">2 Step</button>
-    <button class="challenge-tab" data-tab="instant">Instant</button>
+    <button class="challenge-tab active" data-tab="one">1 Step</button><button class="challenge-tab" data-tab="two">2 Step</button><button class="challenge-tab" data-tab="instant">Instant</button>
   </div>
-
-  <section class="challenge-panel active" id="one">
-    <div class="account-grid">
-      <article class="account-card"><div class="account-type">1 STEP CHALLENGE</div><h2>$5K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Profit Target:</b> 10%</div><div class="rule-box">Single evaluation phase.</div></div><button class="buy-now" data-model="1 Step" data-size="$5K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">1 STEP CHALLENGE</div><h2>$10K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Profit Target:</b> 10%</div><div class="rule-box">Single evaluation phase.</div></div><button class="buy-now" data-model="1 Step" data-size="$10K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">1 STEP CHALLENGE</div><h2>$25K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Profit Target:</b> 10%</div><div class="rule-box">Single evaluation phase.</div></div><button class="buy-now" data-model="1 Step" data-size="$25K">Buy Now</button></article>
-    </div>
-  </section>
-
-  <section class="challenge-panel" id="two">
-    <div class="account-grid">
-      <article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$5K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$5K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$10K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$10K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$25K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$25K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$50K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$50K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">2 STEP CHALLENGE</div><h2>$100K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 4%</div><div><b>Total Drawdown:</b> 8%</div><div><b>Phase 1 Profit:</b> 8%</div><div><b>Phase 2 Profit:</b> 6%</div><div class="rule-box">Two evaluation phases.</div></div><button class="buy-now" data-model="2 Step" data-size="$100K">Buy Now</button></article>
-    </div>
-  </section>
-
-  <section class="challenge-panel" id="instant">
-    <div class="account-grid">
-      <article class="account-card"><div class="account-type">INSTANT FUNDING</div><h2>$1K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 3%</div><div><b>Evaluation:</b> None</div><div class="rule-box">Funded-style simulated account from the start.</div></div><button class="buy-now" data-model="Instant" data-size="$1K">Buy Now</button></article>
-      <article class="account-card"><div class="account-type">INSTANT FUNDING</div><h2>$2.5K</h2><div class="account-rule"><div><b>Daily Drawdown:</b> 3%</div><div><b>Evaluation:</b> None</div><div class="rule-box">Funded-style simulated account from the start.</div></div><button class="buy-now" data-model="Instant" data-size="$2.5K">Buy Now</button></article>
-    </div>
-  </section>
+  <div id="challengeStatus" class="challenge-status">Loading challenges…</div>
+  <section class="challenge-panel active" id="one"><div class="account-grid" id="oneGrid"></div></section>
+  <section class="challenge-panel" id="two"><div class="account-grid" id="twoGrid"></div></section>
+  <section class="challenge-panel" id="instant"><div class="account-grid" id="instantGrid"></div></section>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-document.querySelectorAll('.challenge-tab').forEach(function(tab){
-  tab.addEventListener('click',function(){
-    document.querySelectorAll('.challenge-tab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.challenge-panel').forEach(x=>x.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(tab.dataset.tab).classList.add('active');
-  });
-});
-document.querySelectorAll('.buy-now').forEach(function(btn){
-  btn.addEventListener('click',function(){
-    localStorage.setItem('auraSelectedChallenge',JSON.stringify({model:btn.dataset.model,size:btn.dataset.size}));
-    if(!ceAuth.currentUser) location.href='login.html?next=challenge';
-    else alert('Selected '+btn.dataset.model+' '+btn.dataset.size+'. Checkout pricing/payment can be connected once the account price is configured.');
-  });
-});
-(function(){
- const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
- if(toggle&&menu&&back){
-  toggle.addEventListener('click',function(){const open=menu.classList.toggle('open');back.classList.toggle('open',open);toggle.classList.toggle('open',open);toggle.setAttribute('aria-expanded',open?'true':'false')});
-  back.addEventListener('click',function(){menu.classList.remove('open');back.classList.remove('open');toggle.classList.remove('open');toggle.setAttribute('aria-expanded','false')});
- }
+const API='https://course-era.onrender.com';
+async function loadChallenges(){
+  const res=await fetch(API+'/api/challenges'); const data=await res.json(); if(!res.ok)throw new Error(data.error||'Could not load challenges'); return data.challenges||[];
+}
+function card(x){
+  const rules=[];
+  if(x.dailyDrawdown)rules.push('<div><b>Daily Drawdown:</b> '+x.dailyDrawdown+'</div>');
+  if(x.totalDrawdown)rules.push('<div><b>Total Drawdown:</b> '+x.totalDrawdown+'</div>');
+  if(x.profitTarget)rules.push('<div><b>Profit Target:</b> '+x.profitTarget+'</div>');
+  if(x.phase1Profit)rules.push('<div><b>Phase 1 Profit:</b> '+x.phase1Profit+'</div>');
+  if(x.phase2Profit)rules.push('<div><b>Phase 2 Profit:</b> '+x.phase2Profit+'</div>');
+  if(x.evaluation)rules.push('<div><b>Evaluation:</b> '+x.evaluation+'</div>');
+  return '<article class="account-card"><div class="account-type">'+x.model.toUpperCase()+'</div><h2>'+x.size+'</h2><div class="price">$'+Number(x.price).toFixed(2)+'</div><div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize).toLocaleString('en-US')+'</b></div></div><button class="buy-now" data-id="'+x.id+'">Buy Now</button></article>';
+}
+(async function(){
+  try{
+    const items=await loadChallenges();
+    ['one','two','instant'].forEach(model=>{
+      const key=model==='one'?'1 Step':model==='two'?'2 Step':'Instant';
+      document.getElementById(model+'Grid').innerHTML=items.filter(x=>x.model===key).map(card).join('');
+    });
+    document.getElementById('challengeStatus').textContent='Choose an account to continue to checkout.';
+    document.querySelectorAll('.buy-now').forEach(btn=>btn.onclick=()=>{localStorage.setItem('auraSelectedChallengeId',btn.dataset.id);location.href='checkout.html';});
+  }catch(e){document.getElementById('challengeStatus').textContent=e.message;}
 })();
+document.querySelectorAll('.challenge-tab').forEach(tab=>tab.addEventListener('click',function(){
+ document.querySelectorAll('.challenge-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.challenge-panel').forEach(x=>x.classList.remove('active'));tab.classList.add('active');document.getElementById(tab.dataset.tab).classList.add('active');
+}));
 </script>
-</body>
-</html>
