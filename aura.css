@@ -21,7 +21,8 @@ a{text-decoration:none;color:inherit}
 .menu-backdrop.open{opacity:1;pointer-events:auto}
 nav{display:flex;align-items:center;color:var(--muted);font-size:12px}
 .top-links>a{white-space:nowrap}
-.top-links{position:absolute;left:50%;top:76px;transform:translateX(-50%);padding-left:0;display:flex;align-items:center;justify-content:center;gap:22px;white-space:nowrap;z-index:21}
+.top-links{position:absolute;left:50%;top:76px;transform:translateX(-50%);padding-left:0;display:flex;align-items:center;justify-content:center;gap:18px;white-space:nowrap;z-index:21}
+.auth-nav{position:absolute;right:6%;top:18px;display:flex;align-items:center;gap:12px;z-index:23;white-space:nowrap}
 nav a:hover{color:var(--accent2)}.linkbtn{border:0;background:none;color:var(--muted);cursor:pointer;font:inherit}
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:10px;border:1px solid var(--line);font-weight:800;cursor:pointer}.btn.small{padding:9px 14px}
 .primary{background:var(--accent);color:#021018;border-color:var(--accent);box-shadow:0 0 22px #d6b35a22}.ghost{background:#090806;color:var(--accent2)}.full{width:100%}
@@ -40,4 +41,4 @@ h1{font-size:clamp(44px,7vw,78px);line-height:1;letter-spacing:-3px;margin:12px 
 .orders{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:15px}.orders div{padding:16px;border:1px solid var(--line);border-radius:12px}.orders b{color:var(--accent2)}.orders span{display:block;color:var(--muted);font-size:13px;margin-top:7px}
 footer{border-top:1px solid var(--line);padding:25px 6%;color:var(--muted);font-size:12px}
 @media(max-width:1250px){.top-links{gap:10px}.top-links>a{display:none}.top-links>a:first-child{display:inline}.top-links{padding-left:0}}
-@media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:60px}.grid,.stats,.rules,.orders{grid-template-columns:1fr}.nav{height:82px;padding:0 4%}.menu-toggle{left:4%;top:14px}.top-links{top:55px;gap:8px}.top-links>a{display:none}.top-links #authNav a{display:inline-flex}.top-links #authNav .linkbtn{display:inline-block}.brand{top:8px;font-size:19px}.brand-mark{width:34px;height:34px}}
+@media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:60px}.grid,.stats,.rules,.orders{grid-template-columns:1fr}.nav{height:82px;padding:0 4%}.menu-toggle{left:4%;top:14px}.top-links{display:none}.auth-nav{right:4%;top:14px}.auth-nav .btn.small{padding:8px 11px}.brand{top:8px;font-size:19px}.brand-mark{width:34px;height:34px}}
