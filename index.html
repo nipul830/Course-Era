@@ -91,6 +91,28 @@
     </div>
   </section>
 
+  <section id="reviews" class="section">
+    <p class="eyebrow">TRADER REVIEWS</p>
+    <h2>Reviews</h2>
+    <p class="muted">Reviews are submitted by signed-in traders and displayed from the Aura Farming review system.</p>
+    <div id="reviewsList" class="grid" style="margin-top:20px"><article class="card"><p>Loading reviews…</p></article></div>
+    <div class="panel" style="margin-top:24px">
+      <h3>Share your experience</h3>
+      <form id="reviewForm">
+        <label>Rating
+          <select id="reviewRating" required style="margin:8px 0;width:100%;padding:12px;border-radius:10px;background:#090806;color:#fff;border:1px solid #3a2c13">
+            <option value="5">★★★★★ — 5</option><option value="4">★★★★☆ — 4</option><option value="3">★★★☆☆ — 3</option><option value="2">★★☆☆☆ — 2</option><option value="1">★☆☆☆☆ — 1</option>
+          </select>
+        </label>
+        <label>Review
+          <textarea id="reviewText" required minlength="10" maxlength="800" rows="4" placeholder="Tell us about your experience…" style="width:100%;box-sizing:border-box;margin:8px 0;padding:12px;border-radius:10px;background:#090806;color:#fff;border:1px solid #3a2c13"></textarea>
+        </label>
+        <button class="btn primary" type="submit">Submit Review</button>
+        <p id="reviewMsg" class="muted"></p>
+      </form>
+    </div>
+  </section>
+
   <section id="faq" class="section">
     <p class="eyebrow">FREQUENTLY ASKED QUESTIONS</p>
     <h2>Firm FAQ</h2>
@@ -107,6 +129,35 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
+async function loadReviews(){
+  var list=document.getElementById('reviewsList');
+  try{
+    var res=await fetch('https://course-era.onrender.com/api/reviews');
+    var data=await res.json();
+    if(!data.reviews||!data.reviews.length){list.innerHTML='<article class="card"><h3>No reviews yet</h3><p>Be among the first traders to share your Aura Farming experience.</p></article>';return}
+    list.innerHTML=data.reviews.map(function(r){
+      var stars='★★★★★'.slice(0,r.rating)+'☆☆☆☆☆'.slice(0,5-r.rating);
+      return '<article class="card"><div style="color:#d6b35a;letter-spacing:2px">'+stars+'</div><h3>'+escapeHtml(r.name)+'</h3><p>'+escapeHtml(r.text)+'</p></article>';
+    }).join('');
+  }catch(e){list.innerHTML='<article class="card"><p>Reviews are temporarily unavailable.</p></article>'}
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+loadReviews();
+document.getElementById('reviewForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  var user=ceAuth.currentUser, msg=document.getElementById('reviewMsg');
+  if(!user){msg.textContent='Please login to submit a review.';return}
+  msg.textContent='Submitting…';
+  try{
+    var token=await user.getIdToken();
+    var res=await fetch('https://course-era.onrender.com/api/reviews',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({rating:Number(document.getElementById('reviewRating').value),text:document.getElementById('reviewText').value})});
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Could not submit review');
+    msg.textContent='Review submitted successfully.';
+    document.getElementById('reviewText').value='';
+    loadReviews();
+  }catch(err){msg.textContent=err.message}
+});
 ceAuth.onAuthStateChanged(async function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
