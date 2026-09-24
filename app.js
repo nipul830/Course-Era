@@ -39,6 +39,7 @@ async function loginDemo(e){
   const em=document.getElementById('email').value.trim();
   const password=document.getElementById('password').value;
   try{
+    await ceAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     const cred=await ceAuth.signInWithEmailAndPassword(em,password);
     localStorage.setItem('ce_user',JSON.stringify({uid:cred.user.uid,name:cred.user.displayName||em.split('@')[0],email:cred.user.email}));
     const next=new URLSearchParams(location.search).get('next');
