@@ -24,10 +24,9 @@ async function positionApi(path,opt={}){
 }
 function money(v){return '$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function price(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5})}
-async function loadPositions(){
-  const data=await positionApi('/api/trading/positions');
-  document.getElementById('positionBalance').textContent=money(data.account.balance);
-  document.getElementById('positionEquity').textContent=money(data.account.equity);
+function renderPositionData(data){
+  document.getElementById('positionBalance').textContent=money(data.account?.balance);
+  document.getElementById('positionEquity').textContent=money(data.account?.equity);
   const el=document.getElementById('positions');
   const ps=data.positions||[];
   if(!ps.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}
@@ -40,6 +39,24 @@ async function loadPositions(){
     try{await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});await loadPositions()}
     catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}
   }));
+}
+function renderCachedTrade(){
+  try{
+    const raw=sessionStorage.getItem('auraLastTrade');if(!raw)return;
+    const data=JSON.parse(raw);
+    if(!data||Date.now()-Number(data.at||0)>30000)return;
+    const p=data.position;
+    renderPositionData({account:data.account||{},positions:[{
+      ...p,name:p.symbol==='OANDA:XAUUSD'?'GOLD':p.symbol,currentPrice:p.entryPrice,pnl:0
+    }]});
+    sessionStorage.removeItem('auraLastTrade');
+  }catch(e){}
+}
+renderCachedTrade();
+
+async function loadPositions(){
+  const data=await positionApi('/api/trading/positions');
+  renderPositionData(data);
 }
 ceAuth.onAuthStateChanged(async function(user){
   if(!user){location.replace('login.html?next=position');return;}
