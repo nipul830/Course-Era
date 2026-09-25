@@ -117,9 +117,8 @@
 </section>
 </main>
 
-<script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script defer src="firebase-config.js"></script><script defer src="aura-account.js"></script><script defer src="aura.js"></script>\n<script>
-document.addEventListener("DOMContentLoaded", function(){
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script><script src="aura-account.js"></script><script src="aura.js"></script><script>
 async function loadPurchasedRules(account){
   try{
     const r=await fetch('https://course-era.onrender.com/api/challenge-rules');
@@ -224,7 +223,6 @@ ceAuth.onAuthStateChanged(async function(user){
     if(balance)balance.textContent='—';
     if(equity)equity.textContent='—';
   }
-});
 });
 </script>
 </body>
