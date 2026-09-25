@@ -265,6 +265,7 @@ async function refreshMarket(retry=true){
     const data=await terminalApi('/api/market/quotes?symbols='+encodeURIComponent(currentSymbol));
     const q=data.quotes?.[currentSymbol];
     if(!q?.price)throw new Error('Market price unavailable');
+    latestQuote=q;
     const sell=q.price,buy=q.price;
     document.querySelectorAll('.spread').forEach(el=>el.textContent='0.00');
     const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
@@ -299,6 +300,7 @@ async function placeSimulatedOrder(side){
       stopLoss:slRaw===''?null:Number(slRaw),
       takeProfit:tpRaw===''?null:Number(tpRaw)
     }});
+    latestQuote={...(latestQuote||{}),price:Number(data.position.entryPrice)};
     setTradeStatus(side+' '+lot+' lot executed at '+Number(data.position.entryPrice).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5}),true);
     if(document.getElementById('stopLoss'))document.getElementById('stopLoss').value='';
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
