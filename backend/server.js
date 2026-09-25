@@ -1304,6 +1304,7 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
           pnl: Number(account.pnl ?? ((account.balance ?? 0) - (account.startingBalance ?? 0))),
           currency: account.currency || "USD",
           challenge: account.challenge || "Funded Account",
+          challengeId: account.challengeId || "",
           sourcePaymentId: account.sourcePaymentId || "",
           status: account.status || "active",
           dailyDrawdownPct: Number(account.dailyDrawdownPct || 0),
