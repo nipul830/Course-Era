@@ -174,10 +174,16 @@ const terminalApp=firebase.apps.find(a=>a.name==='terminalAuth')||firebase.initi
 const terminalAuth=terminalApp.auth();
 terminalAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 let terminalRole='trader';
+let currentSymbol='OANDA:XAUUSD';
 
 function setTerminalLoginStatus(message,good){
   const el=document.getElementById('terminalLoginStatus');
   if(el){el.textContent=message||'';el.style.color=good?'#00a875':'#e6004d'}
+}
+function showTerminalLogin(message){
+  document.querySelector('.mobile-terminal').style.display='none';
+  document.getElementById('terminalLoginScreen').style.display='flex';
+  setTerminalLoginStatus(message||'',false);
 }
 function showTerminal(role){
   terminalRole=role||'trader';
@@ -186,16 +192,42 @@ function showTerminal(role){
   document.body.classList.toggle('read-only',terminalRole==='investor');
   const badge=document.getElementById('terminalRoleBadge');
   if(badge)badge.textContent=terminalRole==='investor'?'Investor':'Trading';
-  const status=document.getElementById('tradeStatus');
-  if(status&&terminalRole==='investor')status.textContent='Investor mode • read-only';
   mountChart('tvMobile',currentSymbol);
   refreshMarket();
   refreshTerminalAccount();
 }
-function showTerminalLogin(message){
-  document.querySelector('.mobile-terminal').style.display='none';
-  document.getElementById('terminalLoginScreen').style.display='flex';
-  setTerminalLoginStatus(message||'',false);
+async function terminalApi(path,opt={}){
+  const user=terminalAuth.currentUser;
+  if(!user)throw new Error('Terminal login required');
+  const headers=opt.headers||{};
+  headers.Authorization='Bearer '+await user.getIdToken();
+  if(opt.body&&typeof opt.body==='object'&&!(opt.body instanceof FormData)){
+    headers['Content-Type']='application/json';
+    opt.body=JSON.stringify(opt.body);
+  }
+  const res=await fetch('https://course-era.onrender.com'+path,{...opt,headers});
+  let data={};try{data=await res.json()}catch(e){}
+  if(!res.ok)throw new Error(data.error||data.detail||'Request failed');
+  return data;
+}
+async function loginTerminal(){
+  const loginId=document.getElementById('terminalLoginId')?.value.trim().toUpperCase()||'';
+  const password=document.getElementById('terminalLoginPassword')?.value||'';
+  const btn=document.getElementById('terminalLoginBtn');
+  if(!loginId||!password){setTerminalLoginStatus('Enter Login ID and password');return}
+  if(btn){btn.disabled=true;btn.textContent='Signing in…'}
+  try{
+    const r=await fetch('https://course-era.onrender.com/api/terminal/login',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({loginId,password,mode:terminalRole})
+    });
+    let d={};try{d=await r.json()}catch(e){}
+    if(!r.ok)throw new Error(d.error||'Terminal login failed');
+    await terminalAuth.signInWithCustomToken(d.token);
+    sessionStorage.setItem('auraTerminalRole',terminalRole);
+    setTerminalLoginStatus('',true);
+  }catch(e){setTerminalLoginStatus(e.message||'Terminal login failed',false)}
+  finally{if(btn){btn.disabled=false;btn.textContent='Login to Terminal'}}
 }
 function setTradeStatus(message,good){
   const el=document.getElementById('tradeStatus');
@@ -203,12 +235,28 @@ function setTradeStatus(message,good){
 }
 function renderTerminalAccount(account){
   const b=document.getElementById('terminalBalance'),e=document.getElementById('terminalEquity');
-  const money=v=>'async function refreshMarket(){
+  const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(b)b.textContent=money(account?.balance);
+  if(e)e.textContent=money(account?.equity);
+}
+async function refreshTerminalAccount(){
+  try{
+    const data=await terminalApi('/api/trading/positions');
+    renderTerminalAccount(data.account);
+    if(data.account?.status==='breached')throw new Error('Account breached. Terminal credentials revoked.');
+  }catch(e){
+    if(/breached|revoked|not active|Terminal login required/i.test(e.message||'')){
+      await terminalAuth.signOut();
+      showTerminalLogin(e.message);
+    }
+  }
+}
+async function refreshMarket(){
   try{
     const data=await terminalApi('/api/market/quotes?symbols='+encodeURIComponent(currentSymbol));
     const q=data.quotes?.[currentSymbol];
     if(!q?.price)throw new Error('Market price unavailable');
-    const sell=q.price, buy=q.price;
+    const sell=q.price,buy=q.price;
     document.querySelectorAll('.spread').forEach(el=>el.textContent='0.00');
     const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
     ['sellPrice','desktopSellPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=fmt(sell)});
@@ -220,6 +268,7 @@ function renderTerminalAccount(account){
   }catch(e){setTradeStatus(e.message||'Market data unavailable',false)}
 }
 async function placeSimulatedOrder(side){
+  if(terminalRole==='investor'){setTradeStatus('Investor password is read-only',false);return}
   try{
     const lot=Number(document.getElementById('lotSize')?.value||'0.10');
     const slRaw=document.getElementById('stopLoss')?.value.trim()||'';
@@ -235,8 +284,36 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
     location.replace('position.html');
-  }catch(e){setTradeStatus(e.message||'Trade failed',false)}
+  }catch(e){
+    setTradeStatus(e.message||'Trade failed',false);
+    if(/breached|revoked|not active/i.test(e.message||'')){await terminalAuth.signOut();showTerminalLogin(e.message)}
+  }
 }
+function mountChart(id,symbol){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML='';
+  const sc=document.createElement('script');
+  sc.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  sc.async=true;
+  sc.innerHTML=JSON.stringify({
+    autosize:true,width:"100%",height:"100%",symbol:symbol,interval:"15",timezone:"exchange",
+    theme:"light",style:"1",withdateranges:false,hide_side_toolbar:true,allow_symbol_change:false,
+    save_image:false,calendar:false,locale:"en",support_host:"https://www.tradingview.com",
+    watchlist:["OANDA:XAUUSD","FX:EURUSD","FX:GBPUSD","FX:USDJPY","FX:AUDUSD","BINANCE:BTCUSDT","BINANCE:ETHUSDT","BINANCE:SOLUSDT","BINANCE:XRPUSDT"]
+  });
+  el.appendChild(sc);
+}
+
+document.getElementById('terminalTraderMode')?.addEventListener('click',function(){
+  terminalRole='trader';this.classList.add('active');document.getElementById('terminalInvestorMode')?.classList.remove('active');
+});
+document.getElementById('terminalInvestorMode')?.addEventListener('click',function(){
+  terminalRole='investor';this.classList.add('active');document.getElementById('terminalTraderMode')?.classList.remove('active');
+});
+document.getElementById('terminalLoginBtn')?.addEventListener('click',loginTerminal);
+document.getElementById('terminalLoginPassword')?.addEventListener('keydown',e=>{if(e.key==='Enter')loginTerminal()});
+document.getElementById('terminalLogout')?.addEventListener('click',()=>terminalAuth.signOut());
+
 (function(){
   const lot=document.getElementById('lotSize');
   if(lot){
@@ -244,77 +321,45 @@ async function placeSimulatedOrder(side){
       if(lot.options.length>1)return;
       const frag=document.createDocumentFragment();
       for(let i=1;i<=10000;i++){
-        const v=(i/100).toFixed(2);
-        const o=document.createElement('option');
-        o.value=v;o.textContent=v;
-        if(v==='0.10')o.selected=true;
-        frag.appendChild(o);
+        const v=(i/100).toFixed(2),o=document.createElement('option');
+        o.value=v;o.textContent=v;if(v==='0.10')o.selected=true;frag.appendChild(o);
       }
       lot.appendChild(frag);
     };
-    if('requestIdleCallback' in window) requestIdleCallback(fillLots,{timeout:1200});
-    else setTimeout(fillLots,0);
+    if('requestIdleCallback' in window)requestIdleCallback(fillLots,{timeout:1200});else setTimeout(fillLots,0);
   }
-  const pendingBtn=document.getElementById('pendingBtn');
-  const pendingMenu=document.getElementById('pendingMenu');
+  const pendingBtn=document.getElementById('pendingBtn'),pendingMenu=document.getElementById('pendingMenu');
   if(pendingBtn&&pendingMenu){
-    pendingBtn.addEventListener('click',function(){pendingMenu.classList.toggle('open')});
-    pendingMenu.querySelectorAll('button').forEach(function(btn){
-      btn.addEventListener('click',function(){
-        pendingBtn.textContent=btn.dataset.pending+' ✓';
-        pendingMenu.classList.remove('open');
-      });
-    });
+    pendingBtn.addEventListener('click',()=>pendingMenu.classList.toggle('open'));
+    pendingMenu.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+      pendingBtn.textContent=btn.dataset.pending+' ✓';pendingMenu.classList.remove('open');
+    }));
   }
-  const symbolBtn=document.getElementById('symbolBtn');
-  const symbolList=document.getElementById('symbolList');
+  const symbolBtn=document.getElementById('symbolBtn'),symbolList=document.getElementById('symbolList');
   if(symbolBtn&&symbolList){
-    symbolBtn.addEventListener('click',function(e){e.stopPropagation();symbolList.classList.toggle('open')});
-    symbolList.querySelectorAll('button').forEach(function(btn){
-      btn.addEventListener('click',function(){
-        currentSymbol=btn.dataset.symbol;
-        symbolBtn.textContent=btn.dataset.name+' ▾';
-        symbolList.classList.remove('open');
-        mountChart('tvMobile',currentSymbol);
-        mountChart('tvChart',currentSymbol);
-        refreshMarket();
-      });
-    });
-    document.addEventListener('click',function(e){
-      if(!e.target.closest('.symbol-picker'))symbolList.classList.remove('open');
-    });
+    symbolBtn.addEventListener('click',e=>{e.stopPropagation();symbolList.classList.toggle('open')});
+    symbolList.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+      currentSymbol=btn.dataset.symbol;symbolBtn.textContent=btn.dataset.name+' ▾';symbolList.classList.remove('open');
+      mountChart('tvMobile',currentSymbol);refreshMarket();
+    }));
+    document.addEventListener('click',e=>{if(!e.target.closest('.symbol-picker'))symbolList.classList.remove('open')});
   }
 })();
-let currentSymbol='OANDA:XAUUSD';
-function mountChart(id,symbol){
-  const el=document.getElementById(id); if(!el)return;
-  el.innerHTML='';
-  const s=document.createElement('script');
-  s.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-  s.async=true;
-  s.innerHTML=JSON.stringify({
-   autosize:true,width:"100%",height:"100%",symbol:symbol,interval:"15",timezone:"exchange",
-   theme:"light",style:"1",withdateranges:false,hide_side_toolbar:true,allow_symbol_change:false,
-   save_image:false,calendar:false,locale:"en",support_host:"https://www.tradingview.com",
-   watchlist:["OANDA:XAUUSD","FX:EURUSD","FX:GBPUSD","FX:USDJPY","FX:AUDUSD","BINANCE:BTCUSDT","BINANCE:ETHUSDT","BINANCE:SOLUSDT","BINANCE:XRPUSDT"]
-  });
-  el.appendChild(s);
-}
-(function(){
-  setInterval(function(){
-    if(terminalAuth.currentUser){
-      refreshMarket();
-      refreshTerminalAccount();
-    }
-  },5000);
-})();
-(function(){
- const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
- if(toggle&&menu&&back){
-  toggle.addEventListener('click',function(){const open=menu.classList.toggle('open');back.classList.toggle('open',open);toggle.classList.toggle('open',open);toggle.setAttribute('aria-expanded',open?'true':'false')});
-  back.addEventListener('click',function(){menu.classList.remove('open');back.classList.remove('open');toggle.classList.remove('open');toggle.setAttribute('aria-expanded','false')});
- }
-})();
+
+terminalAuth.onAuthStateChanged(async function(user){
+  if(!user){showTerminalLogin('');return}
+  try{
+    const tokenResult=await user.getIdTokenResult();
+    const role=tokenResult.claims.terminalRole||sessionStorage.getItem('auraTerminalRole')||'trader';
+    showTerminal(role);
+  }catch(e){
+    await terminalAuth.signOut();showTerminalLogin('Terminal session expired');
+  }
+});
+
+setInterval(function(){
+  if(terminalAuth.currentUser){refreshMarket();refreshTerminalAccount()}
+},5000);
 </script>
 </body>
 </html>+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
