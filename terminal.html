@@ -220,7 +220,7 @@ async function loginTerminal(){
       body:JSON.stringify({loginId,password,mode:terminalRole})
     });
     let d={};try{d=await r.json()}catch(e){}
-    if(!r.ok)throw new Error(d.error||d.detail||'Terminal login failed');
+    if(!r.ok)throw new Error(d.detail||d.error||('Terminal login failed (HTTP '+r.status+')'));
     terminalSessionToken=d.token||'';
     if(!terminalSessionToken)throw new Error('Terminal session was not issued');
     sessionStorage.setItem('auraTerminalSession',terminalSessionToken);
