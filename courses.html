@@ -45,11 +45,26 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="firebase-config.js"></script><script src="aura-account.js"></script><script src="aura.js"></script>
-<script>
-async function loadPurchasedRules(account){try{const r=await fetch('https://course-era.onrender.com/api/challenge-rules');const d=await r.json();const box=document.getElementById('accountRules');if(!box)return;const rules=(d.rules||{})[String(account.challenge||'').split(' ')[0]==='2'?'2 Step':(String(account.challenge||'').startsWith('1 Step')?'1 Step':String(account.challenge||'').startsWith('Instant')?'Instant':'')]||[];const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)]];rules.forEach((rule,i)=>items.push(['Rule '+(i+1),rule]));box.innerHTML=items.map(x=>'<div class="rule-item"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')}catch(e){const box=document.getElementById('accountRules');if(box)box.innerHTML='<div class="rule-item"><span>Rules</span><strong>Could not load rules</strong></div>'}}
+<script src="firebase-config.js"></script><script src="aura-account.js"></script><script src="aura.js"></script>\n<script>
+async function loadPurchasedRules(account){
+  try{
+    const r=await fetch('https://course-era.onrender.com/api/challenge-rules');
+    const d=await r.json();
+    const box=document.getElementById('accountRules');
+    if(!box)return;
+    const challenge=String(account.challenge||'');
+    const model=challenge.startsWith('2 Step')?'2 Step':challenge.startsWith('1 Step')?'1 Step':challenge.startsWith('Instant')?'Instant':'';
+    const rules=(d.rules||{})[model]||[];
+    const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)]];
+    rules.forEach((rule,i)=>items.push(['Rule '+(i+1),rule]));
+    box.innerHTML=items.map(x=>'<div class="rule-item"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
+  }catch(e){
+    const box=document.getElementById('accountRules');
+    if(box)box.innerHTML='<div class="rule-item"><span>Rules</span><strong>Could not load rules</strong></div>';
+  }
+}
 
-async function loadTerminalCredentials(user){
+async function loadTerminalCredentials(user,account){
   try{
     const token=await user.getIdToken();
     const r=await fetch('https://course-era.onrender.com/api/trading-credentials',{headers:{Authorization:'Bearer '+token}});
@@ -63,54 +78,31 @@ async function loadTerminalCredentials(user){
     if(tp)tp.textContent=d.tradingPassword||'—';
     if(ip)ip.textContent=d.investorPassword||'—';
     if(wrap)wrap.style.display='block';
+
     loadPurchasedRules(account);
+
     const accountName=document.getElementById('purchasedAccountName');
     const accountBalance=document.getElementById('purchasedAccountBalance');
-    if(accountName)accountName.textContent=(account.challenge||'Purchased Account');
+    if(accountName)accountName.textContent=account.challenge||'Purchased Account';
     if(accountBalance)accountBalance.textContent='Purchased challenge account';
+
     const accountType=document.getElementById('purchasedAccountType');
     const accountValue=document.getElementById('purchasedAccountValue');
     const accountCurrency=document.getElementById('purchasedAccountCurrency');
-    if(accountType)accountType.textContent=(account.challenge||'Purchased Account').replace('
-    const copy=document.getElementById('copyTerminalCredentials');
-    if(copy)copy.onclick=async function(){
-      const text='Aura Farming Terminal\nLogin ID: '+(d.loginId||'')+'\nTrading Password: '+(d.tradingPassword||'')+'\nInvestor Password: '+(d.investorPassword||'');
-      try{await navigator.clipboard.writeText(text);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy Credentials',1500)}catch(e){alert(text)}
-    };
-  }catch(e){}
-}
-
-ceAuth.onAuthStateChanged(async function(user){
-  if(!user)return;
-  const account=await auraAccount();
-  const balance=document.getElementById('accountBalance');
-  const equity=document.getElementById('accountEquity');
-  const daily=document.getElementById('dailyDrawdown');
-  const max=document.getElementById('maxDrawdown');
-  const status=document.getElementById('accountStatus');
-  if(account){
-    if(balance)balance.textContent=auraMoney(account.balance);
-    if(equity)equity.textContent=auraMoney(account.equity);
-    loadTerminalCredentials(user);
-    if(daily)daily.textContent=Number(account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(account.dailyDrawdownLimit||4).toFixed(2)+'%';
-    if(max)max.textContent=Number(account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(account.maxDrawdownLimit||8).toFixed(2)+'%';
-    if(status)status.textContent='Account status: '+String(account.status||'active').toUpperCase();
-  }else{
-    if(balance)balance.textContent='—';
-    if(equity)equity.textContent='—';
-  }
-});
-</script>
-</body>
-</html>,'');
+    if(accountType)accountType.textContent=(account.challenge||'Purchased Account').replace(/^\$/,'');
     if(accountValue)accountValue.textContent=auraMoney(account.balance ?? account.startingBalance);
     if(accountCurrency)accountCurrency.textContent=account.currency||'USD';
+
     const copy=document.getElementById('copyTerminalCredentials');
     if(copy)copy.onclick=async function(){
       const text='Aura Farming Terminal\nLogin ID: '+(d.loginId||'')+'\nTrading Password: '+(d.tradingPassword||'')+'\nInvestor Password: '+(d.investorPassword||'');
-      try{await navigator.clipboard.writeText(text);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy Credentials',1500)}catch(e){alert(text)}
+      try{
+        await navigator.clipboard.writeText(text);
+        copy.textContent='Copied ✓';
+        setTimeout(()=>copy.textContent='Copy Credentials',1500);
+      }catch(e){alert(text)}
     };
-  }catch(e){}
+  }catch(e){console.warn('Terminal credentials unavailable',e)}
 }
 
 ceAuth.onAuthStateChanged(async function(user){
@@ -124,7 +116,7 @@ ceAuth.onAuthStateChanged(async function(user){
   if(account){
     if(balance)balance.textContent=auraMoney(account.balance);
     if(equity)equity.textContent=auraMoney(account.equity);
-    loadTerminalCredentials(user);
+    loadTerminalCredentials(user,account);
     if(daily)daily.textContent=Number(account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(account.dailyDrawdownLimit||4).toFixed(2)+'%';
     if(max)max.textContent=Number(account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(account.maxDrawdownLimit||8).toFixed(2)+'%';
     if(status)status.textContent='Account status: '+String(account.status||'active').toUpperCase();
