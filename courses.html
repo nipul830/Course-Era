@@ -12,6 +12,7 @@
 .open-terminal-card p{color:var(--muted);margin:0 0 24px}
 .open-terminal-btn{display:inline-block;background:var(--accent);color:#080808;text-decoration:none;border-radius:12px;padding:15px 34px;font-size:18px;font-weight:900}
 .open-terminal-btn:hover{background:var(--accent2)}
+.terminal-creds{max-width:900px;margin:18px auto;padding:0 5%}.terminal-creds-card{background:#050505;border:1px solid #3a2c13;border-radius:20px;padding:24px;box-shadow:0 15px 40px #0008}.terminal-creds-card h3{color:#f1d98a;margin:0 0 6px}.terminal-creds-card p{color:#9b8552;margin:0 0 16px;font-size:13px}.cred-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-box{background:#000;border:1px solid #302713;border-radius:12px;padding:12px}.cred-box span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:6px}.cred-box strong{color:#fff;font-size:16px;word-break:break-all}.cred-copy{margin-top:14px;background:#d6b35a;color:#080808;border:0;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}.cred-note{margin-top:12px!important;color:#7f6d43!important}@media(max-width:700px){.cred-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -39,6 +40,19 @@
 <a class="open-terminal-btn" href="terminal.html">Open Terminal</a>
 </div>
 </section>
+<section class="terminal-creds" id="terminalCredentials" style="display:none">
+  <div class="terminal-creds-card">
+    <h3>Terminal Login Credentials</h3>
+    <p>Use these credentials on the Aura Farming Terminal. Trading password can place trades; Investor password is read-only.</p>
+    <div class="cred-grid">
+      <div class="cred-box"><span>Login ID</span><strong id="terminalLoginId">—</strong></div>
+      <div class="cred-box"><span>Trading Password</span><strong id="terminalTradingPassword">—</strong></div>
+      <div class="cred-box"><span>Investor Password</span><strong id="terminalInvestorPassword">—</strong></div>
+    </div>
+    <button class="cred-copy" id="copyTerminalCredentials" type="button">Copy Credentials</button>
+    <p class="cred-note">If the account is breached, these terminal credentials are revoked automatically and cannot be used again.</p>
+  </div>
+</section>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -56,6 +70,56 @@ ceAuth.onAuthStateChanged(async function(user){
   if(account){
     if(balance)balance.textContent=auraMoney(account.balance);
     if(equity)equity.textContent=auraMoney(account.equity);
+    try{
+      const token=await user.getIdToken();
+      const r=await fetch('https://course-era.onrender.com/api/trading/positions',{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(r.ok){
+        if(daily)daily.textContent=Number(d.account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.dailyDrawdownLimit||4).toFixed(2)+'%';
+        if(max)max.textContent=Number(d.account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.maxDrawdownLimit||8).toFixed(2)+'%';
+        if(status)status.textContent='Account status: '+String(d.account.status||'active').toUpperCase();
+      }
+    }catch(e){}
+  }else{
+    if(balance)balance.textContent='—';
+    if(equity)equity.textContent='—';
+  }
+});
+
+async function loadTerminalCredentials(user){
+  try{
+    const token=await user.getIdToken();
+    const r=await fetch('https://course-era.onrender.com/api/trading-credentials',{headers:{Authorization:'Bearer '+token}});
+    let d={};try{d=await r.json()}catch(e){}
+    const wrap=document.getElementById('terminalCredentials');
+    if(!r.ok){if(wrap)wrap.style.display='none';return;}
+    const id=document.getElementById('terminalLoginId');
+    const tp=document.getElementById('terminalTradingPassword');
+    const ip=document.getElementById('terminalInvestorPassword');
+    if(id)id.textContent=d.loginId||'—';
+    if(tp)tp.textContent=d.tradingPassword||'—';
+    if(ip)ip.textContent=d.investorPassword||'—';
+    if(wrap)wrap.style.display='block';
+    const copy=document.getElementById('copyTerminalCredentials');
+    if(copy)copy.onclick=async function(){
+      const text='Aura Farming Terminal\nLogin ID: '+(d.loginId||'')+'\nTrading Password: '+(d.tradingPassword||'')+'\nInvestor Password: '+(d.investorPassword||'');
+      try{await navigator.clipboard.writeText(text);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy Credentials',1500)}catch(e){alert(text)}
+    };
+  }catch(e){}
+}
+
+ceAuth.onAuthStateChanged(async function(user){
+  if(!user)return;
+  const account=await auraAccount();
+  const balance=document.getElementById('accountBalance');
+  const equity=document.getElementById('accountEquity');
+  const daily=document.getElementById('dailyDrawdown');
+  const max=document.getElementById('maxDrawdown');
+  const status=document.getElementById('accountStatus');
+  if(account){
+    if(balance)balance.textContent=auraMoney(account.balance);
+    if(equity)equity.textContent=auraMoney(account.equity);
+    loadTerminalCredentials(user);
     try{
       const token=await user.getIdToken();
       const r=await fetch('https://course-era.onrender.com/api/trading/positions',{headers:{Authorization:'Bearer '+token}});
