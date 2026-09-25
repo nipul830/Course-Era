@@ -1681,6 +1681,34 @@ async function refreshTradingAccount(uid, quotes) {
     status, breachReason:breach, positions, realizedFromStops };
 }
 
+async function fetchYahooCandles(yahoo, interval="15m") {
+  const allowed=new Set(["1m","5m","15m","30m","60m","1d"]);
+  const safe=allowed.has(interval)?interval:"15m";
+  const range=safe==="1m"?"1d":safe==="5m"?"5d":safe==="1d"?"1y":"1mo";
+  const url="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(yahoo)+"?range="+range+"&interval="+safe+"&includePrePost=true";
+  const response=await fetch(url,{headers:{"User-Agent":"Mozilla/5.0 AuraFarming/1.0"}});
+  if(!response.ok) throw new Error("Candle provider returned "+response.status);
+  const result=(await response.json())?.chart?.result?.[0];
+  const ts=result?.timestamp||[], q=result?.indicators?.quote?.[0]||{};
+  const candles=ts.map((time,i)=>({time:Number(time),open:Number(q.open?.[i]),high:Number(q.high?.[i]),low:Number(q.low?.[i]),close:Number(q.close?.[i]),volume:Number(q.volume?.[i]||0)})).filter(x=>[x.open,x.high,x.low,x.close].every(Number.isFinite));
+  if(!candles.length) throw new Error("No candle data available");
+  return candles;
+}
+
+app.get("/api/market/candles", requireTerminalAuth, async (req,res) => {
+  try {
+    const symbol=String(req.query.symbol||"").trim();
+    const interval=String(req.query.interval||"15m").trim();
+    const spec=MARKET_SYMBOLS[symbol];
+    if(!spec) return res.status(400).json({error:"Unsupported trading symbol"});
+    const candles=await fetchYahooCandles(spec.yahoo,interval);
+    const quotes=await getMarketQuotes([symbol]);
+    res.json({symbol,interval,candles,quote:quotes[symbol]||null});
+  } catch(e) {
+    res.status(502).json({error:"Market candle data unavailable"});
+  }
+});
+
 app.get("/api/market/quotes", requireTerminalAuth, async (req,res) => {
   try {
     const symbols = String(req.query.symbols || "").split(",").map(x=>x.trim()).filter(Boolean);
