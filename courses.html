@@ -13,7 +13,7 @@
 .open-terminal-btn{display:inline-block;background:var(--accent);color:#080808;text-decoration:none;border-radius:12px;padding:15px 34px;font-size:18px;font-weight:900}
 .open-terminal-btn:hover{background:var(--accent2)}
 .terminal-creds{max-width:900px;margin:18px auto;padding:0 5%}.terminal-creds-card{background:#050505;border:1px solid #3a2c13;border-radius:20px;padding:14px;box-shadow:0 15px 40px #0008}.account-summary{padding:12px 10px 16px}.account-summary h3{color:#f1d98a;margin:0 0 6px}.account-summary p{color:#9b8552;margin:0;font-size:13px}.account-part{border:1px solid #302713;border-radius:14px;background:#000;margin-top:10px;overflow:hidden}.account-part summary{list-style:none;cursor:pointer;padding:17px 16px;color:#f1d98a;font-weight:900;font-size:18px;display:flex;justify-content:space-between;align-items:center}.account-part summary::-webkit-details-marker{display:none}.account-part summary::after{content:"+";font-size:24px}.account-part[open] summary::after{content:"−"}.account-part-body{padding:0 16px 18px}.purchase-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.purchase-meta-box{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.purchase-meta-box span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:5px}.purchase-meta-box strong{color:#fff;font-size:16px}.purchase-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.purchase-sections .account-part{margin-top:0}.cred-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-box{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.cred-box span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:6px}.cred-box strong{color:#fff;font-size:16px;word-break:break-all}.cred-copy{margin-top:14px;background:#d6b35a;color:#080808;border:0;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}.cred-note{margin-top:12px!important;color:#7f6d43!important;font-size:12px}.rules-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.rule-item{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.rule-item span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:5px}.rule-item strong{color:#fff;font-size:16px}.rules-note{color:#9b8552;font-size:12px;margin:12px 0 0}@media(max-width:700px){.purchase-meta,.purchase-sections{grid-template-columns:1fr}.cred-grid,.rules-grid{grid-template-columns:1fr}}
-</style>
+.account-size{font-size:28px;font-weight:900;color:#fff;margin:2px 0 16px}.balance-card{border:1px solid #4a3b1d;border-radius:16px;background:linear-gradient(145deg,#0b0a07,#020202);padding:18px 20px;margin-top:8px}.balance-card span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;letter-spacing:1px}.balance-card strong{display:block;color:#f1d98a;font-size:30px;margin-top:6px}.balance-card small{display:block;color:#7f6d43;margin-top:4px}.more-account-details{margin-top:14px}.more-account-details>summary{list-style:none;cursor:pointer;text-align:center;padding:13px;border:1px solid #302713;border-radius:12px;color:#f1d98a;font-weight:900;background:#050505}.more-account-details>summary::-webkit-details-marker{display:none}.more-account-details>summary::after{content:' ↓';font-size:18px}.more-account-details[open]>summary::after{content:' ↑'}.more-account-details .purchase-sections{margin-top:12px}.purchase-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.purchase-sections .account-part{margin-top:0}.account-part{border:1px solid #302713;border-radius:14px;background:#000;overflow:hidden}.account-part summary{list-style:none;cursor:pointer;padding:17px 16px;color:#f1d98a;font-weight:900;font-size:18px;display:flex;justify-content:space-between;align-items:center}.account-part summary::-webkit-details-marker{display:none}.account-part summary::after{content:'+';font-size:24px}.account-part[open] summary::after{content:'−'}.account-part-body{padding:0 16px 18px}.cred-grid{display:grid;grid-template-columns:1fr;gap:10px}.cred-box{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.cred-box span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:6px}.cred-box strong{color:#fff;font-size:16px;word-break:break-all}.cred-copy{margin-top:14px;background:#d6b35a;color:#080808;border:0;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}.cred-note{margin-top:12px!important;color:#7f6d43!important;font-size:12px}.rules-grid{display:grid;grid-template-columns:1fr;gap:10px}.rule-item{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.rule-item span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:5px}.rule-item strong{color:#fff;font-size:16px}.rules-note{color:#9b8552;font-size:12px;margin:12px 0 0}@media(max-width:700px){.purchase-sections{grid-template-columns:1fr}}</style>
 </head>
 <body>
 <header class="nav">
@@ -40,7 +40,44 @@
 <a class="open-terminal-btn" href="terminal.html">Open Terminal</a>
 </div>
 </section>
-<section class="terminal-creds" id="terminalCredentials" style="display:none"><div class="terminal-creds-card"><div class="account-summary"><h3 id="purchasedAccountName">Purchased Account</h3><p id="purchasedAccountBalance"></p><div class="purchase-meta"><div class="purchase-meta-box"><span>Account</span><strong id="purchasedAccountType">—</strong></div><div class="purchase-meta-box"><span>Balance</span><strong id="purchasedAccountValue">—</strong></div><div class="purchase-meta-box"><span>Currency</span><strong id="purchasedAccountCurrency">USD</strong></div></div></div><div class="purchase-sections"><details class="account-part" name="purchased-account" open><summary>Login</summary><div class="account-part-body"><p style="color:#9b8552;font-size:13px;margin:0 0 16px">Use these credentials on the Aura Farming Terminal. Trading password can place trades; Investor password is read-only.</p><div class="cred-grid"><div class="cred-box"><span>Login ID</span><strong id="terminalLoginId">—</strong></div><div class="cred-box"><span>Trading Password</span><strong id="terminalTradingPassword">—</strong></div><div class="cred-box"><span>Investor Password</span><strong id="terminalInvestorPassword">—</strong></div></div><button class="cred-copy" id="copyTerminalCredentials" type="button">Copy Credentials</button><p class="cred-note">If the account is breached, these terminal credentials are revoked automatically and cannot be used again.</p></div></details><details class="account-part" name="purchased-account"><summary>Rules</summary><div class="account-part-body"><div class="rules-grid" id="accountRules"></div><p class="rules-note">These rules are shown for the purchased challenge account.</p></div></details></div></div></section>
+<section class="terminal-creds" id="terminalCredentials" style="display:none">
+<div class="terminal-creds-card">
+  <div class="account-summary">
+    <p class="eyebrow">PURCHASED ACCOUNT</p>
+    <h3 id="purchasedAccountName">1 Step</h3>
+    <div class="account-size" id="purchasedAccountSize">$5K</div>
+    <div class="balance-card">
+      <span>Balance</span>
+      <strong id="purchasedAccountValue">$5,000.00</strong>
+      <small id="purchasedAccountCurrency">USD</small>
+    </div>
+    <details class="more-account-details">
+      <summary>Show more</summary>
+      <div class="purchase-sections">
+        <details class="account-part" name="purchased-account">
+          <summary>Login</summary>
+          <div class="account-part-body">
+            <div class="cred-grid">
+              <div class="cred-box"><span>Login ID</span><strong id="terminalLoginId">—</strong></div>
+              <div class="cred-box"><span>Trading Password</span><strong id="terminalTradingPassword">—</strong></div>
+              <div class="cred-box"><span>Investor Password</span><strong id="terminalInvestorPassword">—</strong></div>
+            </div>
+            <button class="cred-copy" id="copyTerminalCredentials" type="button">Copy Credentials</button>
+            <p class="cred-note">Trading password can place trades. Investor password is read-only.</p>
+          </div>
+        </details>
+        <details class="account-part" name="purchased-account">
+          <summary>Rules</summary>
+          <div class="account-part-body">
+            <div class="rules-grid" id="accountRules"></div>
+            <p class="rules-note">Rules for this purchased challenge account.</p>
+          </div>
+        </details>
+      </div>
+    </details>
+  </div>
+</div>
+</section>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -81,15 +118,16 @@ async function loadTerminalCredentials(user,account){
 
     loadPurchasedRules(account);
 
+    const challenge=String(account.challenge||'Purchased Account');
+    const parts=challenge.match(/^(1 Step|2 Step|Instant)\s*(.*)$/);
+    const model=parts?parts[1]:'Purchased Account';
+    const size=parts&&parts[2]?parts[2]:String(account.startingBalance||'');
     const accountName=document.getElementById('purchasedAccountName');
-    const accountBalance=document.getElementById('purchasedAccountBalance');
-    if(accountName)accountName.textContent=account.challenge||'Purchased Account';
-    if(accountBalance)accountBalance.textContent='Purchased challenge account';
-
-    const accountType=document.getElementById('purchasedAccountType');
+    const accountSize=document.getElementById('purchasedAccountSize');
     const accountValue=document.getElementById('purchasedAccountValue');
     const accountCurrency=document.getElementById('purchasedAccountCurrency');
-    if(accountType)accountType.textContent=(account.challenge||'Purchased Account').replace(/^\$/,'');
+    if(accountName)accountName.textContent=model;
+    if(accountSize)accountSize.textContent=size;
     if(accountValue)accountValue.textContent=auraMoney(account.balance ?? account.startingBalance);
     if(accountCurrency)accountCurrency.textContent=account.currency||'USD';
 
