@@ -21,7 +21,7 @@ async function positionApi(path,opt={}){
   if(opt.body&&typeof opt.body==='object'){headers['Content-Type']='application/json';opt.body=JSON.stringify(opt.body)}
   const res=await fetch('https://course-era.onrender.com'+path,{...opt,headers});
   let data={};try{data=await res.json()}catch(e){}
-  if(!res.ok)throw new Error(data.error||data.detail||'Request failed');return data;
+  if(!res.ok)throw new Error(data.detail||data.error||('Request failed (HTTP '+res.status+')'));return data;
 }
 function money(v){return '$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function price(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5})}
