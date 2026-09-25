@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import multer from "multer";
 import admin from "firebase-admin";
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 
@@ -146,7 +147,11 @@ function verifyTerminalPassword(password, stored) {
 }
 
 function terminalCredentialKey() {
-  const material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS || "aura-farming-terminal-credentials";
+  let material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
+  if (!material && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    try { material = readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, "utf8"); } catch {}
+  }
+  if (!material) throw new Error("TERMINAL_CREDENTIAL_SECRET is not configured");
   return crypto.createHash("sha256").update(String(material)).digest();
 }
 
