@@ -6,18 +6,6 @@
 <title>Aura Farming — Simulated Prop Trading</title>
 <link rel="stylesheet" href="aura.css">
 <style>
-.home-profile-section{padding-top:0}
-.home-profile-card{display:flex;align-items:center;gap:20px;max-width:760px}
-.home-profile-avatar{width:76px;height:76px;flex:0 0 76px;border-radius:50%;display:grid;place-items:center;background:#17120a;border:1px solid var(--accent);overflow:hidden;color:var(--accent2);font-size:28px;font-weight:800}
-.home-profile-avatar img{width:100%;height:100%;object-fit:cover}
-.home-profile-info h2{margin:3px 0 4px}
-.home-profile-info .muted{margin:0}
-.home-profile-actions{display:flex;gap:10px;margin-top:14px}
-@media(max-width:600px){
- .home-profile-card{align-items:flex-start}
- .home-profile-avatar{width:62px;height:62px;flex-basis:62px;font-size:23px}
- .home-profile-actions{flex-wrap:wrap}
-}
 </style></head>
 <body>
 <header class="nav">
@@ -86,20 +74,6 @@
 
   </section>
 
-  <section class="section home-profile-section" id="homeProfile" hidden>
-    <div class="panel home-profile-card">
-      <div class="home-profile-avatar" id="homeProfileAvatar"><img id="homeProfilePhoto" alt="" hidden><span id="homeProfileInitial">T</span></div>
-      <div class="home-profile-info">
-        <p class="eyebrow">YOUR PROFILE</p>
-        <h2 id="homeProfileName">Trader</h2>
-        <p class="muted" id="homeProfileEmail"></p>
-        <div class="home-profile-actions">
-          <a class="btn primary small" href="profile.html">My Profile</a>
-          <a class="btn small" href="courses.html">Dashboard</a>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <section class="section">
     <div class="panel">
@@ -135,19 +109,7 @@ ceAuth.onAuthStateChanged(async function(user){
   var blank=document.getElementById('navProfileBlank');
   var pname=document.getElementById('navProfileName');
   var pemail=document.getElementById('navProfileEmail');
-  var homeProfile=document.getElementById('homeProfile');
-  var homeName=document.getElementById('homeProfileName');
-  var homeEmail=document.getElementById('homeProfileEmail');
-  var homePhoto=document.getElementById('homeProfilePhoto');
-  var homeInitial=document.getElementById('homeProfileInitial');
   if(user){
-    if(homeProfile){
-      homeProfile.hidden=false;
-      var homeDisplayName=user.displayName||'Trader';
-      homeName.textContent=homeDisplayName;
-      homeEmail.textContent=user.email||'';
-      homeInitial.textContent=(homeDisplayName.trim().charAt(0)||'T').toUpperCase();
-    }
     nav.innerHTML='<button type="button" class="profile-nav" id="profileNavBtn" aria-expanded="false"><span class="profile-nav-avatar"><img id="profileNavImg" alt="" hidden></span></button>';
     var img=document.getElementById('profileNavImg');
     var profilePhoto='';
@@ -160,7 +122,6 @@ ceAuth.onAuthStateChanged(async function(user){
     }catch(e){}
     if(profilePhoto){
       try{localStorage.setItem('auraProfilePhoto',profilePhoto)}catch(e){}
-      if(homePhoto){homePhoto.hidden=false;homePhoto.src=profilePhoto;homeInitial.style.display='none';homePhoto.onerror=function(){homePhoto.hidden=true;homeInitial.style.display='block'}}
       img.hidden=false;img.style.display='block';img.src=profilePhoto;
       img.setAttribute('src',profilePhoto);
       var navAvatar=document.querySelector('.profile-nav-avatar');
@@ -188,7 +149,6 @@ ceAuth.onAuthStateChanged(async function(user){
     var btn=document.getElementById('profileNavBtn');
     if(btn) btn.addEventListener('click',function(e){e.stopPropagation();var open=menu.classList.toggle('open');menu.setAttribute('aria-hidden',open?'false':'true');btn.setAttribute('aria-expanded',open?'true':'false')});
   }else{
-    if(homeProfile) homeProfile.hidden=true;
     nav.innerHTML='<a class="btn primary small" href="login.html">Login</a>';
     if(menu) menu.classList.remove('open');
     hero.href='login.html';
