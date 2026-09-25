@@ -1524,7 +1524,7 @@ async function fetchBiQuote(symbol){
 
 async function getMarketQuotes(symbols) {
   const requested=[...new Set((Array.isArray(symbols)?symbols:Object.keys(MARKET_SYMBOLS)).filter(s=>MARKET_SYMBOLS[s]))];
-  const now=Date.now(), out={}, freshForMs=1000;
+  const now=Date.now(), out={}, freshForMs=200;
   await Promise.all(requested.map(async symbol=>{
     const spec=MARKET_SYMBOLS[symbol], cached=quoteCache.get(symbol);
     if(cached&&now-cached.fetchedAt<freshForMs){out[symbol]={symbol,name:spec.name,...cached,stale:false,cached:true};return;}
