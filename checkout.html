@@ -25,6 +25,10 @@ async function init(){ceAuth.onAuthStateChanged(async user=>{if(!user){location.
 qrTab.onclick=()=>setFlow('qr');oneTapTab.onclick=()=>setFlow('oneTap');document.querySelectorAll('.app-btn').forEach(btn=>btn.onclick=()=>launchApp(btn.dataset.app));
 document.querySelectorAll('.app-copy').forEach(btn=>btn.onclick=async function(e){e.stopPropagation();const app=this.dataset.copyApp;const value=getUpiId(app);try{await navigator.clipboard.writeText(value)}catch{const t=document.createElement('textarea');t.value=value;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}this.textContent='Copied ✓';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy UPI';this.classList.remove('copied')},1400)});
 copyUtr.onclick=async()=>{const value=transactionId.value.trim();if(!value){status.textContent='Enter your UTR number first.';return}try{await navigator.clipboard.writeText(value);status.textContent='UTR copied.'}catch{transactionId.select();document.execCommand('copy');status.textContent='UTR copied.'}};
+const submitBtn=document.getElementById('submit');
+const statusEl=document.getElementById('status');
+const transactionInput=document.getElementById('transactionId');
+const screenshotInput=document.getElementById('screenshot');
 let approvalTimerInterval=null;
 function startApprovalTimer(){
   const box=document.getElementById('approvalTimer'),value=document.getElementById('timerValue');
@@ -35,23 +39,26 @@ function startApprovalTimer(){
   const tick=()=>{const left=Math.max(0,end-Date.now());const total=Math.floor(left/1000);value.textContent=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');if(left<=0){clearInterval(approvalTimerInterval);value.textContent='00:00';}};
   tick();clearInterval(approvalTimerInterval);approvalTimerInterval=setInterval(tick,1000);
 }
-submit.onclick=async function(){
-  if(!challenge)return;
-  const transaction=transactionId.value.trim();
-  status.className='status';
-  if(!transaction){status.textContent='Please enter your UTR / transaction ID.';status.classList.add('error');return}
-  if(!screenshot.files[0]){status.textContent='Please upload your payment screenshot.';status.classList.add('error');return}
-  submit.disabled=true;status.textContent='Submitting payment…';status.classList.remove('error','success');
+submitBtn.addEventListener('click',async function(){
+  if(!challenge){statusEl.textContent='Challenge is still loading. Please wait a moment and try again.';statusEl.className='status error';return}
+  const transaction=transactionInput.value.trim();
+  statusEl.className='status';
+  if(!transaction){statusEl.textContent='Please enter your UTR / transaction ID.';statusEl.classList.add('error');transactionInput.focus();return}
+  if(!screenshotInput.files || !screenshotInput.files[0]){statusEl.textContent='Please upload your payment screenshot.';statusEl.classList.add('error');return}
+  const user=ceAuth.currentUser;
+  if(!user){statusEl.textContent='Your login session expired. Please login again.';statusEl.classList.add('error');return}
+  submitBtn.disabled=true;submitBtn.textContent='Submitting…';statusEl.textContent='Submitting payment…';statusEl.classList.remove('error','success');
   try{
-    const fd=new FormData();fd.append('challengeId',challenge.id);fd.append('currency','INR');fd.append('amount',upiAmount);fd.append('method','UPI');fd.append('transactionId',transaction);fd.append('screenshot',screenshot.files[0]);
+    await user.getIdToken(true);
+    const fd=new FormData();fd.append('challengeId',challenge.id);fd.append('currency','INR');fd.append('amount',upiAmount);fd.append('method','UPI');fd.append('transactionId',transaction);fd.append('screenshot',screenshotInput.files[0]);
     const result=await api('/api/challenge-payments',{method:'POST',body:fd});
-    status.textContent=result.message||'Payment submitted successfully. Waiting for admin approval.';
-    status.classList.add('success');submit.textContent='Payment Submitted';localStorage.removeItem('auraSelectedChallengeId');localStorage.removeItem('auraSelectedCurrency');localStorage.setItem('auraPaymentPending','1');startApprovalTimer();
+    statusEl.textContent=result.message||'Payment submitted successfully. Waiting for admin approval.';
+    statusEl.classList.add('success');submitBtn.textContent='Payment Submitted';localStorage.removeItem('auraSelectedChallengeId');localStorage.removeItem('auraSelectedCurrency');localStorage.setItem('auraPaymentPending','1');startApprovalTimer();
   }catch(error){
-    status.textContent=error.message||'Payment submission failed. Please try again.';
-    status.classList.add('error');submit.disabled=false;
+    statusEl.textContent=(error && error.message)||'Payment submission failed. Please try again.';
+    statusEl.classList.add('error');submitBtn.disabled=false;submitBtn.textContent='Submit Payment';
   }
-};
+});
 if(localStorage.getItem('auraPaymentPending')==='1')startApprovalTimer();
 init();
 </script></body></html>
