@@ -1266,7 +1266,12 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
           pnl: Number(account.pnl ?? ((account.balance ?? 0) - (account.startingBalance ?? 0))),
           currency: account.currency || "USD",
           challenge: account.challenge || "Funded Account",
-          sourcePaymentId: account.sourcePaymentId || ""
+          sourcePaymentId: account.sourcePaymentId || "",
+          status: account.status || "active",
+          dailyDrawdownPct: Number(account.dailyDrawdownPct || 0),
+          maxDrawdownPct: Number(account.maxDrawdownPct || 0),
+          dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
+          maxDrawdownLimit: accountRules(account).maxDrawdownPct
         }
       });
     }
@@ -1341,7 +1346,12 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
           pnl: Number(account.pnl ?? 0),
           currency: account.currency || "USD",
           challenge: account.challenge || "Funded Account",
-          sourcePaymentId: account.sourcePaymentId || ""
+          sourcePaymentId: account.sourcePaymentId || "",
+          status: account.status || "active",
+          dailyDrawdownPct: Number(account.dailyDrawdownPct || 0),
+          maxDrawdownPct: Number(account.maxDrawdownPct || 0),
+          dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
+          maxDrawdownLimit: accountRules(account).maxDrawdownPct
         }
       });
     }
