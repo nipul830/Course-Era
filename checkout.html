@@ -47,10 +47,23 @@ submitBtn.addEventListener('click',async function(){
   if(!screenshotInput.files || !screenshotInput.files[0]){statusEl.textContent='Please upload your payment screenshot.';statusEl.classList.add('error');return}
   const user=ceAuth.currentUser;
   if(!user){statusEl.textContent='Your login session expired. Please login again.';statusEl.classList.add('error');return}
-  submitBtn.disabled=true;submitBtn.textContent='Submitting…';statusEl.textContent='Submitting payment…';statusEl.classList.remove('error','success');
+  submitBtn.disabled=true;submitBtn.textContent='Submitting…';statusEl.textContent='Preparing screenshot…';statusEl.classList.remove('error','success');
   try{
     await user.getIdToken(true);
-    const fd=new FormData();fd.append('challengeId',challenge.id);fd.append('currency','INR');fd.append('amount',upiAmount);fd.append('method','UPI');fd.append('transactionId',transaction);fd.append('screenshot',screenshotInput.files[0]);
+    async function compactScreenshot(file){
+      if(file.size<=420000)return file;
+      const img=await new Promise((resolve,reject)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>{URL.revokeObjectURL(u);resolve(i)};i.onerror=reject;i.src=u});
+      const max=1280,scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+      const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      let quality=.78,blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',quality));
+      while(blob&&blob.size>420000&&quality>.35){quality-=.08;blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',quality))}
+      if(!blob)throw new Error('Could not prepare screenshot');
+      return new File([blob],'payment-screenshot.jpg',{type:'image/jpeg'});
+    }
+    const compact=await compactScreenshot(screenshotInput.files[0]);
+    statusEl.textContent='Submitting payment…';
+    const fd=new FormData();fd.append('challengeId',challenge.id);fd.append('currency','INR');fd.append('amount',upiAmount);fd.append('method','UPI');fd.append('transactionId',transaction);fd.append('screenshot',compact);
     const result=await api('/api/challenge-payments',{method:'POST',body:fd});
     statusEl.textContent=result.message||'Payment submitted successfully. Waiting for admin approval.';
     statusEl.classList.add('success');submitBtn.textContent='Payment Submitted';localStorage.removeItem('auraSelectedChallengeId');localStorage.removeItem('auraSelectedCurrency');localStorage.setItem('auraPaymentPending','1');startApprovalTimer();
