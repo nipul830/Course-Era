@@ -1763,7 +1763,8 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     });
     refreshTradingAccount(req.user.uid,quotes).catch(()=>{});
   } catch(e) {
-    res.status(500).json({error:"Could not execute trade",detail:e.message});
+    console.error("TRADING_ORDER_ERROR", e);
+    res.status(500).json({error:"Could not execute order",detail:e.message || "Unknown server error"});
   }
 });
 
