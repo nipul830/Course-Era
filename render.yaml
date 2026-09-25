@@ -15,5 +15,7 @@ services:
         value: "courseera-22425.firebasestorage.app"
       - key: ADMIN_EMAILS
         sync: false
+      - key: TERMINAL_CREDENTIAL_SECRET
+        generateValue: true
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: "/etc/secrets/firebase-service-account.json"
