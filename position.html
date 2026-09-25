@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Positions — Aura Farming</title><link rel="stylesheet" href="aura.css">
 <style>
-body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-width:760px;margin:auto;font-family:Arial,Helvetica,sans-serif}.positions-page h1{margin:0 0 6px;font-size:28px}.account-top{border:1px solid #e0e5e9;border-radius:16px;padding:14px 16px;margin:0 0 18px;background:#fff;box-shadow:0 5px 18px #0000000d;display:flex;justify-content:space-between;gap:12px}.account-top small{display:block;color:#7b8793;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.account-top strong{display:block;margin-top:5px;font-size:19px;color:#182332}.account-top .account-side{text-align:right}.sub{color:#7b8793;font-size:13px;margin-bottom:18px}.position-card{border:1px solid #e0e5e9;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:0 5px 18px #0000000d}.pos-head{display:flex;justify-content:space-between;align-items:center}.side-buy{color:#00a875;font-weight:800}.side-sell{color:#e6004d;font-weight:800}.pos-symbol{font-weight:800}.pos-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;color:#687786;font-size:12px}.pos-meta b{display:block;color:#182332;font-size:14px;margin-top:3px}.empty{text-align:center;padding:70px 20px;color:#7b8793}.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}.bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
+body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-width:760px;margin:auto;font-family:Arial,Helvetica,sans-serif}.positions-page h1{margin:0 0 6px;font-size:28px}.account-top{border:1px solid #e0e5e9;border-radius:16px;padding:14px 16px;margin:0 0 18px;background:#fff;box-shadow:0 5px 18px #0000000d;display:flex;justify-content:space-between;gap:12px}.account-top small{display:block;color:#7b8793;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.account-top strong{display:block;margin-top:5px;font-size:19px;color:#182332}.account-top .account-side{text-align:right}.sub{color:#7b8793;font-size:13px;margin-bottom:18px}.position-card{border:1px solid #e0e5e9;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:0 5px 18px #0000000d}.pos-head{display:flex;justify-content:space-between;align-items:center}.side-buy{color:#00a875;font-weight:800}.side-sell{color:#e6004d;font-weight:800}.pos-symbol{font-weight:800}.pos-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;color:#687786;font-size:12px}.pos-meta b{display:block;color:#182332;font-size:14px;margin-top:3px}.close-position{margin-top:14px;width:100%;height:42px;border:0;border-radius:10px;background:#182839;color:#fff;font-weight:800;font-size:13px}.close-position:disabled{opacity:.55}.empty{text-align:center;padding:70px 20px;color:#7b8793}.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}.bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
 @media(min-width:761px){.bottom-nav{display:none}}
 </style></head>
 <body>
@@ -14,13 +14,36 @@ body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-w
 <script src="firebase-config.js?v=6"></script>
 <script src="aura-account.js"></script>
 <script>
+async function positionApi(path,opt={}){
+  const user=ceAuth.currentUser;if(!user)throw new Error('Login required');
+  const headers=opt.headers||{};headers.Authorization='Bearer '+await user.getIdToken();
+  if(opt.body&&typeof opt.body==='object'){headers['Content-Type']='application/json';opt.body=JSON.stringify(opt.body)}
+  const res=await fetch('https://course-era.onrender.com'+path,{...opt,headers});
+  let data={};try{data=await res.json()}catch(e){}
+  if(!res.ok)throw new Error(data.error||data.detail||'Request failed');return data;
+}
+function money(v){return '$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function price(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5})}
+async function loadPositions(){
+  const data=await positionApi('/api/trading/positions');
+  document.getElementById('positionBalance').textContent=money(data.account.balance);
+  document.getElementById('positionEquity').textContent=money(data.account.equity);
+  const el=document.getElementById('positions');
+  const ps=data.positions||[];
+  if(!ps.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}
+  el.innerHTML=ps.map(p=>{
+    const pnl=Number(p.pnl||0);
+    return '<article class="position-card"><div class="pos-head"><span class="'+(p.side==='BUY'?'side-buy':'side-sell')+'">'+p.side+'</span><span class="pos-symbol">'+(p.name||p.symbol)+'</span></div><div class="pos-meta"><div>Lot<b>'+p.lot+'</b></div><div>Entry<b>'+price(p.entryPrice)+'</b></div><div>Current<b>'+price(p.currentPrice)+'</b></div><div>P&L<b style="color:'+(pnl>=0?'#00a875':'#e6004d')+'">'+(pnl>=0?'+':'')+money(pnl)+'</b></div><div>SL<b>'+(p.stopLoss?price(p.stopLoss):'—')+'</b></div><div>TP<b>'+(p.takeProfit?price(p.takeProfit):'—')+'</b></div></div><button class="close-position" data-id="'+p.id+'">Close Trade</button></article>';
+  }).join('');
+  el.querySelectorAll('.close-position').forEach(btn=>btn.addEventListener('click',async()=>{
+    btn.disabled=true;btn.textContent='Closing…';
+    try{await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});await loadPositions()}
+    catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}
+  }));
+}
 ceAuth.onAuthStateChanged(async function(user){
   if(!user){location.replace('login.html?next=position');return;}
-  const account=await auraAccount();
-  if(account){
-    document.getElementById('positionBalance').textContent=auraMoney(account.balance);
-    document.getElementById('positionEquity').textContent=auraMoney(account.equity);
-  }
+  try{await loadPositions()}catch(e){document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>'}
 });
-function render(){const el=document.getElementById('positions');const ps=JSON.parse(localStorage.getItem('auraPositions')||'[]');if(!ps.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}el.innerHTML=ps.map(p=>'<article class="position-card"><div class="pos-head"><span class="'+(p.side==='BUY'?'side-buy':'side-sell')+'">'+p.side+'</span><span class="pos-symbol">'+p.symbol.replace(':',' · ')+'</span></div><div class="pos-meta"><div>Lot<b>'+p.lot+'</b></div><div>Entry<b>'+p.price+'</b></div><div>Time<b>'+p.time+'</b></div></div></article>').join('')}render();
+setInterval(()=>{if(ceAuth.currentUser)loadPositions().catch(()=>{})},5000);
 </script></body></html>
