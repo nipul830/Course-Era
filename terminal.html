@@ -290,6 +290,8 @@ async function refreshMarket(retry=true){
 }
 async function placeSimulatedOrder(side){
   if(terminalRole==='investor'){setTradeStatus('Investor password is read-only',false);return}
+  const buttons=document.querySelectorAll('.top-quotes .quote');
+  buttons.forEach(x=>x.disabled=true);
   try{
     const lot=Number(document.getElementById('lotSize')?.value||'0.10');
     const slRaw=document.getElementById('stopLoss')?.value.trim()||'';
@@ -305,10 +307,11 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('stopLoss'))document.getElementById('stopLoss').value='';
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
-    location.replace('position.html');
+    setTimeout(()=>location.replace('position.html'),120);
   }catch(e){
     setTradeStatus(e.message||'Trade failed',false);
-    if(/breached|revoked|not active|expired/i.test(e.message||'')){terminalSessionToken='';sessionStorage.removeItem('auraTerminalSession');sessionStorage.removeItem('auraTerminalRole');showTerminalLogin(e.message)}
+  }finally{
+    buttons.forEach(x=>x.disabled=false);
   }
 }
 let lightweightChart=null;
