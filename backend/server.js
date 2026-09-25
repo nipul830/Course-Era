@@ -1715,9 +1715,10 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     if (takeProfit!==null && (!Number.isFinite(takeProfit)||takeProfit<=0)) return res.status(400).json({error:"Invalid take profit"});
     const quotes=await getMarketQuotes([symbol]);
     const quote=quotes[symbol];
-    if (!quote?.price) return res.status(502).json({error:"No live market price available"});\n    const entryPrice=side==="BUY"?Number(quote.ask||quote.price):Number(quote.bid||quote.price);
+    if (!quote?.price) return res.status(502).json({error:"No live market price available"});
+    const entryPrice=side==="BUY"?Number(quote.ask||quote.price):Number(quote.bid||quote.price);
     if (side==="BUY" && ((stopLoss!==null&&stopLoss>=entryPrice) || (takeProfit!==null&&takeProfit<=entryPrice))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
-    if (side==="SELL" && ((stopLoss!==null&&stopLoss<=quote.price) || (takeProfit!==null&&takeProfit>=entryPrice))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
+    if (side==="SELL" && ((stopLoss!==null&&stopLoss<=entryPrice) || (takeProfit!==null&&takeProfit>=entryPrice))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
     const {ref,data}=await loadTradingAccount(req.user.uid);
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
@@ -1732,7 +1733,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     // Full equity/risk reconciliation continues in the background so the terminal does not
     // wait on another Firestore read/query before confirming the simulated fill.
     const lotValue=Number(lot.toFixed(4));
-    const newOpenPnl=tradePnl({symbol,side,lot:lotValue,entryPrice:quote.price},quote.price);
+    const newOpenPnl=tradePnl({symbol,side,lot:lotValue,entryPrice},quote.price);
     const fastBalance=Number(data.balance ?? data.startingBalance ?? 0);
     const fastOpenPnl=Number(data.openPnl || 0)+newOpenPnl;
     const fastAccount={
