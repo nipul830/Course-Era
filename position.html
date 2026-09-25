@@ -25,22 +25,74 @@ async function positionApi(path,opt={}){
 }
 function money(v){return '$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function price(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5})}
-function renderPositionData(data){
-  document.getElementById('positionBalance').textContent=money(data.account?.balance);
-  document.getElementById('positionEquity').textContent=money(data.account?.equity);
+let livePositions=[];
+let liveBalance=0;
+let liveStartingBalance=0;
+let liveQuoteRequest=false;
+
+function contractSize(symbol){
+  if(symbol==='OANDA:XAUUSD')return 100;
+  if(symbol==='FX:EURUSD'||symbol==='FX:GBPUSD'||symbol==='FX:AUDUSD'||symbol==='FX:USDJPY')return 100000;
+  return 1;
+}
+function calcLivePnl(p,price){
+  const entry=Number(p.entryPrice||0), lot=Number(p.lot||0), q=Number(price||0);
+  if(!entry||!q||!lot)return 0;
+  let v=(p.side==='BUY'?q-entry:entry-q)*lot*contractSize(p.symbol);
+  if(p.symbol==='FX:USDJPY')v/=q;
+  return Number.isFinite(v)?v:0;
+}
+function paintLivePositions(){
   const el=document.getElementById('positions');
-  const ps=data.positions||[];
-  if(!ps.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}
-  el.innerHTML=ps.map(p=>{
-    const pnl=Number(p.pnl||0);
+  if(!el||!livePositions.length)return;
+  let openPnl=0;
+  el.querySelectorAll('.position-card').forEach((card,i)=>{
+    const p=livePositions[i]; if(!p)return;
+    const current=Number(p.currentPrice||p.entryPrice||0);
+    const pnl=calcLivePnl(p,current);
+    openPnl+=pnl;
+    const values=card.querySelectorAll('.pos-meta b');
+    if(values[2])values[2].textContent=price(current);
+    if(values[3]){
+      values[3].textContent=(pnl>=0?'+':'')+money(pnl);
+      values[3].style.color=pnl>=0?'#00a875':'#e6004d';
+    }
+  });
+  document.getElementById('positionEquity').textContent=money(liveBalance+openPnl);
+}
+async function refreshLivePnl(){
+  if(liveQuoteRequest||!livePositions.length)return;
+  liveQuoteRequest=true;
+  try{
+    const symbols=[...new Set(livePositions.map(p=>p.symbol).filter(Boolean))].join(',');
+    const data=await positionApi('/api/market/quotes?symbols='+encodeURIComponent(symbols));
+    for(const p of livePositions){
+      const q=Number(data.quotes?.[p.symbol]?.price||0);
+      if(q)p.currentPrice=q;
+    }
+    paintLivePositions();
+  }catch(e){}finally{liveQuoteRequest=false}
+}
+function renderPositionData(data){
+  liveBalance=Number(data.account?.balance||0);
+  liveStartingBalance=Number(data.account?.startingBalance||liveBalance);
+  livePositions=(data.positions||[]).map(p=>({...p,currentPrice:Number(p.currentPrice||p.entryPrice||0)}));
+  document.getElementById('positionBalance').textContent=money(liveBalance);
+  document.getElementById('positionEquity').textContent=money(Number(data.account?.equity||liveBalance));
+  const el=document.getElementById('positions');
+  if(!livePositions.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}
+  el.innerHTML=livePositions.map(p=>{
+    const pnl=calcLivePnl(p,p.currentPrice);
     return '<article class="position-card"><div class="pos-head"><span class="'+(p.side==='BUY'?'side-buy':'side-sell')+'">'+p.side+'</span><span class="pos-symbol">'+(p.name||p.symbol)+'</span></div><div class="pos-meta"><div>Lot<b>'+p.lot+'</b></div><div>Entry<b>'+price(p.entryPrice)+'</b></div><div>Current<b>'+price(p.currentPrice)+'</b></div><div>P&L<b style="color:'+(pnl>=0?'#00a875':'#e6004d')+'">'+(pnl>=0?'+':'')+money(pnl)+'</b></div><div>SL<b>'+(p.stopLoss?price(p.stopLoss):'—')+'</b></div><div>TP<b>'+(p.takeProfit?price(p.takeProfit):'—')+'</b></div></div><button class="close-position" data-id="'+p.id+'">Close Trade</button></article>';
   }).join('');
   el.querySelectorAll('.close-position').forEach(btn=>btn.addEventListener('click',async()=>{
     btn.disabled=true;btn.textContent='Closing…';
-    try{await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});await loadPositions()}
+    try{const data=await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});btn.textContent='Closed';renderPositionData({account:data.account||{},positions:[]});setTimeout(loadPositions,250)}
     catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}
   }));
+  paintLivePositions();
 }
+
 function renderCachedTrade(){
   try{
     const raw=sessionStorage.getItem('auraLastTrade');if(!raw)return;
