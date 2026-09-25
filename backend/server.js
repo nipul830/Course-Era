@@ -1736,8 +1736,27 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
       stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
       status:"open", openedAt:now, updatedAt:now
     });
-    const account=await refreshTradingAccount(req.user.uid,quotes);
-    res.status(201).json({message:"Market order executed", position:{id:positionRef.id,symbol,side,lot:Number(lot.toFixed(4)),entryPrice:quote.price,stopLoss,takeProfit},account});
+    // Fast execution path: return immediately after the position is persisted.
+    // Full equity/risk reconciliation continues in the background so the terminal does not
+    // wait on another Firestore read/query before confirming the simulated fill.
+    const lotValue=Number(lot.toFixed(4));
+    const newOpenPnl=tradePnl({symbol,side,lot:lotValue,entryPrice:quote.price},quote.price);
+    const fastBalance=Number(data.balance ?? data.startingBalance ?? 0);
+    const fastOpenPnl=Number(data.openPnl || 0)+newOpenPnl;
+    const fastAccount={
+      id:data.accountId || "account",
+      balance:fastBalance,
+      equity:fastBalance+fastOpenPnl,
+      pnl:fastBalance-Number(data.startingBalance || fastBalance),
+      openPnl:fastOpenPnl,
+      status:data.status || "active"
+    };
+    res.status(201).json({
+      message:"Market order executed",
+      position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice:quote.price,stopLoss,takeProfit},
+      account:fastAccount
+    });
+    refreshTradingAccount(req.user.uid,quotes).catch(()=>{});
   } catch(e) {
     res.status(500).json({error:"Could not execute trade",detail:e.message});
   }
