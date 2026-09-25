@@ -321,7 +321,7 @@ function ensureLightweightCharts(){
   return new Promise((resolve,reject)=>{
     if(window.LightweightCharts)return resolve();
     const sc=document.createElement('script');
-    sc.src='https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js';
+    sc.src='https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js';
     sc.onload=()=>resolve();
     sc.onerror=()=>reject(new Error('Chart library failed to load'));
     document.head.appendChild(sc);
@@ -384,7 +384,8 @@ async function mountChart(id,symbol){
     chartResizeObserver.observe(canvas);
     await loadChartCandles(symbol,activeTimeframe);
   }catch(e){
-    el.innerHTML='<div style="height:100%;display:grid;place-items:center;color:#667085;font-size:13px">Chart unavailable</div>';
+    console.error('Aura chart error',e);
+    el.innerHTML='<div style="height:100%;display:grid;place-items:center;color:#667085;font-size:13px;text-align:center;padding:20px">Chart unavailable<br><small style="opacity:.7">'+String(e?.message||e)+'</small></div>';
   }
 }
 
