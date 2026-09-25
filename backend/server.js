@@ -1496,86 +1496,45 @@ const MARKET_SYMBOLS = {
 };
 const quoteCache = new Map();
 
-async function fetchTradingViewQuote(symbol) {
-  const exchange = symbol === "OANDA:XAUUSD" ? "forex" : (symbol.startsWith("BINANCE:") ? "crypto" : "forex");
-  const url = "https://scanner.tradingview.com/" + exchange + "/scan";
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type":"application/json", "User-Agent":"Mozilla/5.0 AuraFarming/1.0" },
-    body: JSON.stringify({
-      symbols: { tickers:[symbol], query:{ types:[] } },
-      columns:["close","change","change_abs","volume","lp_time"]
-    })
-  });
-  if (!response.ok) throw new Error("TradingView market data provider returned " + response.status);
-  const data = await response.json();
-  const row = data?.data?.[0]?.d || [];
-  const price = Number(row[0]);
-  if (!Number.isFinite(price) || price <= 0) throw new Error("TradingView price unavailable for " + symbol);
+function biquoteSymbol(symbol){
+  if(symbol==="OANDA:XAUUSD") return "XAUUSD";
+  if(symbol.startsWith("FX:")) return symbol.slice(3).replace(/USDJPY$/,"USDJPY");
+  if(symbol.startsWith("BINANCE:")) return symbol.slice(8).replace("USDT","USD");
+  return symbol;
+}
+
+async function fetchBiQuote(symbol){
+  const code=biquoteSymbol(symbol);
+  const response=await fetch("https://biquote.io/api/"+encodeURIComponent(code),{headers:{"Accept":"application/json","User-Agent":"AuraFarming/1.0"}});
+  if(!response.ok) throw new Error("Market feed returned "+response.status);
+  const data=await response.json();
+  const bid=Number(data.bid), ask=Number(data.ask), mid=Number(data.mid);
+  const price=Number.isFinite(mid)&&mid>0?mid:(Number.isFinite(ask)&&ask>0?ask:bid);
+  if(!Number.isFinite(price)||price<=0) throw new Error("Market price unavailable for "+code);
   return {
     price,
-    previousClose: Number.isFinite(Number(row[0]) - Number(row[2])) ? Number(row[0]) - Number(row[2]) : price,
-    change: Number(row[2] || 0),
-    changePct: Number(row[1] || 0),
-    timestamp: Number(row[4] || Math.floor(Date.now()/1000))
+    bid:Number.isFinite(bid)&&bid>0?bid:price,
+    ask:Number.isFinite(ask)&&ask>0?ask:price,
+    previousClose:Number(data.previousClose||price),
+    change:Number(data.changeAmount||0),
+    changePct:Number(data.dayDiffPercent||0),
+    timestamp:Date.parse(data.timestamp)||Math.floor(Date.now()/1000)
   };
 }
 
-async function fetchYahooQuote(yahoo, symbol) {
-  const hosts = ["query1.finance.yahoo.com","query2.finance.yahoo.com"];
-  let lastError = null;
-  for (const host of hosts) {
-    try {
-      const url = "https://" + host + "/v8/finance/chart/" + encodeURIComponent(yahoo) + "?range=1d&interval=1m&includePrePost=true";
-      const response = await fetch(url, { headers: { "User-Agent":"Mozilla/5.0 AuraFarming/1.0", "Accept":"application/json" } });
-      if (!response.ok) throw new Error("Yahoo provider returned " + response.status);
-      const data = await response.json();
-      const result = data?.chart?.result?.[0];
-      const meta = result?.meta || {};
-      const price = Number(meta.regularMarketPrice ?? meta.postMarketPrice ?? meta.previousClose);
-      if (!Number.isFinite(price) || price <= 0) throw new Error("No Yahoo price available");
-      return {
-        price,
-        previousClose: Number(meta.previousClose ?? price),
-        change: price - Number(meta.previousClose ?? price),
-        changePct: Number(meta.previousClose) ? ((price / Number(meta.previousClose)) - 1) * 100 : 0,
-        timestamp: Number(meta.regularMarketTime || Math.floor(Date.now()/1000))
-      };
-    } catch (e) { lastError = e; }
-  }
-  // Yahoo can rate-limit server IPs. Use TradingView's same OANDA symbol as the final live fallback.
-  if (symbol) return fetchTradingViewQuote(symbol);
-  throw lastError || new Error("Market data unavailable");
-}
-
 async function getMarketQuotes(symbols) {
-  const requested = [...new Set((Array.isArray(symbols) ? symbols : Object.keys(MARKET_SYMBOLS))
-    .filter(s => MARKET_SYMBOLS[s]))];
-  const now = Date.now();
-  const out = {};
-  const freshForMs = 1000;
-  await Promise.all(requested.map(async symbol => {
-    const spec = MARKET_SYMBOLS[symbol];
-    const cached = quoteCache.get(symbol);
-    if (cached && now - cached.fetchedAt < freshForMs) {
-      out[symbol] = { symbol, name:spec.name, ...cached, stale:false, cached:true };
-      return;
-    }
-    try {
-      // Keep execution quotes on the same TradingView feed as the embedded chart.
-      // Yahoo remains only as a fallback if TradingView's scanner is unavailable.
-      let q;
-      try {
-        q = await fetchTradingViewQuote(symbol);
-      } catch (tvError) {
-        q = await fetchYahooQuote(spec.yahoo, symbol);
-      }
-      quoteCache.set(symbol, { ...q, fetchedAt: now });
-      out[symbol] = { symbol, name:spec.name, ...q, stale:false };
-    } catch (e) {
-      const cached = quoteCache.get(symbol);
-      if (cached) out[symbol] = { symbol, name:spec.name, ...cached, stale:true };
-      else out[symbol] = { symbol, name:spec.name, price:null, stale:true, error:"Market data unavailable" };
+  const requested=[...new Set((Array.isArray(symbols)?symbols:Object.keys(MARKET_SYMBOLS)).filter(s=>MARKET_SYMBOLS[s]))];
+  const now=Date.now(), out={}, freshForMs=1000;
+  await Promise.all(requested.map(async symbol=>{
+    const spec=MARKET_SYMBOLS[symbol], cached=quoteCache.get(symbol);
+    if(cached&&now-cached.fetchedAt<freshForMs){out[symbol]={symbol,name:spec.name,...cached,stale:false,cached:true};return;}
+    try{
+      const q=await fetchBiQuote(symbol);
+      quoteCache.set(symbol,{...q,fetchedAt:now});
+      out[symbol]={symbol,name:spec.name,...q,stale:false};
+    }catch(e){
+      const old=quoteCache.get(symbol);
+      out[symbol]=old?{symbol,name:spec.name,...old,stale:true}:{symbol,name:spec.name,price:null,stale:true,error:"Market data unavailable"};
     }
   }));
   return out;
@@ -1681,16 +1640,14 @@ async function refreshTradingAccount(uid, quotes) {
     status, breachReason:breach, positions, realizedFromStops };
 }
 
-async function fetchYahooCandles(yahoo, interval="15m") {
-  const allowed=new Set(["1m","5m","15m","30m","60m","1d"]);
+async function fetchMarketCandles(symbol, interval="15m"){
+  const allowed=new Set(["1m","5m","15m","30m","60m","1h","4h","1d"]);
   const safe=allowed.has(interval)?interval:"15m";
-  const range=safe==="1m"?"1d":safe==="5m"?"5d":safe==="1d"?"1y":"1mo";
-  const url="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(yahoo)+"?range="+range+"&interval="+safe+"&includePrePost=true";
-  const response=await fetch(url,{headers:{"User-Agent":"Mozilla/5.0 AuraFarming/1.0"}});
-  if(!response.ok) throw new Error("Candle provider returned "+response.status);
-  const result=(await response.json())?.chart?.result?.[0];
-  const ts=result?.timestamp||[], q=result?.indicators?.quote?.[0]||{};
-  const candles=ts.map((time,i)=>({time:Number(time),open:Number(q.open?.[i]),high:Number(q.high?.[i]),low:Number(q.low?.[i]),close:Number(q.close?.[i]),volume:Number(q.volume?.[i]||0)})).filter(x=>[x.open,x.high,x.low,x.close].every(Number.isFinite));
+  const code=biquoteSymbol(symbol);
+  const response=await fetch("https://biquote.io/api/"+encodeURIComponent(code)+"/ohlc?interval="+encodeURIComponent(safe==="60m"?"1h":safe)+"&limit=500",{headers:{"Accept":"application/json","User-Agent":"AuraFarming/1.0"}});
+  if(!response.ok) throw new Error("Candle feed returned "+response.status);
+  const data=await response.json();
+  const candles=(data.bars||[]).map(x=>({time:Math.floor(Date.parse(x.openTime)/1000),open:Number(x.open),high:Number(x.high),low:Number(x.low),close:Number(x.close),volume:Number(x.volume||x.tickVolume||0)})).filter(x=>Number.isFinite(x.time)&&[x.open,x.high,x.low,x.close].every(Number.isFinite)).sort((x,y)=>x.time-y.time);
   if(!candles.length) throw new Error("No candle data available");
   return candles;
 }
@@ -1701,7 +1658,7 @@ app.get("/api/market/candles", requireTerminalAuth, async (req,res) => {
     const interval=String(req.query.interval||"15m").trim();
     const spec=MARKET_SYMBOLS[symbol];
     if(!spec) return res.status(400).json({error:"Unsupported trading symbol"});
-    const candles=await fetchYahooCandles(spec.yahoo,interval);
+    const candles=await fetchMarketCandles(symbol,interval);
     const quotes=await getMarketQuotes([symbol]);
     res.json({symbol,interval,candles,quote:quotes[symbol]||null});
   } catch(e) {
@@ -1758,16 +1715,16 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     if (takeProfit!==null && (!Number.isFinite(takeProfit)||takeProfit<=0)) return res.status(400).json({error:"Invalid take profit"});
     const quotes=await getMarketQuotes([symbol]);
     const quote=quotes[symbol];
-    if (!quote?.price) return res.status(502).json({error:"No live market price available"});
-    if (side==="BUY" && ((stopLoss!==null&&stopLoss>=quote.price) || (takeProfit!==null&&takeProfit<=quote.price))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
-    if (side==="SELL" && ((stopLoss!==null&&stopLoss<=quote.price) || (takeProfit!==null&&takeProfit>=quote.price))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
+    if (!quote?.price) return res.status(502).json({error:"No live market price available"});\n    const entryPrice=side==="BUY"?Number(quote.ask||quote.price):Number(quote.bid||quote.price);
+    if (side==="BUY" && ((stopLoss!==null&&stopLoss>=entryPrice) || (takeProfit!==null&&takeProfit<=entryPrice))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
+    if (side==="SELL" && ((stopLoss!==null&&stopLoss<=quote.price) || (takeProfit!==null&&takeProfit>=entryPrice))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
     const {ref,data}=await loadTradingAccount(req.user.uid);
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
     const positionRef=ref.collection("positions").doc();
     const now=admin.firestore.FieldValue.serverTimestamp();
     await positionRef.set({
-      symbol, side, lot:Number(lot.toFixed(4)), entryPrice:quote.price,
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
       stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
       status:"open", openedAt:now, updatedAt:now
     });
@@ -1788,7 +1745,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     };
     res.status(201).json({
       message:"Market order executed",
-      position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice:quote.price,stopLoss,takeProfit},
+      position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice,stopLoss,takeProfit},
       account:fastAccount
     });
     refreshTradingAccount(req.user.uid,quotes).catch(()=>{});
