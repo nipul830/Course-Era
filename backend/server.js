@@ -1771,25 +1771,42 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
 app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
-    const {ref}=await loadTradingAccount(req.terminal.uid);
+    const {ref,data}=await loadTradingAccount(req.terminal.uid);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
     if(!snap.exists) return res.status(404).json({error:"Position not found"});
     const p=snap.data();
     if(p.status!=="open") return res.status(409).json({error:"Position is already closed"});
     const quotes=await getMarketQuotes([p.symbol]);
-    const q=quotes[p.symbol]?.price;
+    const q=Number(quotes[p.symbol]?.price||0);
     if(!q) return res.status(502).json({error:"No live market price available"});
     const pnl=tradePnl(p,q);
-    await positionRef.update({status:"closed",closePrice:q,realizedPnl:pnl,closedAt:admin.firestore.FieldValue.serverTimestamp(),updatedAt:admin.firestore.FieldValue.serverTimestamp()});
-    await ref.update({balance:admin.firestore.FieldValue.increment(pnl),updatedAt:admin.firestore.FieldValue.serverTimestamp()});
-    const account=await refreshTradingAccount(req.user.uid,quotes);
+    await positionRef.update({
+      status:"closed",closePrice:q,realizedPnl:pnl,
+      closedAt:admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });
+    const balance=Number(data.balance ?? data.startingBalance ?? 0)+pnl;
+    const starting=Number(data.startingBalance ?? balance);
+    const account={
+      id:data.accountId || "account",
+      balance,
+      equity:balance,
+      pnl:balance-starting,
+      openPnl:0,
+      status:data.status || "active"
+    };
+    await ref.update({
+      balance,equity:balance,pnl:balance-starting,openPnl:0,
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });
     res.json({message:"Position closed",closePrice:q,realizedPnl:pnl,account});
+    refreshTradingAccount(req.terminal.uid,quotes).catch(()=>{});
   } catch(e) {
-    res.status(500).json({error:"Could not close position",detail:e.message});
+    console.error("TRADING_CLOSE_ERROR", e);
+    res.status(500).json({error:"Could not close position",detail:e.message || "Unknown server error"});
   }
 });
-
 app.patch("/api/trading/positions/:id", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
