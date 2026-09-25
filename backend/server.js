@@ -146,6 +146,36 @@ function verifyTerminalPassword(password, stored) {
   }
 }
 
+function terminalSessionSecret() {
+  const secret = process.env.TERMINAL_CREDENTIAL_SECRET || "";
+  if (!secret) throw new Error("TERMINAL_CREDENTIAL_SECRET is not configured");
+  return crypto.createHash("sha256").update(secret + "|terminal-session-v1").digest();
+}
+function base64url(value) {
+  return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+function fromBase64url(value) {
+  return Buffer.from(String(value).replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+function createTerminalSessionToken({ userId, accountId, credentialId, role }) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = { uid:String(userId), accountId:String(accountId), credentialId:String(credentialId), role:String(role), iat:now, exp:now + 12 * 60 * 60 };
+  const encoded = base64url(JSON.stringify(payload));
+  const signature = crypto.createHmac("sha256", terminalSessionSecret()).update(encoded).digest("base64url");
+  return "AF1." + encoded + "." + signature;
+}
+function verifyTerminalSessionToken(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3 || parts[0] !== "AF1") throw new Error("Invalid terminal session");
+  const encoded = parts[1], provided = parts[2];
+  const expected = crypto.createHmac("sha256", terminalSessionSecret()).update(encoded).digest("base64url");
+  const a = Buffer.from(provided), b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error("Invalid terminal session");
+  const payload = JSON.parse(fromBase64url(encoded).toString("utf8"));
+  if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) throw new Error("Terminal session expired");
+  return payload;
+}
+
 function terminalCredentialKey() {
   let material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
   if (!material && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -257,11 +287,11 @@ async function requireTerminalAuth(req, res, next) {
     initFirebase();
     const header = req.headers.authorization || "";
     if (!header.startsWith("Bearer ")) return res.status(401).json({ error: "Terminal login required" });
-    const token = await admin.auth().verifyIdToken(header.slice(7));
-    if (token.terminal !== true || !token.terminalCredentialId || !token.accountId || !["trader","investor"].includes(token.terminalRole)) {
+    const token = verifyTerminalSessionToken(header.slice(7));
+    if (!token.credentialId || !token.accountId || !token.uid || !["trader","investor"].includes(token.role)) {
       return res.status(401).json({ error: "Valid terminal credentials are required" });
     }
-    const credentialSnap = await db.collection("terminalCredentials").doc(String(token.terminalCredentialId)).get();
+    const credentialSnap = await db.collection("terminalCredentials").doc(String(token.credentialId)).get();
     if (!credentialSnap.exists) return res.status(401).json({ error: "Terminal credentials revoked" });
     const credential = credentialSnap.data() || {};
     if (credential.status !== "active" || credential.userId !== token.uid || credential.accountId !== token.accountId) {
@@ -274,7 +304,7 @@ async function requireTerminalAuth(req, res, next) {
       await revokeTerminalCredentials(account, account.status === "breached" ? (account.breachReason || "Account breached") : "Account inactive");
       return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status || "inactive" });
     }
-    req.terminal = { ...token, credentialId: String(token.terminalCredentialId), accountRef, account };
+    req.terminal = { ...token, credentialId: String(token.credentialId), terminalRole: token.role, accountRef, account };
     next();
   } catch (e) {
     res.status(401).json({ error: "Invalid or expired terminal session" });
@@ -337,11 +367,11 @@ app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
     const hash = mode === "investor" ? credential.investorPasswordHash : credential.tradingPasswordHash;
     if (!verifyTerminalPassword(password, hash)) return res.status(401).json({ error: "Invalid terminal ID or password" });
 
-    const customToken = await admin.auth().createCustomToken(String(credential.userId), {
-      terminal: true,
-      terminalCredentialId: loginId,
-      accountId: String(credential.accountId),
-      terminalRole: mode
+    const sessionToken = createTerminalSessionToken({
+      userId: credential.userId,
+      accountId: credential.accountId,
+      credentialId: loginId,
+      role: mode
     });
 
     await snap.ref.update({
@@ -351,7 +381,7 @@ app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
     });
 
     res.json({
-      token: customToken,
+      token: sessionToken,
       role: mode,
       account: {
         id: account.accountId,
