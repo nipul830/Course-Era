@@ -166,31 +166,21 @@ async function loadTerminalCredentials(user,account){
     if(accountSize)accountSize.textContent=size;
     if(accountValue)accountValue.textContent=auraMoney(account.balance ?? account.startingBalance);
     if(accountCurrency)accountCurrency.textContent=account.currency||'USD';
-
-    const copy=document.getElementById('copyTerminalCredentials');
-    if(copy)copy.onclick=async function(){
-      const text='Aura Farming Terminal\nLogin ID: '+(d.loginId||'')+'\nTrading Password: '+(d.tradingPassword||'')+'\nInvestor Password: '+(d.investorPassword||'');
-      try{
-        await navigator.clipboard.writeText(text);
-        copy.textContent='Copied ✓';
-        setTimeout(()=>copy.textContent='Copy Credentials',1500);
-      }catch(e){alert(text)}
-    };
-  }
-    document.querySelectorAll('.field-copy').forEach(function(btn){
-      btn.onclick=async function(){
-        const target=document.getElementById(btn.dataset.copyTarget);
-        const value=target ? target.textContent.trim() : '';
-        try{
-          await navigator.clipboard.writeText(value);
-          const old=btn.textContent;
-          btn.textContent='Copied';
-          setTimeout(()=>btn.textContent=old,1200);
-        }catch(e){alert(value)}
-      };
-    });
   }catch(e){console.warn('Terminal credentials unavailable',e)}
 }
+
+document.querySelectorAll('.field-copy').forEach(function(btn){
+  btn.onclick=async function(){
+    const target=document.getElementById(btn.dataset.copyTarget);
+    const value=target ? target.textContent.trim() : '';
+    try{
+      await navigator.clipboard.writeText(value);
+      const old=btn.textContent;
+      btn.textContent='Copied';
+      setTimeout(()=>btn.textContent=old,1200);
+    }catch(e){alert(value)}
+  };
+});
 
 ceAuth.onAuthStateChanged(async function(user){
   if(!user)return;
