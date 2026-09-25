@@ -75,7 +75,7 @@ body{background:#fff}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
 .terminal-login-screen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;font-family:Arial,Helvetica,sans-serif}.terminal-login-card{width:min(430px,92vw);background:#fff;border:1px solid #e0e5e9;border-radius:22px;padding:28px;box-shadow:0 18px 50px #00000012}.terminal-login-card h1{margin:0 0 7px;color:#182332;font-size:28px}.terminal-login-card p{margin:0 0 20px;color:#7b8793;font-size:13px}.terminal-field{display:block;margin:12px 0}.terminal-field span{display:block;color:#536273;font-size:12px;font-weight:800;margin-bottom:6px}.terminal-field input{width:100%;height:48px;border:1px solid #dce2e7;border-radius:11px;padding:0 13px;font-size:15px;outline:0}.terminal-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.terminal-mode button{height:42px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;color:#596879;font-weight:800;cursor:pointer}.terminal-mode button.active{background:#182839;color:#fff;border-color:#182839}.terminal-login-btn{width:100%;height:48px;border:0;border-radius:11px;background:#d6b35a;color:#080808;font-weight:900;font-size:15px;cursor:pointer}.terminal-login-status{min-height:20px;margin-top:12px;color:#e6004d;font-size:12px;font-weight:700}.terminal-security-note{margin-top:16px!important;color:#9b8552!important;font-size:11px!important}.terminal-logout{border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;cursor:pointer}.terminal-role-badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;background:#eef2f5;color:#526274;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.read-only .quote{opacity:.45;pointer-events:none}.read-only .pending-btn,.read-only .risk-input,.read-only .lot-control{opacity:.55;pointer-events:none}
 </style>
-</head>
+<link rel="preconnect" href="https://course-era.onrender.com" crossorigin><link rel="preconnect" href="https://s3.tradingview.com" crossorigin><link rel="preconnect" href="https://www.gstatic.com" crossorigin></head>
 <body>
 
 <section class="terminal-login-screen" id="terminalLoginScreen">
@@ -174,6 +174,9 @@ let terminalRole='trader';
 let terminalSessionToken=sessionStorage.getItem('auraTerminalSession')||'';
 function terminalLoggedIn(){return Boolean(terminalSessionToken)}
 let currentSymbol='OANDA:XAUUSD';
+let latestQuote=null;
+let marketRequest=null;
+let chartMountedSymbol='';
 
 function setTerminalLoginStatus(message,good){
   const el=document.getElementById('terminalLoginStatus');
@@ -256,6 +259,8 @@ async function refreshTerminalAccount(){
   }
 }
 async function refreshMarket(retry=true){
+  if(marketRequest)return marketRequest;
+  marketRequest=(async()=>{
   try{
     const data=await terminalApi('/api/market/quotes?symbols='+encodeURIComponent(currentSymbol));
     const q=data.quotes?.[currentSymbol];
@@ -271,12 +276,16 @@ async function refreshMarket(retry=true){
     setTradeStatus('Live market • '+fmt(q.price)+(q.stale?' • cached':'')+' • 0 spread • SIMULATED',true);
   }catch(e){
     if(retry){
-      setTimeout(()=>refreshMarket(false),700);
+      setTimeout(()=>refreshMarket(false),500);
       setTradeStatus('Connecting to market…',false);
     }else{
       setTradeStatus(e.message||'Market data unavailable',false);
     }
+  }finally{
+    marketRequest=null;
   }
+  })();
+  return marketRequest;
 }
 async function placeSimulatedOrder(side){
   if(terminalRole==='investor'){setTradeStatus('Investor password is read-only',false);return}
@@ -302,6 +311,8 @@ async function placeSimulatedOrder(side){
 }
 function mountChart(id,symbol){
   const el=document.getElementById(id);if(!el)return;
+  if(id==='tvMobile' && chartMountedSymbol===symbol && el.querySelector('iframe'))return;
+  chartMountedSymbol=symbol;
   el.innerHTML='';
   const sc=document.createElement('script');
   sc.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
@@ -371,7 +382,7 @@ if(terminalSessionToken){
 
 setInterval(function(){
   if(terminalSessionToken){refreshMarket();refreshTerminalAccount()}
-},5000);
+},3000);
 </script>
 </body>
 </html>
