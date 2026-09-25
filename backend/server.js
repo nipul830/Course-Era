@@ -1281,8 +1281,6 @@ app.post("/api/trading/orders", requireAuth, async (req,res) => {
     const quotes=await getMarketQuotes([symbol]);
     const quote=quotes[symbol];
     if (!quote?.price) return res.status(502).json({error:"No live market price available"});
-    const quote=quotes[symbol];
-    if (!quote?.price) return res.status(502).json({error:"No live market price available"});
     if (side==="BUY" && ((stopLoss!==null&&stopLoss>=quote.price) || (takeProfit!==null&&takeProfit<=quote.price))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
     if (side==="SELL" && ((stopLoss!==null&&stopLoss<=quote.price) || (takeProfit!==null&&takeProfit>=quote.price))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
     const {ref,data}=await loadTradingAccount(req.user.uid);
