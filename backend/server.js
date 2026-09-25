@@ -408,14 +408,17 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
     const duplicate = await db.collection("payments").where("transactionId","==",transactionId).limit(1).get();
     if (!duplicate.empty) return res.status(409).json({ error:"This transaction/reference ID was already submitted" });
 
-    let screenshotUrl="", screenshotPath="";
+    let screenshotUrl="", screenshotPath="", screenshotToken="";
     if (req.file && bucket) {
       const safe=req.file.originalname.replace(/[^a-zA-Z0-9._-]/g,"_");
       screenshotPath="payment-proofs/"+req.user.uid+"/"+Date.now()+"-"+safe;
+      screenshotToken=crypto.randomUUID();
       const file=bucket.file(screenshotPath);
-      await file.save(req.file.buffer,{metadata:{contentType:req.file.mimetype}});
-      const [url]=await file.getSignedUrl({action:"read",expires:Date.now()+7*24*60*60*1000});
-      screenshotUrl=url;
+      await file.save(req.file.buffer,{metadata:{
+        contentType:req.file.mimetype,
+        metadata:{firebaseStorageDownloadTokens:screenshotToken}
+      }});
+      screenshotUrl="https://firebasestorage.googleapis.com/v0/b/"+encodeURIComponent(bucket.name)+"/o/"+encodeURIComponent(screenshotPath)+"?alt=media&token="+encodeURIComponent(screenshotToken);
     }
     const ref=db.collection("payments").doc();
     await ref.set({
