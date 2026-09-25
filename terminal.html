@@ -170,10 +170,9 @@ body{background:#fff}
 <script src="firebase-config.js?v=6"></script>
 <script src="aura-account.js"></script>
 <script>
-const terminalApp=firebase.apps.find(a=>a.name==='terminalAuth')||firebase.initializeApp(firebase.app().options,'terminalAuth');
-const terminalAuth=terminalApp.auth();
-terminalAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 let terminalRole='trader';
+let terminalSessionToken=sessionStorage.getItem('auraTerminalSession')||'';
+function terminalLoggedIn(){return Boolean(terminalSessionToken)}
 let currentSymbol='OANDA:XAUUSD';
 
 function setTerminalLoginStatus(message,good){
@@ -197,10 +196,9 @@ function showTerminal(role){
   refreshTerminalAccount();
 }
 async function terminalApi(path,opt={}){
-  const user=terminalAuth.currentUser;
-  if(!user)throw new Error('Terminal login required');
+  if(!terminalSessionToken)throw new Error('Terminal login required');
   const headers=opt.headers||{};
-  headers.Authorization='Bearer '+await user.getIdToken();
+  headers.Authorization='Bearer '+terminalSessionToken;
   if(opt.body&&typeof opt.body==='object'&&!(opt.body instanceof FormData)){
     headers['Content-Type']='application/json';
     opt.body=JSON.stringify(opt.body);
@@ -223,7 +221,9 @@ async function loginTerminal(){
     });
     let d={};try{d=await r.json()}catch(e){}
     if(!r.ok)throw new Error(d.error||d.detail||'Terminal login failed');
-    await terminalAuth.signInWithCustomToken(d.token);
+    terminalSessionToken=d.token||'';
+    if(!terminalSessionToken)throw new Error('Terminal session was not issued');
+    sessionStorage.setItem('auraTerminalSession',terminalSessionToken);
     sessionStorage.setItem('auraTerminalRole',terminalRole);
     setTerminalLoginStatus('',true);
   }catch(e){setTerminalLoginStatus(e.message||'Terminal login failed',false)}
@@ -246,7 +246,9 @@ async function refreshTerminalAccount(){
     if(data.account?.status==='breached')throw new Error('Account breached. Terminal credentials revoked.');
   }catch(e){
     if(/breached|revoked|not active|Terminal login required/i.test(e.message||'')){
-      await terminalAuth.signOut();
+      terminalSessionToken='';
+      sessionStorage.removeItem('auraTerminalSession');
+      sessionStorage.removeItem('auraTerminalRole');
       showTerminalLogin(e.message);
     }
   }
@@ -312,7 +314,12 @@ document.getElementById('terminalInvestorMode')?.addEventListener('click',functi
 });
 document.getElementById('terminalLoginBtn')?.addEventListener('click',loginTerminal);
 document.getElementById('terminalLoginPassword')?.addEventListener('keydown',e=>{if(e.key==='Enter')loginTerminal()});
-document.getElementById('terminalLogout')?.addEventListener('click',()=>terminalAuth.signOut());
+document.getElementById('terminalLogout')?.addEventListener('click',()=>{
+  terminalSessionToken='';
+  sessionStorage.removeItem('auraTerminalSession');
+  sessionStorage.removeItem('auraTerminalRole');
+  showTerminalLogin('');
+});
 
 (function(){
   const lot=document.getElementById('lotSize');
@@ -346,19 +353,15 @@ document.getElementById('terminalLogout')?.addEventListener('click',()=>terminal
   }
 })();
 
-terminalAuth.onAuthStateChanged(async function(user){
-  if(!user){showTerminalLogin('');return}
-  try{
-    const tokenResult=await user.getIdTokenResult();
-    const role=tokenResult.claims.terminalRole||sessionStorage.getItem('auraTerminalRole')||'trader';
-    showTerminal(role);
-  }catch(e){
-    await terminalAuth.signOut();showTerminalLogin('Terminal session expired');
-  }
-});
+if(terminalSessionToken){
+  const role=sessionStorage.getItem('auraTerminalRole')||'trader';
+  showTerminal(role);
+}else{
+  showTerminalLogin('');
+}
 
 setInterval(function(){
-  if(terminalAuth.currentUser){refreshMarket();refreshTerminalAccount()}
+  if(terminalSessionToken){refreshMarket();refreshTerminalAccount()}
 },5000);
 </script>
 </body>
