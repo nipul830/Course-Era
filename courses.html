@@ -59,33 +59,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script><script src="aura-account.js"></script><script src="aura.js"></script>
 <script>
-ceAuth.onAuthStateChanged(async function(user){
-  if(!user)return;
-  const account=await auraAccount();
-  const balance=document.getElementById('accountBalance');
-  const equity=document.getElementById('accountEquity');
-  const daily=document.getElementById('dailyDrawdown');
-  const max=document.getElementById('maxDrawdown');
-  const status=document.getElementById('accountStatus');
-  if(account){
-    if(balance)balance.textContent=auraMoney(account.balance);
-    if(equity)equity.textContent=auraMoney(account.equity);
-    try{
-      const token=await user.getIdToken();
-      const r=await fetch('https://course-era.onrender.com/api/trading/positions',{headers:{Authorization:'Bearer '+token}});
-      const d=await r.json();
-      if(r.ok){
-        if(daily)daily.textContent=Number(d.account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.dailyDrawdownLimit||4).toFixed(2)+'%';
-        if(max)max.textContent=Number(d.account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.maxDrawdownLimit||8).toFixed(2)+'%';
-        if(status)status.textContent='Account status: '+String(d.account.status||'active').toUpperCase();
-      }
-    }catch(e){}
-  }else{
-    if(balance)balance.textContent='—';
-    if(equity)equity.textContent='—';
-  }
-});
-
 async function loadTerminalCredentials(user){
   try{
     const token=await user.getIdToken();
