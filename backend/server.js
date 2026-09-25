@@ -1245,7 +1245,10 @@ app.get("/api/market/quotes", requireAuth, async (req,res) => {
 
 app.get("/api/trading/positions", requireAuth, async (req,res) => {
   try {
-    const quotes = await getMarketQuotes();
+    const {ref}=await loadTradingAccount(req.user.uid);
+    const openSnap=await ref.collection("positions").where("status","==","open").get();
+    const symbols=[...new Set(openSnap.docs.map(d=>d.data()?.symbol).filter(Boolean))];
+    const quotes = await getMarketQuotes(symbols);
     const account = await refreshTradingAccount(req.user.uid, quotes);
     res.json({
       account: {
