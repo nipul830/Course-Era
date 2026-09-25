@@ -207,7 +207,7 @@ async function terminalApi(path,opt={}){
   }
   const res=await fetch('https://course-era.onrender.com'+path,{...opt,headers});
   let data={};try{data=await res.json()}catch(e){}
-  if(!res.ok)throw new Error(data.error||data.detail||'Request failed');
+  if(!res.ok)throw new Error(data.detail||data.error||data.message||('Request failed (HTTP '+res.status+')'));
   return data;
 }
 async function loginTerminal(){
