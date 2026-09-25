@@ -1241,7 +1241,9 @@ async function refreshTradingAccount(uid, quotes) {
   const equity = balance + openPnl;
   const starting = Number(data.startingBalance || balance);
   const peak = Math.max(Number(data.peakEquity || starting), equity);
-  const dailyStart = Number(data.dailyStartEquity || starting);
+  const todayKey = new Date().toISOString().slice(0,10);
+  const dayChanged = data.dailyResetDate !== todayKey;
+  const dailyStart = dayChanged ? equity : Number(data.dailyStartEquity || starting);
   const dailyDd = dailyStart > 0 ? Math.max(0, (dailyStart-equity)/dailyStart*100) : 0;
   const maxDd = peak > 0 ? Math.max(0, (peak-equity)/peak*100) : 0;
   const rules = accountRules(data);
@@ -1253,7 +1255,7 @@ async function refreshTradingAccount(uid, quotes) {
   }
   await ref.update({
     balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
-    dailyStartEquity:dailyStart, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
+    dailyStartEquity:dailyStart, dailyResetDate:todayKey, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
     status, breachReason:breach,
     updatedAt:admin.firestore.FieldValue.serverTimestamp()
   });
