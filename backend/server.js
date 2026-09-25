@@ -1201,16 +1201,38 @@ function accountRules(account) {
 async function refreshTradingAccount(uid, quotes) {
   const { ref, data } = await loadTradingAccount(uid);
   const positionSnap = await ref.collection("positions").where("status","==","open").get();
+  let balance = Number(data.balance ?? data.startingBalance ?? 0);
   let openPnl = 0;
+  let realizedFromStops = 0;
   const positions = [];
-  positionSnap.forEach(d => {
+  for (const d of positionSnap.docs) {
     const p = { id:d.id, ...d.data() };
-    const q = quotes[p.symbol]?.price;
+    const q = Number(quotes[p.symbol]?.price || 0);
+    let exitPrice = null;
+    let closeReason = "";
+    if (q && p.stopLoss != null) {
+      if (p.side === "BUY" && q <= Number(p.stopLoss)) { exitPrice=Number(p.stopLoss); closeReason="Stop Loss"; }
+      if (p.side === "SELL" && q >= Number(p.stopLoss)) { exitPrice=Number(p.stopLoss); closeReason="Stop Loss"; }
+    }
+    if (q && !exitPrice && p.takeProfit != null) {
+      if (p.side === "BUY" && q >= Number(p.takeProfit)) { exitPrice=Number(p.takeProfit); closeReason="Take Profit"; }
+      if (p.side === "SELL" && q <= Number(p.takeProfit)) { exitPrice=Number(p.takeProfit); closeReason="Take Profit"; }
+    }
+    if (exitPrice !== null) {
+      const pnl = tradePnl(p, exitPrice);
+      balance += pnl;
+      realizedFromStops += pnl;
+      await ref.collection("positions").doc(p.id).update({
+        status:"closed", closePrice:exitPrice, realizedPnl:pnl, closeReason,
+        closedAt:admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt:admin.firestore.FieldValue.serverTimestamp()
+      });
+      continue;
+    }
     const pnl = q ? tradePnl(p, q) : 0;
     openPnl += pnl;
-    positions.push({ ...p, currentPrice:q ?? p.entryPrice, pnl });
-  });
-  const balance = Number(data.balance ?? data.startingBalance ?? 0);
+    positions.push({ ...p, currentPrice:q || p.entryPrice, pnl });
+  }
   const equity = balance + openPnl;
   const starting = Number(data.startingBalance || balance);
   const peak = Math.max(Number(data.peakEquity || starting), equity);
@@ -1225,13 +1247,14 @@ async function refreshTradingAccount(uid, quotes) {
     breach = dailyDd >= rules.dailyDrawdownPct ? "Daily drawdown limit reached" : "Maximum drawdown limit reached";
   }
   await ref.update({
-    equity, pnl:balance-starting, openPnl, peakEquity:peak,
-    dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd, status, breachReason:breach,
+    balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
+    dailyStartEquity:dailyStart, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
+    status, breachReason:breach,
     updatedAt:admin.firestore.FieldValue.serverTimestamp()
   });
   return { ...data, balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
     dailyStartEquity:dailyStart, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
-    status, breachReason:breach, positions };
+    status, breachReason:breach, positions, realizedFromStops };
 }
 
 app.get("/api/market/quotes", requireAuth, async (req,res) => {
