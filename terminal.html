@@ -226,6 +226,8 @@ async function loginTerminal(){
     sessionStorage.setItem('auraTerminalSession',terminalSessionToken);
     sessionStorage.setItem('auraTerminalRole',terminalRole);
     setTerminalLoginStatus('',true);
+    // Open the terminal immediately after successful login — no refresh required.
+    showTerminal(terminalRole);
   }catch(e){setTerminalLoginStatus(e.message||'Terminal login failed',false)}
   finally{if(btn){btn.disabled=false;btn.textContent='Login to Terminal'}}
 }
