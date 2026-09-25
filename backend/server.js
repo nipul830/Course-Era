@@ -1456,22 +1456,56 @@ const MARKET_SYMBOLS = {
 };
 const quoteCache = new Map();
 
-async function fetchYahooQuote(yahoo) {
-  const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(yahoo) + "?range=1d&interval=1m&includePrePost=true";
-  const response = await fetch(url, { headers: { "User-Agent":"Mozilla/5.0 AuraFarming/1.0" } });
-  if (!response.ok) throw new Error("Market data provider returned " + response.status);
+async function fetchTradingViewQuote(symbol) {
+  const exchange = symbol === "OANDA:XAUUSD" ? "forex" : (symbol.startsWith("BINANCE:") ? "crypto" : "forex");
+  const url = "https://scanner.tradingview.com/" + exchange + "/scan";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type":"application/json", "User-Agent":"Mozilla/5.0 AuraFarming/1.0" },
+    body: JSON.stringify({
+      symbols: { tickers:[symbol], query:{ types:[] } },
+      columns:["close","change","change_abs","volume","lp_time"]
+    })
+  });
+  if (!response.ok) throw new Error("TradingView market data provider returned " + response.status);
   const data = await response.json();
-  const result = data?.chart?.result?.[0];
-  const meta = result?.meta || {};
-  const price = Number(meta.regularMarketPrice ?? meta.postMarketPrice ?? meta.previousClose);
-  if (!Number.isFinite(price) || price <= 0) throw new Error("No market price available for " + yahoo);
+  const row = data?.data?.[0]?.d || [];
+  const price = Number(row[0]);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("TradingView price unavailable for " + symbol);
   return {
     price,
-    previousClose: Number(meta.previousClose ?? price),
-    change: price - Number(meta.previousClose ?? price),
-    changePct: Number(meta.previousClose) ? ((price / Number(meta.previousClose)) - 1) * 100 : 0,
-    timestamp: Number(meta.regularMarketTime || Math.floor(Date.now()/1000))
+    previousClose: Number.isFinite(Number(row[0]) - Number(row[2])) ? Number(row[0]) - Number(row[2]) : price,
+    change: Number(row[2] || 0),
+    changePct: Number(row[1] || 0),
+    timestamp: Number(row[4] || Math.floor(Date.now()/1000))
   };
+}
+
+async function fetchYahooQuote(yahoo, symbol) {
+  const hosts = ["query1.finance.yahoo.com","query2.finance.yahoo.com"];
+  let lastError = null;
+  for (const host of hosts) {
+    try {
+      const url = "https://" + host + "/v8/finance/chart/" + encodeURIComponent(yahoo) + "?range=1d&interval=1m&includePrePost=true";
+      const response = await fetch(url, { headers: { "User-Agent":"Mozilla/5.0 AuraFarming/1.0", "Accept":"application/json" } });
+      if (!response.ok) throw new Error("Yahoo provider returned " + response.status);
+      const data = await response.json();
+      const result = data?.chart?.result?.[0];
+      const meta = result?.meta || {};
+      const price = Number(meta.regularMarketPrice ?? meta.postMarketPrice ?? meta.previousClose);
+      if (!Number.isFinite(price) || price <= 0) throw new Error("No Yahoo price available");
+      return {
+        price,
+        previousClose: Number(meta.previousClose ?? price),
+        change: price - Number(meta.previousClose ?? price),
+        changePct: Number(meta.previousClose) ? ((price / Number(meta.previousClose)) - 1) * 100 : 0,
+        timestamp: Number(meta.regularMarketTime || Math.floor(Date.now()/1000))
+      };
+    } catch (e) { lastError = e; }
+  }
+  // Yahoo can rate-limit server IPs. Use TradingView's same OANDA symbol as the final live fallback.
+  if (symbol) return fetchTradingViewQuote(symbol);
+  throw lastError || new Error("Market data unavailable");
 }
 
 async function getMarketQuotes(symbols) {
@@ -1488,7 +1522,7 @@ async function getMarketQuotes(symbols) {
       return;
     }
     try {
-      const q = await fetchYahooQuote(spec.yahoo);
+      const q = await fetchYahooQuote(spec.yahoo, symbol);
       quoteCache.set(symbol, { ...q, fetchedAt: now });
       out[symbol] = { symbol, name:spec.name, ...q, stale:false };
     } catch (e) {
