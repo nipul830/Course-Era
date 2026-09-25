@@ -147,9 +147,12 @@ function verifyTerminalPassword(password, stored) {
 }
 
 function terminalSessionSecret() {
-  const secret = process.env.TERMINAL_CREDENTIAL_SECRET || "";
-  if (!secret) throw new Error("TERMINAL_CREDENTIAL_SECRET is not configured");
-  return crypto.createHash("sha256").update(secret + "|terminal-session-v1").digest();
+  let material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
+  if (!material && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    try { material = readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, "utf8"); } catch {}
+  }
+  if (!material) throw new Error("Terminal session signing is not configured on the server");
+  return crypto.createHash("sha256").update(String(material) + "|terminal-session-v1").digest();
 }
 function base64url(value) {
   return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
