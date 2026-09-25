@@ -1201,6 +1201,11 @@ function accountRules(account) {
 async function refreshTradingAccount(uid, quotes) {
   const { ref, data } = await loadTradingAccount(uid);
   const positionSnap = await ref.collection("positions").where("status","==","open").get();
+  const missingSymbols=[...new Set(positionSnap.docs.map(d=>d.data()?.symbol).filter(s=>s && !quotes?.[s]))];
+  if(missingSymbols.length){
+    const extra=await getMarketQuotes(missingSymbols);
+    quotes={...(quotes||{}),...extra};
+  }
   let balance = Number(data.balance ?? data.startingBalance ?? 0);
   let openPnl = 0;
   let realizedFromStops = 0;
