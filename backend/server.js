@@ -117,6 +117,173 @@ function positiveAmount(value) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+const TERMINAL_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+
+function generateTerminalPassword(length = 14) {
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) out += TERMINAL_PASSWORD_ALPHABET[bytes[i] % TERMINAL_PASSWORD_ALPHABET.length];
+  return out;
+}
+
+function hashTerminalPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(String(password), salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  return salt.toString("hex") + ":" + hash.toString("hex");
+}
+
+function verifyTerminalPassword(password, stored) {
+  try {
+    const [saltHex, hashHex] = String(stored || "").split(":");
+    if (!saltHex || !hashHex) return false;
+    const salt = Buffer.from(saltHex, "hex");
+    const expected = Buffer.from(hashHex, "hex");
+    const actual = crypto.scryptSync(String(password), salt, expected.length, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
+}
+
+function terminalCredentialKey() {
+  const material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS || "aura-farming-terminal-credentials";
+  return crypto.createHash("sha256").update(String(material)).digest();
+}
+
+function encryptTerminalSecret(value) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", terminalCredentialKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [iv.toString("hex"), tag.toString("hex"), encrypted.toString("hex")].join(":");
+}
+
+function decryptTerminalSecret(value) {
+  const [ivHex, tagHex, dataHex] = String(value || "").split(":");
+  if (!ivHex || !tagHex || !dataHex) throw new Error("Credential secret is unavailable");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", terminalCredentialKey(), Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  return Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]).toString("utf8");
+}
+
+async function createTerminalCredentials(accountRef, userId, account) {
+  initFirebase();
+  const existingId = String(account?.terminalCredentialId || "").trim();
+  if (existingId) {
+    const existing = await db.collection("terminalCredentials").doc(existingId).get();
+    if (existing.exists) return { id: existingId, data: existing.data() || {}, created: false };
+  }
+
+  const accountId = String(account?.accountId || "account");
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const loginId = "AF" + crypto.randomBytes(5).toString("hex").toUpperCase();
+    const credentialRef = db.collection("terminalCredentials").doc(loginId);
+    const tradingPassword = generateTerminalPassword();
+    const investorPassword = generateTerminalPassword();
+
+    const result = await db.runTransaction(async tx => {
+      const accountSnap = await tx.get(accountRef);
+      const current = accountSnap.data() || {};
+      if (current.terminalCredentialId) {
+        return { existingId: String(current.terminalCredentialId), created: false };
+      }
+      const credentialSnap = await tx.get(credentialRef);
+      if (credentialSnap.exists) return { collision: true };
+      tx.set(credentialRef, {
+        userId,
+        accountId,
+        loginId,
+        tradingPasswordHash: hashTerminalPassword(tradingPassword),
+        investorPasswordHash: hashTerminalPassword(investorPassword),
+        tradingPasswordEnc: encryptTerminalSecret(tradingPassword),
+        investorPasswordEnc: encryptTerminalSecret(investorPassword),
+        status: "active",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastLoginAt: null,
+        lastLoginMode: null,
+        revokedAt: null,
+        revokedReason: ""
+      });
+      tx.update(accountRef, {
+        terminalCredentialId: loginId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return { created: true, loginId, tradingPassword, investorPassword };
+    });
+
+    if (result.collision) continue;
+    if (!result.created) {
+      const existing = await db.collection("terminalCredentials").doc(result.existingId).get();
+      return { id: result.existingId, data: existing.data() || {}, created: false };
+    }
+    return {
+      id: result.loginId,
+      data: {
+        userId, accountId, loginId: result.loginId, status: "active",
+        tradingPasswordEnc: encryptTerminalSecret(result.tradingPassword),
+        investorPasswordEnc: encryptTerminalSecret(result.investorPassword)
+      },
+      created: true,
+      credentials: {
+        loginId: result.loginId,
+        tradingPassword: result.tradingPassword,
+        investorPassword: result.investorPassword
+      }
+    };
+  }
+  throw new Error("Could not allocate a unique terminal login ID");
+}
+
+async function revokeTerminalCredentials(account, reason = "Account breached") {
+  initFirebase();
+  const credentialId = String(account?.terminalCredentialId || "").trim();
+  if (!credentialId) return;
+  await db.collection("terminalCredentials").doc(credentialId).set({
+    status: "revoked",
+    revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+    revokedReason: String(reason).slice(0, 200),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
+async function requireTerminalAuth(req, res, next) {
+  try {
+    initFirebase();
+    const header = req.headers.authorization || "";
+    if (!header.startsWith("Bearer ")) return res.status(401).json({ error: "Terminal login required" });
+    const token = await admin.auth().verifyIdToken(header.slice(7));
+    if (token.terminal !== true || !token.terminalCredentialId || !token.accountId || !["trader","investor"].includes(token.terminalRole)) {
+      return res.status(401).json({ error: "Valid terminal credentials are required" });
+    }
+    const credentialSnap = await db.collection("terminalCredentials").doc(String(token.terminalCredentialId)).get();
+    if (!credentialSnap.exists) return res.status(401).json({ error: "Terminal credentials revoked" });
+    const credential = credentialSnap.data() || {};
+    if (credential.status !== "active" || credential.userId !== token.uid || credential.accountId !== token.accountId) {
+      return res.status(401).json({ error: "Terminal credentials revoked" });
+    }
+    const accountRef = db.collection("users").doc(token.uid).collection("trading").doc("account");
+    const accountSnap = await accountRef.get();
+    const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
+    if (!accountSnap.exists || account.status !== "active") {
+      await revokeTerminalCredentials(account, account.status === "breached" ? (account.breachReason || "Account breached") : "Account inactive");
+      return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status || "inactive" });
+    }
+    req.terminal = { ...token, credentialId: String(token.terminalCredentialId), accountRef, account };
+    next();
+  } catch (e) {
+    res.status(401).json({ error: "Invalid or expired terminal session" });
+  }
+}
+
+const terminalLoginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many terminal login attempts. Please try again later." }
+});
+
 app.get("/", (req, res) => {
   res.status(200).send("Course Era API is running. Use /health to check status.");
 });
@@ -139,6 +306,83 @@ app.get("/api/config", (req, res) => {
     ),
     storageConfigured: Boolean(process.env.FIREBASE_STORAGE_BUCKET)
   });
+});
+
+app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
+  try {
+    initFirebase();
+    const loginId = String(req.body.loginId || "").trim().toUpperCase().slice(0, 40);
+    const password = String(req.body.password || "");
+    const mode = String(req.body.mode || "trader").toLowerCase() === "investor" ? "investor" : "trader";
+    if (!loginId || !password) return res.status(400).json({ error: "Login ID and password are required" });
+
+    const snap = await db.collection("terminalCredentials").doc(loginId).get();
+    if (!snap.exists) return res.status(401).json({ error: "Invalid terminal ID or password" });
+    const credential = snap.data() || {};
+    if (credential.status !== "active") return res.status(403).json({ error: "Terminal credentials are revoked" });
+
+    const accountRef = db.collection("users").doc(String(credential.userId)).collection("trading").doc("account");
+    const accountSnap = await accountRef.get();
+    const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
+    if (!accountSnap.exists || account.accountId !== credential.accountId || account.status !== "active") {
+      await revokeTerminalCredentials(account, account.status === "breached" ? (account.breachReason || "Account breached") : "Account inactive");
+      return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status || "inactive" });
+    }
+
+    const hash = mode === "investor" ? credential.investorPasswordHash : credential.tradingPasswordHash;
+    if (!verifyTerminalPassword(password, hash)) return res.status(401).json({ error: "Invalid terminal ID or password" });
+
+    const customToken = await admin.auth().createCustomToken(String(credential.userId), {
+      terminal: true,
+      terminalCredentialId: loginId,
+      accountId: String(credential.accountId),
+      terminalRole: mode
+    });
+
+    await snap.ref.update({
+      lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastLoginMode: mode,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({
+      token: customToken,
+      role: mode,
+      account: {
+        id: account.accountId,
+        balance: Number(account.balance ?? account.startingBalance ?? 0),
+        equity: Number(account.equity ?? account.balance ?? account.startingBalance ?? 0),
+        status: account.status
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not sign in to terminal", detail: e.message });
+  }
+});
+
+app.get("/api/trading-credentials", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const accountRef = db.collection("users").doc(req.user.uid).collection("trading").doc("account");
+    const accountSnap = await accountRef.get();
+    if (!accountSnap.exists) return res.status(404).json({ error: "Trading account not found" });
+    const account = accountSnap.data() || {};
+    if (account.status !== "active") return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status });
+
+    const ensured = await createTerminalCredentials(accountRef, req.user.uid, account);
+    const data = ensured.data || {};
+    const loginId = data.loginId || ensured.id;
+    const tradingPassword = ensured.created
+      ? ensured.credentials.tradingPassword
+      : decryptTerminalSecret(data.tradingPasswordEnc);
+    const investorPassword = ensured.created
+      ? ensured.credentials.investorPassword
+      : decryptTerminalSecret(data.investorPasswordEnc);
+
+    res.json({ loginId, tradingPassword, investorPassword, accountId: account.accountId || "" });
+  } catch (e) {
+    res.status(500).json({ error: "Could not load terminal credentials", detail: e.message });
+  }
 });
 
 app.get("/api/profile", requireAuth, async (req, res) => {
@@ -952,11 +1196,27 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
         sourcePaymentId:req.params.id, status:"active",
         createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
       });
+      const credentialBundle = await createTerminalCredentials(accountRef, payment.userId, {
+        accountId, status:"active"
+      });
       await db.collection("users").doc(payment.userId).collection("challengeAccounts").doc(accountId).set({
         accountId, paymentId:req.params.id, challengeId:challenge.id, model:challenge.model, size:challenge.size,
-        accountSize:Number(challenge.accountSize), status:"active", createdAt:admin.firestore.FieldValue.serverTimestamp()
+        accountSize:Number(challenge.accountSize), status:"active",
+        terminalCredentialId:credentialBundle.id,
+        createdAt:admin.firestore.FieldValue.serverTimestamp()
       });
-      await ref.update({accountId});
+      await ref.update({
+        accountId,
+        terminalCredentialId:credentialBundle.id,
+        ...(credentialBundle.credentials ? {
+          terminalLoginId:credentialBundle.credentials.loginId
+        } : {})
+      });
+      if (credentialBundle.credentials) {
+        await ref.update({
+          terminalCredentialsIssued: true
+        });
+      }
     } else if (status === "approved") {
       await db.collection("users").doc(payment.userId).collection("courses").doc(payment.courseId).set({
         courseId: payment.courseId, paymentId: req.params.id, grantedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -966,6 +1226,25 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
     res.json({ message: "Payment " + status });
   } catch (e) {
     res.status(500).json({ error: "Could not review payment", detail: e.message });
+  }
+});
+
+app.post("/api/admin/trading-accounts/:uid/breach", requireAuth, requireAdmin, async (req,res) => {
+  try {
+    initFirebase();
+    const accountRef = db.collection("users").doc(req.params.uid).collection("trading").doc("account");
+    const snap = await accountRef.get();
+    if (!snap.exists) return res.status(404).json({ error:"Trading account not found" });
+    const reason = String(req.body.reason || "Account breached by admin").trim().slice(0,200);
+    await accountRef.update({
+      status:"breached",
+      breachReason:reason,
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });
+    await revokeTerminalCredentials(snap.data() || {}, reason);
+    res.json({ message:"Trading account breached and terminal credentials revoked" });
+  } catch(e) {
+    res.status(500).json({ error:"Could not breach trading account", detail:e.message });
   }
 });
 
@@ -1259,6 +1538,9 @@ async function refreshTradingAccount(uid, quotes) {
     status = "breached";
     breach = dailyDd >= rules.dailyDrawdownPct ? "Daily drawdown limit reached" : "Maximum drawdown limit reached";
   }
+  if (status === "breached" && data.status !== "breached") {
+    await revokeTerminalCredentials({ ...data, terminalCredentialId:data.terminalCredentialId }, breach || "Account breached");
+  }
   await ref.update({
     balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
     dailyStartEquity:dailyStart, dailyResetDate:todayKey, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
@@ -1270,7 +1552,7 @@ async function refreshTradingAccount(uid, quotes) {
     status, breachReason:breach, positions, realizedFromStops };
 }
 
-app.get("/api/market/quotes", requireAuth, async (req,res) => {
+app.get("/api/market/quotes", requireTerminalAuth, async (req,res) => {
   try {
     const symbols = String(req.query.symbols || "").split(",").map(x=>x.trim()).filter(Boolean);
     res.json({ quotes: await getMarketQuotes(symbols) });
@@ -1279,7 +1561,7 @@ app.get("/api/market/quotes", requireAuth, async (req,res) => {
   }
 });
 
-app.get("/api/trading/positions", requireAuth, async (req,res) => {
+app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
   try {
     const {ref}=await loadTradingAccount(req.user.uid);
     const openSnap=await ref.collection("positions").where("status","==","open").get();
@@ -1305,7 +1587,7 @@ app.get("/api/trading/positions", requireAuth, async (req,res) => {
   }
 });
 
-app.post("/api/trading/orders", requireAuth, async (req,res) => {
+app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
   try {
     const symbol=String(req.body.symbol||"").trim();
     const side=String(req.body.side||"").toUpperCase();
@@ -1324,6 +1606,7 @@ app.post("/api/trading/orders", requireAuth, async (req,res) => {
     if (side==="SELL" && ((stopLoss!==null&&stopLoss<=quote.price) || (takeProfit!==null&&takeProfit>=quote.price))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
     const {ref,data}=await loadTradingAccount(req.user.uid);
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+    if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
     const positionRef=ref.collection("positions").doc();
     const now=admin.firestore.FieldValue.serverTimestamp();
     await positionRef.set({
@@ -1338,8 +1621,9 @@ app.post("/api/trading/orders", requireAuth, async (req,res) => {
   }
 });
 
-app.post("/api/trading/positions/:id/close", requireAuth, async (req,res) => {
+app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res) => {
   try {
+    if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
     const {ref}=await loadTradingAccount(req.user.uid);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
@@ -1359,8 +1643,9 @@ app.post("/api/trading/positions/:id/close", requireAuth, async (req,res) => {
   }
 });
 
-app.patch("/api/trading/positions/:id", requireAuth, async (req,res) => {
+app.patch("/api/trading/positions/:id", requireTerminalAuth, async (req,res) => {
   try {
+    if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
     const {ref}=await loadTradingAccount(req.user.uid);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
