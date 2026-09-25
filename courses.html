@@ -93,16 +93,9 @@ ceAuth.onAuthStateChanged(async function(user){
     if(balance)balance.textContent=auraMoney(account.balance);
     if(equity)equity.textContent=auraMoney(account.equity);
     loadTerminalCredentials(user);
-    try{
-      const token=await user.getIdToken();
-      const r=await fetch('https://course-era.onrender.com/api/trading/positions',{headers:{Authorization:'Bearer '+token}});
-      const d=await r.json();
-      if(r.ok){
-        if(daily)daily.textContent=Number(d.account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.dailyDrawdownLimit||4).toFixed(2)+'%';
-        if(max)max.textContent=Number(d.account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.maxDrawdownLimit||8).toFixed(2)+'%';
-        if(status)status.textContent='Account status: '+String(d.account.status||'active').toUpperCase();
-      }
-    }catch(e){}
+    if(daily)daily.textContent=Number(account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(account.dailyDrawdownLimit||4).toFixed(2)+'%';
+    if(max)max.textContent=Number(account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(account.maxDrawdownLimit||8).toFixed(2)+'%';
+    if(status)status.textContent='Account status: '+String(account.status||'active').toUpperCase();
   }else{
     if(balance)balance.textContent='—';
     if(equity)equity.textContent='—';
