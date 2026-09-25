@@ -1117,7 +1117,7 @@ app.post("/api/trading-account/adjust", requireAuth, async (req, res) => {
 
 
 const MARKET_SYMBOLS = {
-  "OANDA:XAUUSD": { yahoo:"GC=F", name:"GOLD", kind:"gold", contractSize:100 },
+  "OANDA:XAUUSD": { yahoo:"XAUUSD=X", name:"GOLD", kind:"gold", contractSize:100 },
   "FX:EURUSD": { yahoo:"EURUSD=X", name:"EUR/USD", kind:"forex", contractSize:100000 },
   "FX:GBPUSD": { yahoo:"GBPUSD=X", name:"GBP/USD", kind:"forex", contractSize:100000 },
   "FX:USDJPY": { yahoo:"JPY=X", name:"USD/JPY", kind:"forex-jpy", contractSize:100000 },
@@ -1152,8 +1152,14 @@ async function getMarketQuotes(symbols) {
     .filter(s => MARKET_SYMBOLS[s]))];
   const now = Date.now();
   const out = {};
+  const freshForMs = 5000;
   await Promise.all(requested.map(async symbol => {
     const spec = MARKET_SYMBOLS[symbol];
+    const cached = quoteCache.get(symbol);
+    if (cached && now - cached.fetchedAt < freshForMs) {
+      out[symbol] = { symbol, name:spec.name, ...cached, stale:false, cached:true };
+      return;
+    }
     try {
       const q = await fetchYahooQuote(spec.yahoo);
       quoteCache.set(symbol, { ...q, fetchedAt: now });
