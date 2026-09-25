@@ -636,6 +636,45 @@ async function getChallengeCatalog() {
   return saved && saved.length ? saved : DEFAULT_CHALLENGES;
 }
 
+const DEFAULT_CHALLENGE_RULES = {
+  "1 Step": ["Daily Drawdown: 4%", "Total Drawdown: 8%", "Profit Target: 10%"],
+  "2 Step": ["Daily Drawdown: 4%", "Total Drawdown: 8%", "Phase 1 Profit Target: 8%", "Phase 2 Profit Target: 6%"],
+  "Instant": ["Daily Drawdown: 3%"]
+};
+
+app.get("/api/challenge-rules", async (req,res) => {
+  try {
+    initFirebase();
+    const snap = await db.collection("settings").doc("challengeRules").get();
+    const saved = snap.exists && snap.data()?.rules && typeof snap.data().rules === "object" ? snap.data().rules : null;
+    res.json({ rules: saved || DEFAULT_CHALLENGE_RULES });
+  } catch(e) {
+    res.status(500).json({ error:"Could not load challenge rules" });
+  }
+});
+
+app.put("/api/challenge-rules", requireAuth, requireAdmin, async (req,res) => {
+  try {
+    initFirebase();
+    const clean = v => String(v ?? "").trim().slice(0,300);
+    const incoming = req.body?.rules || {};
+    const rules = {};
+    for (const model of ["1 Step","2 Step","Instant"]) {
+      rules[model] = Array.isArray(incoming[model])
+        ? incoming[model].map(clean).filter(Boolean).slice(0,20)
+        : [];
+    }
+    await db.collection("settings").doc("challengeRules").set({
+      rules,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: req.user.uid
+    }, { merge:true });
+    res.json({ rules });
+  } catch(e) {
+    res.status(500).json({ error:"Could not save challenge rules" });
+  }
+});
+
 app.get("/api/challenges", async (req, res) => {
   try {
     const challenges = await getChallengeCatalog();
