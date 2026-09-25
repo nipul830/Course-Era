@@ -265,6 +265,7 @@ async function refreshMarket(retry=true){
     const q=data.quotes?.[currentSymbol];
     if(!q?.price)throw new Error('Market price unavailable');
     latestQuote=q;
+    updateLiveCandle(Number(q.price));
     const sell=q.price,buy=q.price;
     document.querySelectorAll('.spread').forEach(el=>el.textContent='0.00');
     const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
