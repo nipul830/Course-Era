@@ -1553,7 +1553,7 @@ async function getMarketQuotes(symbols) {
     .filter(s => MARKET_SYMBOLS[s]))];
   const now = Date.now();
   const out = {};
-  const freshForMs = 5000;
+  const freshForMs = 1000;
   await Promise.all(requested.map(async symbol => {
     const spec = MARKET_SYMBOLS[symbol];
     const cached = quoteCache.get(symbol);
@@ -1562,7 +1562,14 @@ async function getMarketQuotes(symbols) {
       return;
     }
     try {
-      const q = await fetchYahooQuote(spec.yahoo, symbol);
+      // Keep execution quotes on the same TradingView feed as the embedded chart.
+      // Yahoo remains only as a fallback if TradingView's scanner is unavailable.
+      let q;
+      try {
+        q = await fetchTradingViewQuote(symbol);
+      } catch (tvError) {
+        q = await fetchYahooQuote(spec.yahoo, symbol);
+      }
       quoteCache.set(symbol, { ...q, fetchedAt: now });
       out[symbol] = { symbol, name:spec.name, ...q, stale:false };
     } catch (e) {
