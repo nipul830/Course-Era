@@ -224,6 +224,7 @@ async function loginTerminal(){
     let d={};try{d=await r.json()}catch(e){}
     if(!r.ok)throw new Error(d.detail||d.error||('Terminal login failed (HTTP '+r.status+')'));
     terminalSessionToken=d.token||'';
+    if(d.account) renderTerminalAccount(d.account);
     if(!terminalSessionToken)throw new Error('Terminal session was not issued');
     sessionStorage.setItem('auraTerminalSession',terminalSessionToken);
     sessionStorage.setItem('auraTerminalRole',terminalRole);
@@ -249,6 +250,7 @@ async function refreshTerminalAccount(){
     renderTerminalAccount(data.account);
     if(data.account?.status==='breached')throw new Error('Account breached. Terminal credentials revoked.');
   }catch(e){
+    renderTerminalAccount(JSON.parse(sessionStorage.getItem('auraTerminalAccount')||'null')||{});
     if(/breached|revoked|not active|Terminal login required/i.test(e.message||'')){
       terminalSessionToken='';
       sessionStorage.removeItem('auraTerminalSession');
@@ -307,6 +309,7 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('stopLoss'))document.getElementById('stopLoss').value='';
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
+    if(data.account) { sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account)); renderTerminalAccount(data.account); }
     setTimeout(()=>location.replace('position.html'),120);
   }catch(e){
     setTradeStatus(e.message||'Trade failed',false);
