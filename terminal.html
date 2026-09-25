@@ -250,6 +250,7 @@ async function placeSimulatedOrder(side){
         symbolList.classList.remove('open');
         mountChart('tvMobile',currentSymbol);
         mountChart('tvChart',currentSymbol);
+        refreshMarket();
       });
     });
     document.addEventListener('click',function(e){
