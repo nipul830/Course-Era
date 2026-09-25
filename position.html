@@ -132,4 +132,8 @@ setInterval(()=>{
     }
   });
 },5000);
+
+// Fast UI-side P&L refresh. The quote endpoint is cached server-side to keep
+// the simulated terminal responsive without hammering the market provider.
+setInterval(refreshLivePnl,250);
 </script></body></html>
