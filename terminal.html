@@ -61,7 +61,7 @@ body{background:#fff}
  .symbol-list button:active{background:#f2f5f7}
  .top-quotes .quote .label{font-size:14px}.top-quotes .quote .price{font-size:19px;margin-top:2px}
  .top-quotes .spread{display:none}
- .order-tools{display:flex;align-items:center;gap:8px;padding:8px 12px 0}
+ .order-tools{display:flex;align-items:center;gap:8px;padding:8px 12px 0;flex-wrap:wrap}.risk-input{width:92px;height:38px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;color:#182332;font-size:12px;font-weight:700;padding:0 9px}.risk-input::placeholder{color:#8a96a2}.trade-status{min-height:18px;padding:5px 12px;font-size:11px;color:#687786;font-weight:700}
  .lot-control{display:flex;align-items:center;gap:6px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;padding:5px 8px;color:#344252;font-size:12px;font-weight:700}
  .lot-control select{width:70px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332}
  .pending-btn{flex:1;border:1px solid #cfd7df;border-radius:10px;background:#182839;color:#fff;padding:9px 10px;font-size:12px;font-weight:800}
@@ -129,8 +129,11 @@ body{background:#fff}
  </div>
  <div class="order-tools">
    <label class="lot-control">Lot <select id="lotSize" aria-label="Lot size"></select></label>
+   <input class="risk-input" id="stopLoss" inputmode="decimal" placeholder="SL price" aria-label="Stop loss price">
+   <input class="risk-input" id="takeProfit" inputmode="decimal" placeholder="TP price" aria-label="Take profit price">
    <button class="pending-btn" id="pendingBtn" type="button">Pending Order ▾</button>
  </div>
+ <div class="trade-status" id="tradeStatus">Live quotes loading…</div>
  <div class="pending-menu" id="pendingMenu">
    <button type="button" data-pending="Buy Limit">Buy Limit</button>
    <button type="button" data-pending="Sell Limit">Sell Limit</button>
@@ -156,15 +159,56 @@ ceAuth.onAuthStateChanged(async function(user){
   const b=document.getElementById('terminalBalance'),e=document.getElementById('terminalEquity');
   if(account){if(b)b.textContent=auraMoney(account.balance);if(e)e.textContent=auraMoney(account.equity);}
 });
-function placeSimulatedOrder(side){
-  const btn=document.querySelector('.quote.'+(side==='BUY'?'buy':'sell')) || document.querySelector('.desktop-orders .'+(side==='BUY'?'buy':'sell'));
-  if(btn){btn.style.transform='scale(.98)';setTimeout(()=>btn.style.transform='',120);}
-  const lot=document.getElementById('lotSize');
-  const size=lot?lot.value:'0.10';
-  const position={id:Date.now(),side:side,symbol:currentSymbol,lot:size,price:(side==='BUY'?'4,288.89':'4,288.33'),time:new Date().toLocaleTimeString()};
-  const positions=JSON.parse(localStorage.getItem('auraPositions')||'[]');
-  positions.unshift(position);
-  localStorage.setItem('auraPositions',JSON.stringify(positions));
+async function terminalApi(path,opt={}){
+  const user=ceAuth.currentUser;
+  if(!user) throw new Error('Please login again');
+  const headers=opt.headers||{};
+  headers.Authorization='Bearer '+await user.getIdToken();
+  if(opt.body && typeof opt.body==='object' && !(opt.body instanceof FormData)){
+    headers['Content-Type']='application/json';
+    opt.body=JSON.stringify(opt.body);
+  }
+  const res=await fetch('https://course-era.onrender.com'+path,{...opt,headers});
+  let data={};try{data=await res.json()}catch(e){}
+  if(!res.ok)throw new Error(data.error||data.detail||'Request failed');
+  return data;
+}
+function setTradeStatus(message,good){
+  const el=document.getElementById('tradeStatus');
+  if(el){el.textContent=message;el.style.color=good?'#00a875':'#e6004d'}
+}
+async function refreshMarket(){
+  try{
+    const data=await terminalApi('/api/market/quotes?symbols='+encodeURIComponent(currentSymbol));
+    const q=data.quotes?.[currentSymbol];
+    if(!q?.price)throw new Error('Market price unavailable');
+    const spread= currentSymbol==='OANDA:XAUUSD' ? 0.56 : Math.max(q.price*0.00008,0.0001);
+    const sell=q.price-spread/2, buy=q.price+spread/2;
+    const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
+    ['sellPrice','desktopSellPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=fmt(sell)});
+    ['buyPrice','desktopBuyPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=fmt(buy)});
+    const sl=document.getElementById('stopLoss'),tp=document.getElementById('takeProfit');
+    if(sl)sl.placeholder='SL < '+fmt(q.price);
+    if(tp)tp.placeholder='TP > '+fmt(q.price);
+    setTradeStatus('Live market • '+fmt(q.price)+(q.stale?' • cached':'')+' • SIMULATED',true);
+  }catch(e){setTradeStatus(e.message||'Market data unavailable',false)}
+}
+async function placeSimulatedOrder(side){
+  try{
+    const lot=Number(document.getElementById('lotSize')?.value||'0.10');
+    const slRaw=document.getElementById('stopLoss')?.value.trim()||'';
+    const tpRaw=document.getElementById('takeProfit')?.value.trim()||'';
+    setTradeStatus('Executing '+side+'…');
+    const data=await terminalApi('/api/trading/orders',{method:'POST',body:{
+      symbol:currentSymbol,side,lot,
+      stopLoss:slRaw===''?null:Number(slRaw),
+      takeProfit:tpRaw===''?null:Number(tpRaw)
+    }});
+    setTradeStatus(side+' '+lot+' lot executed at '+Number(data.position.entryPrice).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5}),true);
+    if(document.getElementById('stopLoss'))document.getElementById('stopLoss').value='';
+    if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
+    setTimeout(()=>location.href='position.html',450);
+  }catch(e){setTradeStatus(e.message||'Trade failed',false)}
 }
 (function(){
   const lot=document.getElementById('lotSize');
@@ -230,6 +274,8 @@ function mountChart(id,symbol){
 }
 (function(){
  mountChart('tvMobile',currentSymbol);
+ refreshMarket();
+ setInterval(refreshMarket,5000);
 })();
 (function(){
  const toggle=document.getElementById('menuToggle'),menu=document.getElementById('sideMenu'),back=document.getElementById('menuBackdrop');
