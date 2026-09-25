@@ -14,12 +14,10 @@ body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-w
 <script src="firebase-config.js?v=6"></script>
 <script src="aura-account.js"></script>
 <script>
-const terminalApp=firebase.apps.find(a=>a.name==='terminalAuth')||firebase.initializeApp(firebase.app().options,'terminalAuth');
-const terminalAuth=terminalApp.auth();
-terminalAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+let terminalSessionToken=sessionStorage.getItem('auraTerminalSession')||'';
 async function positionApi(path,opt={}){
-  const user=terminalAuth.currentUser;if(!user)throw new Error('Terminal login required');
-  const headers=opt.headers||{};headers.Authorization='Bearer '+await user.getIdToken();
+  if(!terminalSessionToken)throw new Error('Terminal login required');
+  const headers=opt.headers||{};headers.Authorization='Bearer '+terminalSessionToken;
   if(opt.body&&typeof opt.body==='object'){headers['Content-Type']='application/json';opt.body=JSON.stringify(opt.body)}
   const res=await fetch('https://course-era.onrender.com'+path,{...opt,headers});
   let data={};try{data=await res.json()}catch(e){}
@@ -61,9 +59,25 @@ async function loadPositions(){
   const data=await positionApi('/api/trading/positions');
   renderPositionData(data);
 }
-terminalAuth.onAuthStateChanged(async function(user){
-  if(!user){location.replace('terminal.html');return;}
-  try{await loadPositions()}catch(e){document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>'}
-});
-setInterval(()=>{if(terminalAuth.currentUser)loadPositions().catch(()=>{})},5000);
+if(!terminalSessionToken){location.replace('terminal.html');}
+else{
+  loadPositions().catch(e=>{
+    if(/revoked|expired|not active|Terminal login required/i.test(e.message||'')){
+      sessionStorage.removeItem('auraTerminalSession');
+      sessionStorage.removeItem('auraTerminalRole');
+      location.replace('terminal.html');
+      return;
+    }
+    document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>';
+  });
+}
+setInterval(()=>{
+  if(terminalSessionToken)loadPositions().catch(e=>{
+    if(/revoked|expired|not active/i.test(e.message||'')){
+      sessionStorage.removeItem('auraTerminalSession');
+      sessionStorage.removeItem('auraTerminalRole');
+      location.replace('terminal.html');
+    }
+  });
+},5000);
 </script></body></html>
