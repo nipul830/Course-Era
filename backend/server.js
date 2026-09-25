@@ -1677,27 +1677,39 @@ app.get("/api/market/quotes", requireTerminalAuth, async (req,res) => {
 
 app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
   try {
-    const {ref}=await loadTradingAccount(req.user.uid);
+    const {ref,data}=await loadTradingAccount(req.user.uid);
+    const baseAccount={
+      id:data.accountId || "account",
+      balance:Number(data.balance ?? data.startingBalance ?? 0),
+      equity:Number(data.equity ?? data.balance ?? data.startingBalance ?? 0),
+      pnl:Number(data.pnl ?? 0),
+      openPnl:Number(data.openPnl ?? 0),
+      status:data.status || "active",
+      dailyDrawdownPct:Number(data.dailyDrawdownPct || 0),
+      maxDrawdownPct:Number(data.maxDrawdownPct || 0)
+    };
     const openSnap=await ref.collection("positions").where("status","==","open").get();
     const symbols=[...new Set(openSnap.docs.map(d=>d.data()?.symbol).filter(Boolean))];
-    const quotes = await getMarketQuotes(symbols);
-    const account = await refreshTradingAccount(req.user.uid, quotes);
+    let account=baseAccount;
+    let positions=[];
+    try {
+      const quotes=await getMarketQuotes(symbols);
+      const refreshed=await refreshTradingAccount(req.user.uid,quotes);
+      account={id:refreshed.accountId || data.accountId || "account",balance:refreshed.balance,equity:refreshed.equity,pnl:refreshed.pnl,openPnl:refreshed.openPnl,status:refreshed.status,dailyDrawdownPct:refreshed.dailyDrawdownPct||0,maxDrawdownPct:refreshed.maxDrawdownPct||0};
+      positions=refreshed.positions.map(p=>({id:p.id,symbol:p.symbol,name:MARKET_SYMBOLS[p.symbol]?.name||p.symbol,side:p.side,lot:p.lot,entryPrice:p.entryPrice,currentPrice:p.currentPrice,pnl:p.pnl,stopLoss:p.stopLoss||null,takeProfit:p.takeProfit||null,openedAt:p.openedAt||null}));
+    } catch (refreshError) {
+      positions=openSnap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
+    }
     res.json({
-      account: {
-        id:account.accountId || "account", balance:account.balance, equity:account.equity,
-        pnl:account.pnl, openPnl:account.openPnl, status:account.status,
-        dailyDrawdownPct:account.dailyDrawdownPct || 0, maxDrawdownPct:account.maxDrawdownPct || 0,
-        dailyDrawdownLimit:accountRules(account).dailyDrawdownPct,
-        maxDrawdownLimit:accountRules(account).maxDrawdownPct
+      account:{
+        ...account,
+        dailyDrawdownLimit:accountRules(data).dailyDrawdownPct,
+        maxDrawdownLimit:accountRules(data).maxDrawdownPct
       },
-      positions:account.positions.map(p=>({
-        id:p.id, symbol:p.symbol, name:MARKET_SYMBOLS[p.symbol]?.name || p.symbol, side:p.side,
-        lot:p.lot, entryPrice:p.entryPrice, currentPrice:p.currentPrice, pnl:p.pnl,
-        stopLoss:p.stopLoss || null, takeProfit:p.takeProfit || null, openedAt:p.openedAt || null
-      }))
+      positions
     });
   } catch (e) {
-    res.status(500).json({ error:"Could not load trading positions", detail:e.message });
+    res.status(500).json({error:"Could not load trading positions",detail:e.message});
   }
 });
 
