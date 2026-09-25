@@ -1114,6 +1114,232 @@ app.post("/api/trading-account/adjust", requireAuth, async (req, res) => {
   }
 });
 
+
+
+const MARKET_SYMBOLS = {
+  "OANDA:XAUUSD": { yahoo:"GC=F", name:"GOLD", kind:"gold", contractSize:100 },
+  "FX:EURUSD": { yahoo:"EURUSD=X", name:"EUR/USD", kind:"forex", contractSize:100000 },
+  "FX:GBPUSD": { yahoo:"GBPUSD=X", name:"GBP/USD", kind:"forex", contractSize:100000 },
+  "FX:USDJPY": { yahoo:"JPY=X", name:"USD/JPY", kind:"forex-jpy", contractSize:100000 },
+  "FX:AUDUSD": { yahoo:"AUDUSD=X", name:"AUD/USD", kind:"forex", contractSize:100000 },
+  "BINANCE:BTCUSDT": { yahoo:"BTC-USD", name:"BTC/USD", kind:"crypto", contractSize:1 },
+  "BINANCE:ETHUSDT": { yahoo:"ETH-USD", name:"ETH/USD", kind:"crypto", contractSize:1 },
+  "BINANCE:SOLUSDT": { yahoo:"SOL-USD", name:"SOL/USD", kind:"crypto", contractSize:1 },
+  "BINANCE:XRPUSDT": { yahoo:"XRP-USD", name:"XRP/USD", kind:"crypto", contractSize:1 }
+};
+const quoteCache = new Map();
+
+async function fetchYahooQuote(yahoo) {
+  const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(yahoo) + "?range=1d&interval=1m&includePrePost=true";
+  const response = await fetch(url, { headers: { "User-Agent":"Mozilla/5.0 AuraFarming/1.0" } });
+  if (!response.ok) throw new Error("Market data provider returned " + response.status);
+  const data = await response.json();
+  const result = data?.chart?.result?.[0];
+  const meta = result?.meta || {};
+  const price = Number(meta.regularMarketPrice ?? meta.postMarketPrice ?? meta.previousClose);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("No market price available for " + yahoo);
+  return {
+    price,
+    previousClose: Number(meta.previousClose ?? price),
+    change: price - Number(meta.previousClose ?? price),
+    changePct: Number(meta.previousClose) ? ((price / Number(meta.previousClose)) - 1) * 100 : 0,
+    timestamp: Number(meta.regularMarketTime || Math.floor(Date.now()/1000))
+  };
+}
+
+async function getMarketQuotes(symbols) {
+  const requested = [...new Set((Array.isArray(symbols) ? symbols : Object.keys(MARKET_SYMBOLS))
+    .filter(s => MARKET_SYMBOLS[s]))];
+  const now = Date.now();
+  const out = {};
+  await Promise.all(requested.map(async symbol => {
+    const spec = MARKET_SYMBOLS[symbol];
+    try {
+      const q = await fetchYahooQuote(spec.yahoo);
+      quoteCache.set(symbol, { ...q, fetchedAt: now });
+      out[symbol] = { symbol, name:spec.name, ...q, stale:false };
+    } catch (e) {
+      const cached = quoteCache.get(symbol);
+      if (cached) out[symbol] = { symbol, name:spec.name, ...cached, stale:true };
+      else out[symbol] = { symbol, name:spec.name, price:null, stale:true, error:"Market data unavailable" };
+    }
+  }));
+  return out;
+}
+
+function parsePercent(value, fallback) {
+  const n = Number.parseFloat(String(value || "").replace("%",""));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function tradePnl(position, price) {
+  const p = Number(position.entryPrice || 0);
+  const q = Number(price || 0);
+  const lot = Number(position.lot || 0);
+  const spec = MARKET_SYMBOLS[position.symbol];
+  if (!spec || !p || !q || !lot) return 0;
+  let pnl = (position.side === "BUY" ? q - p : p - q) * lot * spec.contractSize;
+  if (spec.kind === "forex-jpy") pnl = pnl / q;
+  return Number.isFinite(pnl) ? pnl : 0;
+}
+
+async function loadTradingAccount(uid) {
+  initFirebase();
+  const ref = db.collection("users").doc(uid).collection("trading").doc("account");
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Trading account not found");
+  return { ref, data:snap.data() || {} };
+}
+
+function accountRules(account) {
+  return {
+    dailyDrawdownPct: parsePercent(account.dailyDrawdown, 4),
+    maxDrawdownPct: parsePercent(account.maxDrawdown, 8)
+  };
+}
+
+async function refreshTradingAccount(uid, quotes) {
+  const { ref, data } = await loadTradingAccount(uid);
+  const positionSnap = await ref.collection("positions").where("status","==","open").get();
+  let openPnl = 0;
+  const positions = [];
+  positionSnap.forEach(d => {
+    const p = { id:d.id, ...d.data() };
+    const q = quotes[p.symbol]?.price;
+    const pnl = q ? tradePnl(p, q) : 0;
+    openPnl += pnl;
+    positions.push({ ...p, currentPrice:q ?? p.entryPrice, pnl });
+  });
+  const balance = Number(data.balance ?? data.startingBalance ?? 0);
+  const equity = balance + openPnl;
+  const starting = Number(data.startingBalance || balance);
+  const peak = Math.max(Number(data.peakEquity || starting), equity);
+  const dailyStart = Number(data.dailyStartEquity || starting);
+  const dailyDd = dailyStart > 0 ? Math.max(0, (dailyStart-equity)/dailyStart*100) : 0;
+  const maxDd = peak > 0 ? Math.max(0, (peak-equity)/peak*100) : 0;
+  const rules = accountRules(data);
+  let status = data.status || "active";
+  let breach = data.breachReason || "";
+  if (status === "active" && (dailyDd >= rules.dailyDrawdownPct || maxDd >= rules.maxDrawdownPct)) {
+    status = "breached";
+    breach = dailyDd >= rules.dailyDrawdownPct ? "Daily drawdown limit reached" : "Maximum drawdown limit reached";
+  }
+  await ref.update({
+    equity, pnl:balance-starting, openPnl, peakEquity:peak,
+    dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd, status, breachReason:breach,
+    updatedAt:admin.firestore.FieldValue.serverTimestamp()
+  });
+  return { ...data, balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
+    dailyStartEquity:dailyStart, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
+    status, breachReason:breach, positions };
+}
+
+app.get("/api/market/quotes", requireAuth, async (req,res) => {
+  try {
+    const symbols = String(req.query.symbols || "").split(",").map(x=>x.trim()).filter(Boolean);
+    res.json({ quotes: await getMarketQuotes(symbols) });
+  } catch (e) {
+    res.status(502).json({ error:"Market data unavailable", detail:e.message });
+  }
+});
+
+app.get("/api/trading/positions", requireAuth, async (req,res) => {
+  try {
+    const quotes = await getMarketQuotes();
+    const account = await refreshTradingAccount(req.user.uid, quotes);
+    res.json({
+      account: {
+        id:account.accountId || "account", balance:account.balance, equity:account.equity,
+        pnl:account.pnl, openPnl:account.openPnl, status:account.status,
+        dailyDrawdownPct:account.dailyDrawdownPct || 0, maxDrawdownPct:account.maxDrawdownPct || 0,
+        dailyDrawdownLimit:accountRules(account).dailyDrawdownPct,
+        maxDrawdownLimit:accountRules(account).maxDrawdownPct
+      },
+      positions:account.positions.map(p=>({
+        id:p.id, symbol:p.symbol, name:MARKET_SYMBOLS[p.symbol]?.name || p.symbol, side:p.side,
+        lot:p.lot, entryPrice:p.entryPrice, currentPrice:p.currentPrice, pnl:p.pnl,
+        stopLoss:p.stopLoss || null, takeProfit:p.takeProfit || null, openedAt:p.openedAt || null
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ error:"Could not load trading positions", detail:e.message });
+  }
+});
+
+app.post("/api/trading/orders", requireAuth, async (req,res) => {
+  try {
+    const symbol=String(req.body.symbol||"").trim();
+    const side=String(req.body.side||"").toUpperCase();
+    const lot=Number(req.body.lot);
+    const stopLoss=req.body.stopLoss===null||req.body.stopLoss===""?null:Number(req.body.stopLoss);
+    const takeProfit=req.body.takeProfit===null||req.body.takeProfit===""?null:Number(req.body.takeProfit);
+    if (!MARKET_SYMBOLS[symbol]) return res.status(400).json({error:"Unsupported trading symbol"});
+    if (!["BUY","SELL"].includes(side)) return res.status(400).json({error:"Side must be BUY or SELL"});
+    if (!Number.isFinite(lot) || lot<=0 || lot>10000) return res.status(400).json({error:"Invalid lot size"});
+    if (stopLoss!==null && (!Number.isFinite(stopLoss)||stopLoss<=0)) return res.status(400).json({error:"Invalid stop loss"});
+    if (takeProfit!==null && (!Number.isFinite(takeProfit)||takeProfit<=0)) return res.status(400).json({error:"Invalid take profit"});
+    if (side==="BUY" && ((stopLoss!==null&&stopLoss>=Number(req.body.price||0)) || (takeProfit!==null&&takeProfit<=Number(req.body.price||0)))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
+    if (side==="SELL" && ((stopLoss!==null&&stopLoss<=Number(req.body.price||0)) || (takeProfit!==null&&takeProfit>=Number(req.body.price||0)))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
+    const quotes=await getMarketQuotes([symbol]);
+    const quote=quotes[symbol];
+    if (!quote?.price) return res.status(502).json({error:"No live market price available"});
+    const {ref,data}=await loadTradingAccount(req.user.uid);
+    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+    const positionRef=ref.collection("positions").doc();
+    const now=admin.firestore.FieldValue.serverTimestamp();
+    await positionRef.set({
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice:quote.price,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now
+    });
+    const account=await refreshTradingAccount(req.user.uid,quotes);
+    res.status(201).json({message:"Market order executed", position:{id:positionRef.id,symbol,side,lot:Number(lot.toFixed(4)),entryPrice:quote.price,stopLoss,takeProfit},account});
+  } catch(e) {
+    res.status(500).json({error:"Could not execute trade",detail:e.message});
+  }
+});
+
+app.post("/api/trading/positions/:id/close", requireAuth, async (req,res) => {
+  try {
+    const {ref}=await loadTradingAccount(req.user.uid);
+    const positionRef=ref.collection("positions").doc(req.params.id);
+    const snap=await positionRef.get();
+    if(!snap.exists) return res.status(404).json({error:"Position not found"});
+    const p=snap.data();
+    if(p.status!=="open") return res.status(409).json({error:"Position is already closed"});
+    const quotes=await getMarketQuotes([p.symbol]);
+    const q=quotes[p.symbol]?.price;
+    if(!q) return res.status(502).json({error:"No live market price available"});
+    const pnl=tradePnl(p,q);
+    await positionRef.update({status:"closed",closePrice:q,realizedPnl:pnl,closedAt:admin.firestore.FieldValue.serverTimestamp(),updatedAt:admin.firestore.FieldValue.serverTimestamp()});
+    await ref.update({balance:admin.firestore.FieldValue.increment(pnl),updatedAt:admin.firestore.FieldValue.serverTimestamp()});
+    const account=await refreshTradingAccount(req.user.uid,quotes);
+    res.json({message:"Position closed",closePrice:q,realizedPnl:pnl,account});
+  } catch(e) {
+    res.status(500).json({error:"Could not close position",detail:e.message});
+  }
+});
+
+app.patch("/api/trading/positions/:id", requireAuth, async (req,res) => {
+  try {
+    const {ref}=await loadTradingAccount(req.user.uid);
+    const positionRef=ref.collection("positions").doc(req.params.id);
+    const snap=await positionRef.get();
+    if(!snap.exists) return res.status(404).json({error:"Position not found"});
+    const p=snap.data();
+    if(p.status!=="open") return res.status(409).json({error:"Position is closed"});
+    const sl=req.body.stopLoss===null||req.body.stopLoss===""?null:Number(req.body.stopLoss);
+    const tp=req.body.takeProfit===null||req.body.takeProfit===""?null:Number(req.body.takeProfit);
+    const current=Number((await getMarketQuotes([p.symbol]))[p.symbol]?.price||p.entryPrice);
+    if(sl!==null && (!Number.isFinite(sl)||sl<=0)) return res.status(400).json({error:"Invalid stop loss"});
+    if(tp!==null && (!Number.isFinite(tp)||tp<=0)) return res.status(400).json({error:"Invalid take profit"});
+    if(p.side==="BUY" && ((sl!==null&&sl>=current)||(tp!==null&&tp<=current))) return res.status(400).json({error:"BUY SL must be below current price and TP above current price"});
+    if(p.side==="SELL" && ((sl!==null&&sl<=current)||(tp!==null&&tp>=current))) return res.status(400).json({error:"SELL SL must be above current price and TP below current price"});
+    await positionRef.update({stopLoss:sl,takeProfit:tp,updatedAt:admin.firestore.FieldValue.serverTimestamp()});
+    res.json({message:"Position risk settings updated",stopLoss:sl,takeProfit:tp});
+  } catch(e) { res.status(500).json({error:"Could not update position",detail:e.message}); }
+});
+
 app.get("/api/my-courses", requireAuth, async (req, res) => {
   try {
     initFirebase();
