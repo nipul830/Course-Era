@@ -27,12 +27,13 @@
 <div class="stats">
 <div class="stat"><span>Balance</span><strong id="accountBalance">Loading…</strong></div>
 <div class="stat"><span>Equity</span><strong id="accountEquity">Loading…</strong></div>
-<div class="stat"><span>Daily Drawdown</span><strong>0.00%</strong></div>
-<div class="stat"><span>Max Drawdown</span><strong>0.00%</strong></div>
+<div class="stat"><span>Daily Drawdown</span><strong id="dailyDrawdown">—</strong></div>
+<div class="stat"><span>Max Drawdown</span><strong id="maxDrawdown">—</strong></div>
 </div>
 <section class="dashboard-actions">
 <div class="open-terminal-card">
 <p class="eyebrow">SIMULATED CFD TRADING</p>
+<p id="accountStatus" class="muted">Account status: Loading…</p>
 <h2>Open Terminal</h2>
 <p>Open the trading terminal to view charts and place simulated BUY / SELL trades.</p>
 <a class="open-terminal-btn" href="terminal.html">Open Terminal</a>
@@ -49,9 +50,22 @@ ceAuth.onAuthStateChanged(async function(user){
   const account=await auraAccount();
   const balance=document.getElementById('accountBalance');
   const equity=document.getElementById('accountEquity');
+  const daily=document.getElementById('dailyDrawdown');
+  const max=document.getElementById('maxDrawdown');
+  const status=document.getElementById('accountStatus');
   if(account){
     if(balance)balance.textContent=auraMoney(account.balance);
     if(equity)equity.textContent=auraMoney(account.equity);
+    try{
+      const token=await user.getIdToken();
+      const r=await fetch('https://course-era.onrender.com/api/trading/positions',{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(r.ok){
+        if(daily)daily.textContent=Number(d.account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.dailyDrawdownLimit||4).toFixed(2)+'%';
+        if(max)max.textContent=Number(d.account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(d.account.maxDrawdownLimit||8).toFixed(2)+'%';
+        if(status)status.textContent='Account status: '+String(d.account.status||'active').toUpperCase();
+      }
+    }catch(e){}
   }else{
     if(balance)balance.textContent='—';
     if(equity)equity.textContent='—';
