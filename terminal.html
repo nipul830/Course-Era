@@ -288,7 +288,7 @@ async function placeSimulatedOrder(side){
     location.replace('position.html');
   }catch(e){
     setTradeStatus(e.message||'Trade failed',false);
-    if(/breached|revoked|not active/i.test(e.message||'')){await terminalAuth.signOut();showTerminalLogin(e.message)}
+    if(/breached|revoked|not active|expired/i.test(e.message||'')){terminalSessionToken='';sessionStorage.removeItem('auraTerminalSession');sessionStorage.removeItem('auraTerminalRole');showTerminalLogin(e.message)}
   }
 }
 function mountChart(id,symbol){
