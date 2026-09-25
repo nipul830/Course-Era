@@ -12,7 +12,7 @@
 .open-terminal-card p{color:var(--muted);margin:0 0 24px}
 .open-terminal-btn{display:inline-block;background:var(--accent);color:#080808;text-decoration:none;border-radius:12px;padding:15px 34px;font-size:18px;font-weight:900}
 .open-terminal-btn:hover{background:var(--accent2)}
-.terminal-creds{max-width:900px;margin:18px auto;padding:0 5%}.terminal-creds-card{background:#050505;border:1px solid #3a2c13;border-radius:20px;padding:24px;box-shadow:0 15px 40px #0008}.terminal-creds-card h3{color:#f1d98a;margin:0 0 6px}.terminal-creds-card p{color:#9b8552;margin:0 0 16px;font-size:13px}.cred-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-box{background:#000;border:1px solid #302713;border-radius:12px;padding:12px}.cred-box span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:6px}.cred-box strong{color:#fff;font-size:16px;word-break:break-all}.cred-copy{margin-top:14px;background:#d6b35a;color:#080808;border:0;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}.cred-note{margin-top:12px!important;color:#7f6d43!important}@media(max-width:700px){.cred-grid{grid-template-columns:1fr}}
+.terminal-creds{max-width:900px;margin:18px auto;padding:0 5%}.terminal-creds-card{background:#050505;border:1px solid #3a2c13;border-radius:20px;padding:14px;box-shadow:0 15px 40px #0008}.account-summary{padding:12px 10px 16px}.account-summary h3{color:#f1d98a;margin:0 0 6px}.account-summary p{color:#9b8552;margin:0;font-size:13px}.account-part{border:1px solid #302713;border-radius:14px;background:#000;margin-top:10px;overflow:hidden}.account-part summary{list-style:none;cursor:pointer;padding:17px 16px;color:#f1d98a;font-weight:900;font-size:18px;display:flex;justify-content:space-between;align-items:center}.account-part summary::-webkit-details-marker{display:none}.account-part summary::after{content:"+";font-size:24px}.account-part[open] summary::after{content:"−"}.account-part-body{padding:0 16px 18px}.cred-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-box{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.cred-box span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:6px}.cred-box strong{color:#fff;font-size:16px;word-break:break-all}.cred-copy{margin-top:14px;background:#d6b35a;color:#080808;border:0;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}.cred-note{margin-top:12px!important;color:#7f6d43!important;font-size:12px}.rules-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.rule-item{background:#050505;border:1px solid #302713;border-radius:12px;padding:12px}.rule-item span{display:block;color:#9b8552;font-size:11px;text-transform:uppercase;font-weight:800;margin-bottom:5px}.rule-item strong{color:#fff;font-size:16px}.rules-note{color:#9b8552;font-size:12px;margin:12px 0 0}@media(max-width:700px){.cred-grid,.rules-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -40,25 +40,14 @@
 <a class="open-terminal-btn" href="terminal.html">Open Terminal</a>
 </div>
 </section>
-<section class="terminal-creds" id="terminalCredentials" style="display:none">
-  <div class="terminal-creds-card">
-    <h3>Terminal Login Credentials</h3>
-    <p>Use these credentials on the Aura Farming Terminal. Trading password can place trades; Investor password is read-only.</p>
-    <div class="cred-grid">
-      <div class="cred-box"><span>Login ID</span><strong id="terminalLoginId">—</strong></div>
-      <div class="cred-box"><span>Trading Password</span><strong id="terminalTradingPassword">—</strong></div>
-      <div class="cred-box"><span>Investor Password</span><strong id="terminalInvestorPassword">—</strong></div>
-    </div>
-    <button class="cred-copy" id="copyTerminalCredentials" type="button">Copy Credentials</button>
-    <p class="cred-note">If the account is breached, these terminal credentials are revoked automatically and cannot be used again.</p>
-  </div>
-</section>
+<section class="terminal-creds" id="terminalCredentials" style="display:none"><div class="terminal-creds-card"><div class="account-summary"><h3 id="purchasedAccountName">Purchased Account</h3><p id="purchasedAccountBalance"></p></div><details class="account-part" name="purchased-account" open><summary>Login</summary><div class="account-part-body"><p style="color:#9b8552;font-size:13px;margin:0 0 16px">Use these credentials on the Aura Farming Terminal. Trading password can place trades; Investor password is read-only.</p><div class="cred-grid"><div class="cred-box"><span>Login ID</span><strong id="terminalLoginId">—</strong></div><div class="cred-box"><span>Trading Password</span><strong id="terminalTradingPassword">—</strong></div><div class="cred-box"><span>Investor Password</span><strong id="terminalInvestorPassword">—</strong></div></div><button class="cred-copy" id="copyTerminalCredentials" type="button">Copy Credentials</button><p class="cred-note">If the account is breached, these terminal credentials are revoked automatically and cannot be used again.</p></div></details><details class="account-part" name="purchased-account"><summary>Rules</summary><div class="account-part-body"><div class="rules-grid" id="accountRules"></div><p class="rules-note">These rules are shown for the purchased challenge account.</p></div></details></div></section>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script><script src="aura-account.js"></script><script src="aura.js"></script>
 <script>
+async function loadPurchasedRules(account){try{const r=await fetch('https://course-era.onrender.com/api/challenges');const d=await r.json();const challenge=(d.challenges||[]).find(x=>x.id===account.challengeId)||null;const box=document.getElementById('accountRules');if(!box)return;if(!challenge){box.innerHTML='<div class="rule-item"><span>Rules</span><strong>Not available</strong></div>';return}const items=[['Challenge Type',challenge.model],['Account Size',challenge.size],['Daily Drawdown',challenge.dailyDrawdown]];if(challenge.totalDrawdown)items.push(['Max / Total Drawdown',challenge.totalDrawdown]);if(challenge.profitTarget)items.push(['Profit Target',challenge.profitTarget]);if(challenge.phase1Profit)items.push(['Phase 1 Profit Target',challenge.phase1Profit]);if(challenge.phase2Profit)items.push(['Phase 2 Profit Target',challenge.phase2Profit]);if(challenge.evaluation)items.push(['Evaluation',challenge.evaluation]);box.innerHTML=items.map(x=>'<div class="rule-item"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')}catch(e){const box=document.getElementById('accountRules');if(box)box.innerHTML='<div class="rule-item"><span>Rules</span><strong>Could not load rules</strong></div>'}}
 async function loadTerminalCredentials(user){
   try{
     const token=await user.getIdToken();
@@ -73,6 +62,11 @@ async function loadTerminalCredentials(user){
     if(tp)tp.textContent=d.tradingPassword||'—';
     if(ip)ip.textContent=d.investorPassword||'—';
     if(wrap)wrap.style.display='block';
+    loadPurchasedRules(account);
+    const accountName=document.getElementById('purchasedAccountName');
+    const accountBalance=document.getElementById('purchasedAccountBalance');
+    if(accountName)accountName.textContent=(account.challenge||'Purchased Account');
+    if(accountBalance)accountBalance.textContent='Starting balance: '+auraMoney(account.startingBalance);
     const copy=document.getElementById('copyTerminalCredentials');
     if(copy)copy.onclick=async function(){
       const text='Aura Farming Terminal\nLogin ID: '+(d.loginId||'')+'\nTrading Password: '+(d.tradingPassword||'')+'\nInvestor Password: '+(d.investorPassword||'');
