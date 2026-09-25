@@ -1677,7 +1677,7 @@ app.get("/api/market/quotes", requireTerminalAuth, async (req,res) => {
 
 app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
   try {
-    const {ref,data}=await loadTradingAccount(req.user.uid);
+    const {ref,data}=await loadTradingAccount(req.terminal.uid);
     const baseAccount={
       id:data.accountId || "account",
       balance:Number(data.balance ?? data.startingBalance ?? 0),
@@ -1731,7 +1731,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     const entryPrice=side==="BUY"?Number(quote.ask||quote.price):Number(quote.bid||quote.price);
     if (side==="BUY" && ((stopLoss!==null&&stopLoss>=entryPrice) || (takeProfit!==null&&takeProfit<=entryPrice))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
     if (side==="SELL" && ((stopLoss!==null&&stopLoss<=entryPrice) || (takeProfit!==null&&takeProfit>=entryPrice))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
-    const {ref,data}=await loadTradingAccount(req.user.uid);
+    const {ref,data}=await loadTradingAccount(req.terminal.uid);
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
     const positionRef=ref.collection("positions").doc();
@@ -1771,7 +1771,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
 app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
-    const {ref}=await loadTradingAccount(req.user.uid);
+    const {ref}=await loadTradingAccount(req.terminal.uid);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
     if(!snap.exists) return res.status(404).json({error:"Position not found"});
@@ -1793,7 +1793,7 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
 app.patch("/api/trading/positions/:id", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
-    const {ref}=await loadTradingAccount(req.user.uid);
+    const {ref}=await loadTradingAccount(req.terminal.uid);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
     if(!snap.exists) return res.status(404).json({error:"Position not found"});
