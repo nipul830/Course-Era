@@ -108,7 +108,6 @@ body{background:#fff}
  <div class="desktop-orders" aria-label="Simulated trade controls">
    <button class="trade-btn sell" type="button" onclick="placeSimulatedOrder('SELL')">SELL <span id="desktopSellPrice">4,288.33</span></button>
    <button class="trade-btn buy" type="button" onclick="placeSimulatedOrder('BUY')">BUY <span id="desktopBuyPrice">4,288.89</span></button>
-   <button class="pending-desktop" type="button" onclick="alert('Pending orders are simulated only and will be added next.')">Pending Order ▾</button>
  </div>
  <section class="tv-shell"><div class="tv-widget" id="tvChart"></div></section>
  <p class="notice">TradingView market data can be real-time, delayed, or end-of-day depending on the instrument and exchange. Aura Farming execution is simulated only.</p>
@@ -149,20 +148,12 @@ body{background:#fff}
  </div>
  <div class="order-tools">
    <label class="lot-control">Lot <select id="lotSize" aria-label="Lot size"></select></label>
-   <button class="pending-btn" id="pendingBtn" type="button">Pending Order ▾</button>
  </div>
  <div class="trade-status" id="tradeStatus">Live quotes loading…</div>
- <div class="pending-menu" id="pendingMenu">
-   <button type="button" data-pending="Buy Limit">Buy Limit</button>
-   <button type="button" data-pending="Sell Limit">Sell Limit</button>
-   <button type="button" data-pending="Buy Stop">Buy Stop</button>
-   <button type="button" data-pending="Sell Stop">Sell Stop</button>
- </div>
  <div class="chart-wrap"><div class="tv-mobile" id="tvMobile"></div></div>
  <nav class="bottom-nav">
    <a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a>
    <a href="terminal.html" class="active"><span class="bn-icon">▱</span><span class="bn-label">Charts</span></a>
-   <a href="position.html"><span class="bn-icon">♮</span><span class="bn-label">Position</span></a>
  </nav>
 </main>
 
