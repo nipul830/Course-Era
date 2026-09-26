@@ -369,6 +369,28 @@ async function endRiskDrag(ev){
     setTradeStatus(e.message||'Could not update risk level',false);
   }
 }
+function getChartRiskDraft(position,type){
+  if(!position||!position.id)return null;
+  const key=String(position.id)+'-'+type;
+  const existing=Number(position[type]);
+  if(Number.isFinite(existing)&&existing>0){
+    chartRiskDrafts.set(key,existing);
+    return existing;
+  }
+  const cached=Number(chartRiskDrafts.get(key));
+  if(Number.isFinite(cached)&&cached>0)return cached;
+  const market=Number(latestQuote?.price);
+  const entry=Number(position.entryPrice);
+  const base=Number.isFinite(market)&&market>0?market:(Number.isFinite(entry)&&entry>0?entry:0);
+  if(!base)return null;
+  const distance=Math.max(Math.abs(base)*0.0005,0.00001);
+  const side=String(position.side||'').toUpperCase();
+  const value=side==='BUY'
+    ? (type==='stopLoss'?base-distance:base+distance)
+    : (type==='stopLoss'?base+distance:base-distance);
+  chartRiskDrafts.set(key,value);
+  return value;
+}
 function updateChartRiskHandles(){
   if(!chartOrderActions||!candleSeries)return;
   const positions=terminalPositions.filter(x=>x&&x.symbol===currentSymbol);
