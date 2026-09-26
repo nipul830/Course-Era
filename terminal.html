@@ -27,24 +27,15 @@ body{background:#fff}
  .nav{display:none}
  .terminal-page{display:none}
  .mobile-terminal{display:flex;flex-direction:column;height:100dvh;min-height:100vh;padding:10px 0 84px;background:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;position:relative}
- .m-top{background:#0788ee;color:#fff;padding:14px 18px 0;border-radius:0 0 24px 24px;box-shadow:0 4px 18px #0002;position:relative;z-index:25}
- .account-compact{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;min-height:66px;padding-bottom:12px}
- .account-demo{background:#fff;color:#087fd9;border-radius:10px;padding:8px 11px;font-size:16px;font-weight:900;letter-spacing:.02em}
- .account-summary{display:flex;justify-content:center;align-items:baseline;gap:9px;min-width:0;white-space:nowrap}
- .account-summary .balance-main{font-size:22px;font-weight:900}
- .account-summary .pnl-main{font-size:18px;font-weight:900}
- .account-summary .pnl-main.positive{color:#c9ffd9}.account-summary .pnl-main.negative{color:#ffd1dc}
- .account-toggle{width:40px;height:40px;border:0;border-radius:11px;background:#0794fa;color:#fff;font-size:27px;line-height:1;display:grid;place-items:center;cursor:pointer}
- .account-toggle .arrow{display:block;transform:translateY(-2px);transition:transform .18s}
- .m-top.expanded .account-toggle .arrow{transform:rotate(180deg) translateY(2px)}
- .account-details{display:none;padding:2px 0 18px}
- .m-top.expanded .account-details{display:grid;grid-template-columns:repeat(3,1fr);column-gap:14px;row-gap:18px}
- .account-detail{min-width:0}
- .account-detail .detail-label{display:block;color:#9edaff;font-size:12px;font-weight:700;margin-bottom:4px}
- .account-detail .detail-value{display:block;color:#fff;font-size:19px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .account-detail .detail-value.positive{color:#d5ffdf}.account-detail .detail-value.negative{color:#ffd4df}
- .account-detail .detail-value.safe{font-size:18px}
- .account-detail .detail-value.live-up{color:#d5ffdf}.account-detail .detail-value.live-down{color:#ffd4df}
+ .m-top{display:flex;align-items:center;justify-content:space-between;padding:0 28px 10px}
+ .account-label{font-size:11px;color:#7b8793;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+ .account-values{display:flex;align-items:center;gap:12px}
+ .account-values span{font-size:13px;color:#182332;font-weight:800}
+ .account-values b{font-size:15px}
+ .balance{display:flex;align-items:center;gap:10px;background:#f4f5f7;border-radius:30px;padding:8px 14px 8px 8px;font-weight:800;color:#1c2633}
+ .balance-icon{width:38px;height:38px;border-radius:14px;background:#f6ad18;color:#fff;display:grid;place-items:center;font-size:19px}
+ .balance-loss{color:#e35b63;font-weight:700}.balance-chevron{font-size:22px;color:#455160;margin-left:2px}
+ .wallet{width:30px;height:30px;border:0;background:transparent;color:#667585;font-size:27px}
  .instrument{display:flex;align-items:center;justify-content:space-between;padding:8px 28px 10px;position:relative;z-index:20}
  .instrument-left{display:flex;align-items:center;gap:12px}
  .gold-icon{width:48px;height:48px;border-radius:15px;background:#f4c11e;display:grid;place-items:center;color:#fff;font-size:25px}
@@ -123,23 +114,12 @@ body{background:#fff}
 </main>
 
 <main class="mobile-terminal">
- <div class="m-top" id="accountPanel">
-   <div class="account-compact">
-     <div class="account-demo" id="terminalRoleBadge">TRADING</div>
-     <div class="account-summary"><span class="balance-main" id="terminalBalance">—</span><span class="pnl-main" id="terminalHeaderPnl">+$0.00</span></div>
-     <button class="account-toggle" id="accountToggle" type="button" aria-label="Expand account details" aria-expanded="false"><span class="arrow">⌄</span></button>
+ <div class="m-top">
+   <div>
+     <div class="account-label">Trading Account <span class="terminal-role-badge" id="terminalRoleBadge">—</span></div>
+     <div class="account-values"><span>Balance <b id="terminalBalance">—</b></span><span>Equity <b id="terminalEquity">—</b></span></div>
    </div>
-   <div class="account-details" id="accountDetails">
-     <div class="account-detail"><span class="detail-label">Balance</span><span class="detail-value" id="detailBalance">—</span></div>
-     <div class="account-detail"><span class="detail-label">Floating Profit/Loss</span><span class="detail-value" id="detailPnl">—</span></div>
-     <div class="account-detail"><span class="detail-label">Equity</span><span class="detail-value" id="detailEquity">—</span></div>
-     <div class="account-detail"><span class="detail-label">Margin</span><span class="detail-value" id="detailMargin">—</span></div>
-     <div class="account-detail"><span class="detail-label">Free Margin</span><span class="detail-value" id="detailFreeMargin">—</span></div>
-     <div class="account-detail"><span class="detail-label">Margin Level</span><span class="detail-value" id="detailMarginLevel">—</span></div>
-     <div class="account-detail"><span class="detail-label">Risk Assessment</span><span class="detail-value safe" id="detailRisk">Safe</span></div>
-     <div class="account-detail"><span class="detail-label">Status</span><span class="detail-value" id="detailStatus">LIVE</span></div>
-     <div class="account-detail"><span class="detail-label">Role</span><span class="detail-value" id="detailRole">TRADING</span></div>
-   </div>
+   <div style="display:flex;align-items:center;gap:8px"><span class="status">LIVE</span><button class="terminal-logout" id="terminalLogout" type="button">Logout</button></div>
  </div>
  <div class="quote-row top-quotes">
    <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
