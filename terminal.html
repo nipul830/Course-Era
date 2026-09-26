@@ -46,7 +46,7 @@ body{background:#fff}
  .instrument-sub span{color:#98a3ad}.instrument-tools{display:flex;gap:10px}.instrument-name{cursor:pointer}.instrument-name .chev{font-size:18px;margin-left:3px}.watchlist{position:absolute;left:28px;right:28px;top:76px;background:#fff;border:1px solid #dce2e7;border-radius:16px;box-shadow:0 12px 30px #0002;max-height:360px;overflow-y:auto;display:none;z-index:30}.watchlist.open{display:block}.watch-group{padding:10px 14px 6px;font-size:11px;font-weight:800;color:#8a96a2;text-transform:uppercase;border-bottom:1px solid #eef1f4}.watch-item{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:#fff;text-align:left;color:#17212b}.watch-item:last-child{border-bottom:0}.watch-item strong{font-size:15px}.watch-item span{font-size:11px;color:#7c8995}.watch-item:active{background:#f3f6f8}
 
  .chart-wrap{position:relative;flex:1;min-height:0;height:auto;margin:8px 0 0;overflow:hidden}
- .tv-mobile{height:100%;width:100%;background:#fff;display:flex;flex-direction:column}.aura-chart-toolbar{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-bottom:1px solid #edf0f3;background:#fff;overflow-x:auto}.aura-chart-toolbar button{border:0;background:transparent;color:#667085;font-size:11px;font-weight:800;padding:6px 9px;border-radius:7px}.aura-chart-toolbar button.active{background:#eef2f5;color:#17212b}.aura-chart-live{margin-left:auto;color:#00a875;font-size:9px;font-weight:900;white-space:nowrap}.aura-chart-canvas{position:relative;flex:1;min-height:0;width:100%}.chart-order-actions{position:absolute;inset:0;pointer-events:none;z-index:20}.chart-close-btn{position:absolute;right:8px;width:28px;height:28px;border:1px solid #dce2e7;border-radius:50%;background:#fff;color:#e6004d;font-size:18px;font-weight:900;line-height:26px;padding:0;box-shadow:0 3px 10px #0002;pointer-events:auto;touch-action:manipulation}.chart-close-btn:active{transform:scale(.92)}.chart-close-modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:100;padding:20px}.chart-close-modal.open{display:flex}.chart-close-card{width:min(340px,92vw);background:#fff;border-radius:18px;padding:20px;box-shadow:0 18px 50px #0004}.chart-close-card h3{margin:0 0 8px;color:#182332;font-size:19px}.chart-close-card p{margin:0 0 18px;color:#687786;font-size:13px;line-height:1.45}.chart-close-actions{display:flex;gap:9px}.chart-close-actions button{flex:1;height:44px;border-radius:11px;font-weight:800;font-size:13px}.chart-close-cancel{border:1px solid #dce2e7;background:#f7f8fa;color:#344252}.chart-close-confirm{border:0;background:#e6004d;color:#fff}
+ .tv-mobile{height:100%;width:100%;background:#fff;display:flex;flex-direction:column}.aura-chart-toolbar{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-bottom:1px solid #edf0f3;background:#fff;overflow-x:auto}.aura-chart-toolbar button{border:0;background:transparent;color:#667085;font-size:11px;font-weight:800;padding:6px 9px;border-radius:7px}.aura-chart-toolbar button.active{background:#eef2f5;color:#17212b}.aura-chart-live{margin-left:auto;color:#00a875;font-size:9px;font-weight:900;white-space:nowrap}.aura-chart-canvas{position:relative;flex:1;min-height:0;width:100%}.chart-order-actions{position:absolute;inset:0;pointer-events:none;z-index:20}.chart-close-btn{position:absolute;right:8px;width:28px;height:28px;border:1px solid #dce2e7;border-radius:50%;background:#fff;color:#e6004d;font-size:18px;font-weight:900;line-height:26px;padding:0;box-shadow:0 3px 10px #0002;pointer-events:auto;touch-action:manipulation}.chart-close-btn:active{transform:scale(.92)}.chart-risk-handle{position:absolute;right:8px;width:34px;height:28px;border:1px solid #dce2e7;border-radius:7px;background:#fff;color:#687786;font-size:10px;font-weight:900;line-height:26px;padding:0;box-shadow:0 2px 8px #0002;pointer-events:auto;touch-action:none}.chart-risk-handle[data-risk-type="stopLoss"]{color:#e35b63}.chart-risk-handle[data-risk-type="takeProfit"]{color:#00a875}.chart-risk-handle.dragging{box-shadow:0 0 0 3px #0b5cff22;transform:scale(1.05)}.chart-close-modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:100;padding:20px}.chart-close-modal.open{display:flex}.chart-close-card{width:min(340px,92vw);background:#fff;border-radius:18px;padding:20px;box-shadow:0 18px 50px #0004}.chart-close-card h3{margin:0 0 8px;color:#182332;font-size:19px}.chart-close-card p{margin:0 0 18px;color:#687786;font-size:13px;line-height:1.45}.chart-close-actions{display:flex;gap:9px}.chart-close-actions button{flex:1;height:44px;border-radius:11px;font-weight:800;font-size:13px}.chart-close-cancel{border:1px solid #dce2e7;background:#f7f8fa;color:#344252}.chart-close-confirm{border:0;background:#e6004d;color:#fff}
  .top-quotes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 78px;align-items:stretch;padding:0 12px;margin:0;gap:7px;width:100%}
  .top-quotes .quote{min-height:58px;height:58px;border-radius:13px;color:#fff;border:0;box-shadow:none}
  .top-quotes .quote.sell{background:#ec0050 !important}
@@ -188,6 +188,7 @@ let terminalPositions=[];
 let chartPriceLines=[];
 let chartOrderActions=null;
 let chartOrderActionRaf=0;
+let chartRiskDrag=null;
 let chartMountedSymbol='';
 
 function setTerminalLoginStatus(message,good){
@@ -308,6 +309,77 @@ async function confirmCloseTrade(position){
     }
   };
 }
+function updateChartRiskHandles(){
+  if(!chartOrderActions||!candleSeries)return;
+  const positions=terminalPositions.filter(x=>x&&x.symbol===currentSymbol);
+  for(const p of positions){
+    for(const type of ['stopLoss','takeProfit']){
+      const price=Number(p[type]);
+      if(!Number.isFinite(price)||price<=0)continue;
+      const y=candleSeries.priceToCoordinate(price);
+      if(y==null)continue;
+      const key=String(p.id)+'-'+type;
+      let handle=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(key)+'"]');
+      if(!handle){
+        handle=document.createElement('button');
+        handle.type='button';
+        handle.className='chart-risk-handle';
+        handle.dataset.riskKey=key;
+        handle.dataset.positionId=String(p.id);
+        handle.dataset.riskType=type;
+        handle.textContent=type==='stopLoss'?'SL':'TP';
+        handle.title='Drag '+(type==='stopLoss'?'Stop Loss':'Take Profit');
+        handle.addEventListener('pointerdown',startRiskDrag);
+        chartOrderActions.appendChild(handle);
+      }
+      handle.style.transform='translateY('+Math.round(y-14)+'px)';
+    }
+  }
+}
+function startRiskDrag(ev){
+  if(ev.pointerType==='mouse'&&ev.button!==0)return;
+  const el=ev.currentTarget;
+  const position=terminalPositions.find(x=>String(x.id)===String(el.dataset.positionId));
+  if(!position)return;
+  chartRiskDrag={el,position,type:el.dataset.riskType,old:Number(position[el.dataset.riskType]),pointerId:ev.pointerId};
+  el.setPointerCapture?.(ev.pointerId);
+  el.classList.add('dragging');
+  ev.preventDefault();
+}
+function moveRiskDrag(ev){
+  const d=chartRiskDrag;
+  if(!d||ev.pointerId!==d.pointerId||!candleSeries)return;
+  const rect=chartOrderActions.getBoundingClientRect();
+  const y=ev.clientY-rect.top;
+  const raw=candleSeries.coordinateToPrice(y);
+  if(raw==null||!Number.isFinite(Number(raw)))return;
+  const price=Number(raw);
+  const side=String(d.position.side||'').toUpperCase();
+  if((d.type==='stopLoss'&&((side==='BUY'&&price>=Number(latestQuote?.price||price))||(side==='SELL'&&price<=Number(latestQuote?.price||price)))) ||
+     (d.type==='takeProfit'&&((side==='BUY'&&price<=Number(latestQuote?.price||price))||(side==='SELL'&&price>=Number(latestQuote?.price||price)))))return;
+  d.position[d.type]=price;
+  d.el.style.transform='translateY('+Math.round(y-14)+'px)';
+  renderChartOrderLines();
+  d.el=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(String(d.position.id)+'-'+d.type)+'"]')||d.el;
+  d.el.classList.add('dragging');
+}
+async function endRiskDrag(ev){
+  const d=chartRiskDrag;
+  if(!d||ev.pointerId!==d.pointerId)return;
+  chartRiskDrag=null;
+  d.el.classList.remove('dragging');
+  const value=Number(d.position[d.type]);
+  if(!Number.isFinite(value)||value<=0){d.position[d.type]=d.old;renderChartOrderLines();return}
+  try{
+    setTradeStatus('Updating '+(d.type==='stopLoss'?'SL':'TP')+'…',true);
+    await terminalApi('/api/trading/positions/'+encodeURIComponent(d.position.id),{method:'PATCH',body:{stopLoss:d.position.stopLoss==null?null:Number(d.position.stopLoss),takeProfit:d.position.takeProfit==null?null:Number(d.position.takeProfit)}});
+    setTradeStatus((d.type==='stopLoss'?'SL':'TP')+' updated',true);
+  }catch(e){
+    d.position[d.type]=d.old;
+    renderChartOrderLines();
+    setTradeStatus(e.message||'Could not update risk level',false);
+  }
+}
 function updateChartOrderActions(){
   if(!chartOrderActions||!candleSeries)return;
   const activeIds=new Set();
@@ -333,6 +405,7 @@ function updateChartOrderActions(){
   chartOrderActions.querySelectorAll('.chart-close-btn').forEach(btn=>{
     if(!activeIds.has(String(btn.dataset.positionId)))btn.remove();
   });
+  updateChartRiskHandles();
 }
 function startChartOrderActionSync(){
   if(chartOrderActionRaf)cancelAnimationFrame(chartOrderActionRaf);
@@ -532,7 +605,7 @@ async function mountChart(id,symbol){
     });
     const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);
     const canvas=document.createElement('div');canvas.className='aura-chart-canvas';
-    chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);
+    chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);chartOrderActions.addEventListener('pointermove',moveRiskDrag);chartOrderActions.addEventListener('pointerup',endRiskDrag);chartOrderActions.addEventListener('pointercancel',endRiskDrag);
     el.appendChild(toolbar);el.appendChild(canvas);
     startChartOrderActionSync();
     lightweightChart=LightweightCharts.createChart(canvas,{width:canvas.clientWidth,height:canvas.clientHeight,layout:{background:{color:'#fff'},textColor:'#5f6e7d'},grid:{vertLines:{color:'#eef1f4'},horzLines:{color:'#eef1f4'}},rightPriceScale:{borderColor:'#dfe5ea'},timeScale:{borderColor:'#dfe5ea',timeVisible:true,secondsVisible:false}});
