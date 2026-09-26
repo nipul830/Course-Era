@@ -448,19 +448,22 @@ function renderChartOrderLines(){
   clearChartPriceLines();
   const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol):[];
   const visiblePositions=positions.filter(p=>expandedChartPositions.has(String(p.id)));
-  positions.forEach((p,idx)=>{
+  positions.forEach(p=>{
     const entry=Number(p.entryPrice);
     if(!Number.isFinite(entry)||entry<=0)return;
     const side=String(p.side||'').toUpperCase();
-    chartPriceLines.push(candleSeries.createPriceLine({
-      price:entry,color:side==='BUY'?'#00a875':'#ec0050',lineWidth:2,lineStyle:0,axisLabelVisible:false,
-      title:''
+    candleSeries && chartPriceLines.push(candleSeries.createPriceLine({
+      price:entry,color:side==='BUY'?'#00a875':'#ec0050',lineWidth:2,lineStyle:0,axisLabelVisible:false,title:''
     }));
   });
   visiblePositions.forEach((p,idx)=>{
-    const sl=Number(p.stopLoss),tp=Number(p.takeProfit);
-    if(Number.isFinite(sl)&&sl>0)chartPriceLines.push(candleSeries.createPriceLine({price:sl,color:'#e35b63',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'SL'+(visiblePositions.length>1?' #'+(idx+1):'')}));
-    if(Number.isFinite(tp)&&tp>0)chartPriceLines.push(candleSeries.createPriceLine({price:tp,color:'#00a875',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP'+(visiblePositions.length>1?' #'+(idx+1):'')}));
+    const sl=getChartRiskDraft(p,'stopLoss'),tp=getChartRiskDraft(p,'takeProfit');
+    if(Number.isFinite(sl)&&sl>0)chartPriceLines.push(candleSeries.createPriceLine({
+      price:sl,color:'#e35b63',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'SL'+(visiblePositions.length>1?' #'+(idx+1):'')
+    }));
+    if(Number.isFinite(tp)&&tp>0)chartPriceLines.push(candleSeries.createPriceLine({
+      price:tp,color:'#00a875',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP'+(visiblePositions.length>1?' #'+(idx+1):'')
+    }));
   });
   updateChartOrderActions();
 }
