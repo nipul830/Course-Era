@@ -449,9 +449,27 @@ if(terminalSessionToken){
   showTerminalLogin('');
 }
 
-setInterval(function(){
-  if(terminalSessionToken){refreshMarket();refreshTerminalAccount()}
-},3000);
+// Keep terminal data live without hammering Firestore.
+// Market quotes are refreshed frequently; account/position data is heavier.
+let lastTerminalAccountRefresh=0;
+let marketTimer=null;
+let accountTimer=null;
+
+function startTerminalPolling(){
+  if(marketTimer)clearInterval(marketTimer);
+  if(accountTimer)clearInterval(accountTimer);
+  marketTimer=setInterval(function(){
+    if(terminalSessionToken)refreshMarket();
+  },10000);
+  accountTimer=setInterval(function(){
+    if(terminalSessionToken){
+      lastTerminalAccountRefresh=Date.now();
+      refreshTerminalAccount();
+    }
+  },30000);
+}
+
+startTerminalPolling();
 </script>
 </body>
 </html>
