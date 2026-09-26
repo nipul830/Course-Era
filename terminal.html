@@ -598,7 +598,6 @@ function updateChartRiskHandles(){
     updateChartEntryInfo(p,id,y);
     const close=chartOrderActions.querySelector('.chart-close-btn[data-position-id="'+CSS.escape(id)+'"]');
     if(close)close.style.transform='translateY('+Math.round(y-14)+'px)';
-    if(!expandedChartPositions.has(id))continue;
     for(const type of ['stopLoss','takeProfit']){
       const storedRisk=Number(p[type]);
       const price=Number.isFinite(storedRisk)&&storedRisk>0?storedRisk:getChartRiskDraft(p,type);
