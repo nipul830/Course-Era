@@ -1764,16 +1764,17 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
     const symbols=[...new Set([...openSnap.docs.map(d=>d.data()?.symbol),...pendingSnap.docs.map(d=>d.data()?.symbol)].filter(Boolean))];
     let account=baseAccount;
     let positions=[];
+    let pendingOrders=[];
     try {
       const quotes=await getMarketQuotes(symbols);
       const refreshed=await refreshTradingAccount(req.user.uid,quotes);
       account={id:refreshed.accountId || data.accountId || "account",balance:refreshed.balance,equity:refreshed.equity,pnl:refreshed.pnl,openPnl:refreshed.openPnl,status:refreshed.status,dailyDrawdownPct:refreshed.dailyDrawdownPct||0,maxDrawdownPct:refreshed.maxDrawdownPct||0};
       positions=refreshed.positions.map(p=>({id:p.id,symbol:p.symbol,name:MARKET_SYMBOLS[p.symbol]?.name||p.symbol,side:p.side,lot:p.lot,entryPrice:p.entryPrice,currentPrice:p.currentPrice,pnl:p.pnl,stopLoss:p.stopLoss||null,takeProfit:p.takeProfit||null,openedAt:p.openedAt||null}));
-      const pending=await ref.collection("positions").where("status","==","pending").get();
-      positions.pending=pending.docs.map(d=>({id:d.id,symbol:d.data()?.symbol,name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol,orderType:d.data()?.orderType,lot:d.data()?.lot,entryPrice:d.data()?.entryPrice,stopLoss:d.data()?.stopLoss||null,takeProfit:d.data()?.takeProfit||null,status:"pending",createdAt:d.data()?.openedAt||null}));
+      pending=await ref.collection("positions").where("status","==","pending").get();
+      pendingOrders=pending.docs.map(d=>({id:d.id,symbol:d.data()?.symbol,name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol,orderType:d.data()?.orderType,lot:d.data()?.lot,entryPrice:d.data()?.entryPrice,stopLoss:d.data()?.stopLoss||null,takeProfit:d.data()?.takeProfit||null,status:"pending",createdAt:d.data()?.openedAt||null}));
     } catch (refreshError) {
       positions=openSnap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
-      positions.pending=pendingSnap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
+      pendingOrders=pendingSnap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
     }
     res.json({
       account:{
@@ -1781,7 +1782,8 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
         dailyDrawdownLimit:accountRules(data).dailyDrawdownPct,
         maxDrawdownLimit:accountRules(data).maxDrawdownPct
       },
-      positions
+      positions,
+      pendingOrders
     });
   } catch (e) {
     res.status(500).json({error:"Could not load trading positions",detail:e.message});
