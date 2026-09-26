@@ -1878,7 +1878,7 @@ app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
       } catch(e) {}
     }
     res.json({
-      account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0)},
+      account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),challenge:data.challenge||data.accountType||data.plan||""},
       open,pending,closed
     });
   } catch(e) {
