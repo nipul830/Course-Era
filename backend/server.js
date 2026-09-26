@@ -1864,7 +1864,7 @@ app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
   try {
     const {ref,data}=await loadTradingAccount(req.terminal.uid);
     const snap=await ref.collection("positions").get();
-    const all=snap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
+    const all=snap.docs.map(d=>{ const p={id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}; const toIso=v=>v?.toDate?.()?.toISOString?.() || (v?._seconds?new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString():null); p.openedAt=toIso(p.openedAt); p.closedAt=toIso(p.closedAt); p.createdAt=toIso(p.createdAt); p.updatedAt=toIso(p.updatedAt); return p; });
     const open=all.filter(p=>p.status==="open");
     const pending=all.filter(p=>p.status==="pending");
     const closed=all.filter(p=>p.status==="closed").sort((a,b)=>{
