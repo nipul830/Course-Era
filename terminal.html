@@ -345,9 +345,25 @@ async function loadChartCandles(symbol,interval){
   chartDataRequest=(async()=>{
     try{
       const data=await terminalApi('/api/market/candles?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(interval));
-      const candles=(data.candles||[]).map(x=>({time:Number(x.time),open:Number(x.open),high:Number(x.high),low:Number(x.low),close:Number(x.close)}));
+      const candles=(data.candles||[]).map(x=>({
+        time:Number(x.time),
+        open:Number(x.open),
+        high:Number(x.high),
+        low:Number(x.low),
+        close:Number(x.close)
+      }));
       candleSeries?.setData(candles);
       lightweightChart?.timeScale().fitContent();
+      const openBar=(data.candles||[]).find(x=>x.isOpen===true);
+      window.__auraOpenBar=openBar ? {
+        time:Number(openBar.time),
+        open:Number(openBar.open),
+        high:Number(openBar.high),
+        low:Number(openBar.low),
+        close:Number(openBar.close),
+        symbol:currentSymbol,
+        interval
+      } : null;
       if(data.quote?.price){
         latestQuote=data.quote;
         updateLiveCandle(Number(data.quote.price));
@@ -360,16 +376,18 @@ async function loadChartCandles(symbol,interval){
 function updateLiveCandle(price){
   if(!candleSeries||!Number.isFinite(Number(price)))return;
   const p=Number(price);
-  const seconds={ '1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400 }[activeTimeframe]||900;
-  const now=Math.floor(Date.now()/1000);
-  const bucket=Math.floor(now/seconds)*seconds;
-  const last=window.__auraLastCandle;
-  if(!last||last.time!==bucket||last.symbol!==currentSymbol||last.interval!==activeTimeframe){
-    window.__auraLastCandle={time:bucket,open:p,high:p,low:p,close:p,symbol:currentSymbol,interval:activeTimeframe};
-  }else{
-    last.close=p;last.high=Math.max(last.high,p);last.low=Math.min(last.low,p);
-  }
-  candleSeries.update({time:window.__auraLastCandle.time,open:window.__auraLastCandle.open,high:window.__auraLastCandle.high,low:window.__auraLastCandle.low,close:window.__auraLastCandle.close});
+  const live=window.__auraOpenBar;
+  if(!live||live.symbol!==currentSymbol||live.interval!==activeTimeframe)return;
+  live.close=p;
+  live.high=Math.max(Number(live.high),p);
+  live.low=Math.min(Number(live.low),p);
+  candleSeries.update({
+    time:Number(live.time),
+    open:Number(live.open),
+    high:Number(live.high),
+    low:Number(live.low),
+    close:Number(live.close)
+  });
 }
 
 async function mountChart(id,symbol){
@@ -383,7 +401,7 @@ async function mountChart(id,symbol){
     ['1m','5m','15m','30m','1h','4h'].forEach(tf=>{
       const btn=document.createElement('button');
       btn.textContent=tf;btn.className=tf===activeTimeframe?'active':'';
-      btn.onclick=()=>{activeTimeframe=tf;toolbar.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');window.__auraLastCandle=null;loadChartCandles(currentSymbol,tf);};
+      btn.onclick=()=>{activeTimeframe=tf;toolbar.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');window.__auraOpenBar=null;loadChartCandles(currentSymbol,tf);};
       toolbar.appendChild(btn);
     });
     const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);
