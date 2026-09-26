@@ -1345,6 +1345,14 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
 
     if (existing.exists) {
       const account = existing.data() || {};
+      const normalize = {};
+      if (!account.accountId) normalize.accountId = "AF-ACC-" + new Date().getFullYear() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+      if (!account.status) normalize.status = "active";
+      if (account.openPnl == null) normalize.openPnl = 0;
+      if (Object.keys(normalize).length) {
+        await accountRef.set({ ...normalize, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        Object.assign(account, normalize);
+      }
       return res.json({
         account: {
           id: account.accountId || "account",
