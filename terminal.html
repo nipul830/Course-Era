@@ -310,6 +310,56 @@ async function confirmCloseTrade(position){
     }
   };
 }
+function startRiskDrag(ev){
+  if(ev.pointerType==='mouse'&&ev.button!==0)return;
+  const el=ev.currentTarget;
+  const position=terminalPositions.find(x=>String(x.id)===String(el.dataset.positionId));
+  if(!position)return;
+  chartRiskDrag={el,position,type:el.dataset.riskType,old:Number(position[el.dataset.riskType]),pointerId:ev.pointerId};
+  try{el.setPointerCapture(ev.pointerId)}catch(e){}
+  el.classList.add('dragging');
+  ev.preventDefault();
+}
+function moveRiskDrag(ev){
+  const d=chartRiskDrag;
+  if(!d||ev.pointerId!==d.pointerId||!candleSeries||!chartOrderActions)return;
+  const rect=chartOrderActions.getBoundingClientRect();
+  const raw=candleSeries.coordinateToPrice(ev.clientY-rect.top);
+  if(raw==null||!Number.isFinite(Number(raw)))return;
+  const price=Number(raw);
+  const market=Number(latestQuote?.price||0);
+  const side=String(d.position.side||'').toUpperCase();
+  if((d.type==='stopLoss'&&market>0&&((side==='BUY'&&price>=market)||(side==='SELL'&&price<=market))) ||
+     (d.type==='takeProfit'&&market>0&&((side==='BUY'&&price<=market)||(side==='SELL'&&price>=market))))return;
+  d.position[d.type]=price;
+  renderChartOrderLines();
+  const h=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(String(d.position.id)+'-'+d.type)+'"]');
+  if(h){h.classList.add('dragging');try{h.setPointerCapture(ev.pointerId)}catch(e){}}
+  ev.preventDefault();
+}
+async function endRiskDrag(ev){
+  const d=chartRiskDrag;
+  if(!d||ev.pointerId!==d.pointerId)return;
+  chartRiskDrag=null;
+  d.el.classList.remove('dragging');
+  const value=Number(d.position[d.type]);
+  if(!Number.isFinite(value)||value<=0){
+    d.position[d.type]=d.old;renderChartOrderLines();return;
+  }
+  try{
+    setTradeStatus('Updating '+(d.type==='stopLoss'?'SL':'TP')+'…',true);
+    const payload={stopLoss:d.position.stopLoss==null?null:Number(d.position.stopLoss),takeProfit:d.position.takeProfit==null?null:Number(d.position.takeProfit)};
+    const result=await terminalApi('/api/trading/positions/'+encodeURIComponent(d.position.id),{method:'PATCH',body:payload});
+    d.position.stopLoss=result.stopLoss;
+    d.position.takeProfit=result.takeProfit;
+    renderChartOrderLines();
+    setTradeStatus((d.type==='stopLoss'?'SL':'TP')+' updated',true);
+  }catch(e){
+    d.position[d.type]=d.old;
+    renderChartOrderLines();
+    setTradeStatus(e.message||'Could not update risk level',false);
+  }
+}
 function updateChartRiskHandles(){
   if(!chartOrderActions||!candleSeries)return;
   const positions=terminalPositions.filter(x=>x&&x.symbol===currentSymbol);
