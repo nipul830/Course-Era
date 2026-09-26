@@ -1615,6 +1615,27 @@ function accountRules(account) {
 async function refreshTradingAccount(uid, quotes) {
   const { ref, data } = await loadTradingAccount(uid);
   const positionSnap = await ref.collection("positions").where("status","==","open").get();
+  const pendingSnap = await ref.collection("positions").where("status","==","pending").get();
+  for (const d of pendingSnap.docs) {
+    const p = { id:d.id, ...d.data() };
+    const q = Number(quotes[p.symbol]?.price || 0);
+    if (!q) continue;
+    const entry = Number(p.entryPrice || 0);
+    const type = String(p.orderType || "").toUpperCase();
+    const trigger =
+      (type==="BUY LIMIT" && q <= entry) ||
+      (type==="SELL LIMIT" && q >= entry) ||
+      (type==="BUY STOP" && q >= entry) ||
+      (type==="SELL STOP" && q <= entry);
+    if (!trigger) continue;
+    const side = type.startsWith("BUY") ? "BUY" : "SELL";
+    const fill = Number(side==="BUY" ? (quotes[p.symbol]?.ask || q) : (quotes[p.symbol]?.bid || q));
+    await ref.collection("positions").doc(p.id).update({
+      status:"open", side, entryPrice:fill,
+      triggeredAt:admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });
+  }
   const missingSymbols=[...new Set(positionSnap.docs.map(d=>d.data()?.symbol).filter(s=>s && !quotes?.[s]))];
   if(missingSymbols.length){
     const extra=await getMarketQuotes(missingSymbols);
@@ -1739,7 +1760,8 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
       maxDrawdownPct:Number(data.maxDrawdownPct || 0)
     };
     const openSnap=await ref.collection("positions").where("status","==","open").get();
-    const symbols=[...new Set(openSnap.docs.map(d=>d.data()?.symbol).filter(Boolean))];
+    const pendingSnap=await ref.collection("positions").where("status","==","pending").get();
+    const symbols=[...new Set([...openSnap.docs.map(d=>d.data()?.symbol),...pendingSnap.docs.map(d=>d.data()?.symbol)].filter(Boolean))];
     let account=baseAccount;
     let positions=[];
     try {
@@ -1747,8 +1769,11 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
       const refreshed=await refreshTradingAccount(req.user.uid,quotes);
       account={id:refreshed.accountId || data.accountId || "account",balance:refreshed.balance,equity:refreshed.equity,pnl:refreshed.pnl,openPnl:refreshed.openPnl,status:refreshed.status,dailyDrawdownPct:refreshed.dailyDrawdownPct||0,maxDrawdownPct:refreshed.maxDrawdownPct||0};
       positions=refreshed.positions.map(p=>({id:p.id,symbol:p.symbol,name:MARKET_SYMBOLS[p.symbol]?.name||p.symbol,side:p.side,lot:p.lot,entryPrice:p.entryPrice,currentPrice:p.currentPrice,pnl:p.pnl,stopLoss:p.stopLoss||null,takeProfit:p.takeProfit||null,openedAt:p.openedAt||null}));
+      const pending=await ref.collection("positions").where("status","==","pending").get();
+      positions.pending=pending.docs.map(d=>({id:d.id,symbol:d.data()?.symbol,name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol,orderType:d.data()?.orderType,lot:d.data()?.lot,entryPrice:d.data()?.entryPrice,stopLoss:d.data()?.stopLoss||null,takeProfit:d.data()?.takeProfit||null,status:"pending",createdAt:d.data()?.openedAt||null}));
     } catch (refreshError) {
       positions=openSnap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
+      positions.pending=pendingSnap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
     }
     res.json({
       account:{
@@ -1775,6 +1800,34 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     if (!Number.isFinite(lot) || lot<=0 || lot>10000) return res.status(400).json({error:"Invalid lot size"});
     if (stopLoss!==null && (!Number.isFinite(stopLoss)||stopLoss<=0)) return res.status(400).json({error:"Invalid stop loss"});
     if (takeProfit!==null && (!Number.isFinite(takeProfit)||takeProfit<=0)) return res.status(400).json({error:"Invalid take profit"});
+    const orderType=String(req.body.orderType||"").toUpperCase();
+    const requestedEntry=req.body.entryPrice==null||req.body.entryPrice===""?null:Number(req.body.entryPrice);
+    if (["BUY LIMIT","SELL LIMIT","BUY STOP","SELL STOP"].includes(orderType)) {
+      if (requestedEntry===null || !Number.isFinite(requestedEntry) || requestedEntry<=0) return res.status(400).json({error:"Invalid pending entry price"});
+      const pendingSide=orderType.startsWith("BUY")?"BUY":"SELL";
+      const quotes=await getMarketQuotes([symbol]);
+      const quote=quotes[symbol];
+      if (!quote?.price) return res.status(502).json({error:"No live market price available"});
+      const market=Number(quote.price);
+      if ((orderType==="BUY LIMIT"&&requestedEntry>=market) ||
+          (orderType==="SELL LIMIT"&&requestedEntry<=market) ||
+          (orderType==="BUY STOP"&&requestedEntry<=market) ||
+          (orderType==="SELL STOP"&&requestedEntry>=market)) {
+        return res.status(400).json({error:"Pending entry price is on the wrong side of the market"});
+      }
+      const ref=req.terminal.accountRef || (await loadTradingAccount(req.terminal.uid)).ref;
+      const data=req.terminal.account || (await loadTradingAccount(req.terminal.uid)).data;
+      if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+      if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
+      const positionRef=ref.collection("positions").doc();
+      const now=admin.firestore.FieldValue.serverTimestamp();
+      await positionRef.set({
+        symbol, orderType, side:pendingSide, lot:Number(lot.toFixed(4)),
+        entryPrice:Number(requestedEntry), stopLoss, takeProfit,
+        status:"pending", openedAt:now, updatedAt:now
+      });
+      return res.status(201).json({message:"Pending order placed",order:{id:positionRef.id,symbol,orderType,lot:Number(lot.toFixed(4)),entryPrice:Number(requestedEntry),stopLoss,takeProfit,status:"pending"}});
+    }
     const quotes=await getMarketQuotes([symbol]);
     const quote=quotes[symbol];
     if (!quote?.price) return res.status(502).json({error:"No live market price available"});
