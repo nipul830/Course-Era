@@ -1688,7 +1688,16 @@ async function fetchMarketCandles(symbol, interval="15m"){
   const response=await fetch("https://biquote.io/api/"+encodeURIComponent(code)+"/ohlc?interval="+encodeURIComponent(safe==="60m"?"1h":safe)+"&limit=500",{headers:{"Accept":"application/json","User-Agent":"AuraFarming/1.0"}});
   if(!response.ok) throw new Error("Candle feed returned "+response.status);
   const data=await response.json();
-  const candles=(data.bars||[]).map(x=>({time:Math.floor(Date.parse(x.openTime)/1000),open:Number(x.open),high:Number(x.high),low:Number(x.low),close:Number(x.close),volume:Number(x.volume||x.tickVolume||0)})).filter(x=>Number.isFinite(x.time)&&[x.open,x.high,x.low,x.close].every(Number.isFinite)).sort((x,y)=>x.time-y.time);
+  const candles=(data.bars||[]).map(x=>({
+    time:Math.floor(Date.parse(x.openTime)/1000),
+    open:Number(x.open),
+    high:Number(x.high),
+    low:Number(x.low),
+    close:Number(x.close),
+    volume:Number(x.volume||x.tickVolume||0),
+    isOpen:x.isOpen===true
+  })).filter(x=>Number.isFinite(x.time)&&[x.open,x.high,x.low,x.close].every(Number.isFinite))
+    .sort((x,y)=>x.time-y.time);
   if(!candles.length) throw new Error("No candle data available");
   return candles;
 }
