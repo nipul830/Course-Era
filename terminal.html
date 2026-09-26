@@ -550,6 +550,7 @@ async function refreshMarket(retry=true){
     if(!q?.price)throw new Error('Market price unavailable');
     latestQuote=q;
     updateLiveCandle(Number(q.price));
+    await checkAutoCloseForQuote();
     const sell=Number(q.bid||q.price),buy=Number(q.ask||q.price);
     const spread=Math.max(0,buy-sell); document.querySelectorAll('.spread').forEach(el=>el.textContent=spread.toFixed(2));
     const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
@@ -650,6 +651,35 @@ async function loadChartCandles(symbol,interval){
   return chartDataRequest;
 }
 
+async function checkAutoCloseForQuote(){
+  if(!terminalSessionToken||!Array.isArray(terminalPositions)||!latestQuote)return;
+  const price=Number(latestQuote.price);
+  if(!Number.isFinite(price)||price<=0)return;
+  for(const p of terminalPositions){
+    if(!p||p.symbol!==currentSymbol||!p.id)continue;
+    const side=String(p.side||'').toUpperCase();
+    const sl=Number(p.stopLoss),tp=Number(p.takeProfit);
+    const hitSL=Number.isFinite(sl)&&sl>0&&((side==='BUY'&&price<=sl)||(side==='SELL'&&price>=sl));
+    const hitTP=Number.isFinite(tp)&&tp>0&&((side==='BUY'&&price>=tp)||(side==='SELL'&&price<=tp));
+    if(!hitSL&&!hitTP)continue;
+    if(window.__auraClosingPositions?.has(String(p.id)))continue;
+    if(!window.__auraClosingPositions)window.__auraClosingPositions=new Set();
+    window.__auraClosingPositions.add(String(p.id));
+    try{
+      setTradeStatus((hitSL?'Stop Loss':'Take Profit')+' hit — closing trade…',true);
+      await terminalApi('/api/trading/positions/'+encodeURIComponent(p.id)+'/close',{method:'POST'});
+      expandedChartPositions.delete(String(p.id));
+      chartRiskDrafts.delete(String(p.id)+'-stopLoss');
+      chartRiskDrafts.delete(String(p.id)+'-takeProfit');
+      await refreshTerminalAccount();
+      setTradeStatus((hitSL?'Stop Loss':'Take Profit')+' hit — trade closed',true);
+    }catch(e){
+      setTradeStatus(e.message||'Auto close failed',false);
+    }finally{
+      window.__auraClosingPositions.delete(String(p.id));
+    }
+  }
+}
 function updateLiveCandle(price){
   if(!candleSeries||!Number.isFinite(Number(price)))return;
   const p=Number(price);
