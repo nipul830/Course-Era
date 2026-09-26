@@ -867,9 +867,9 @@ function updateChartEntryInfo(position,id,y){
     info.dataset.entryInfoId=id;
     chartOrderActions.appendChild(info);
   }
-  const current=Number(position.currentPrice);
   const market=Number(latestQuote?.price);
-  const q=current>0?current:(market>0?market:Number(position.entryPrice));
+  const current=Number(position.currentPrice);
+  const q=market>0?market:(current>0?current:Number(position.entryPrice));
   const pnl=chartPnlAt(position,q);
   info.innerHTML='<span class="lot">'+Number(position.lot||0).toFixed(2)+' lot</span><span class="pnl '+(pnl>=0?'positive':'negative')+'">'+formatChartMoney(pnl)+'</span>';
   info.style.transform='translateY('+Math.round(y-15)+'px)';
@@ -888,6 +888,10 @@ function updateChartRiskValue(position,id,type,price,ry){
   valueEl.classList.toggle('positive',pnl>=0);
   valueEl.classList.toggle('negative',pnl<0);
   valueEl.textContent=(type==='stopLoss'?'SL ':'TP ')+formatChartMoney(pnl);
+  const line=chartRiskPriceLines.get(key);
+  if(line&&typeof line.applyOptions==='function'){
+    line.applyOptions({title:(type==='stopLoss'?'SL ':'TP ')+formatChartMoney(pnl)});
+  }
   valueEl.style.transform='translateY('+Math.round(ry-10)+'px)';
 }
 function getChartRiskDraft(position,type){
