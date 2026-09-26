@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Positions — Aura Farming</title><link rel="stylesheet" href="aura.css">
 <style>
-body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-width:760px;margin:auto;font-family:Arial,Helvetica,sans-serif}.positions-page h1{margin:0 0 6px;font-size:28px}.account-top{border:1px solid #e0e5e9;border-radius:16px;padding:14px 16px;margin:0 0 18px;background:#fff;box-shadow:0 5px 18px #0000000d;display:flex;justify-content:space-between;gap:12px}.account-top small{display:block;color:#7b8793;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.account-top strong{display:block;margin-top:5px;font-size:19px;color:#182332}.account-top .account-side{text-align:right}.sub{color:#7b8793;font-size:13px;margin-bottom:18px}.position-card{border:1px solid #e0e5e9;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:0 5px 18px #0000000d}.pos-head{display:flex;justify-content:space-between;align-items:center}.side-buy{color:#00a875;font-weight:800}.side-sell{color:#e6004d;font-weight:800}.pos-symbol{font-weight:800}.pos-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;color:#687786;font-size:12px}.pos-meta b{display:block;color:#182332;font-size:14px;margin-top:3px}.close-position{margin-top:14px;width:100%;height:42px;border:0;border-radius:10px;background:#182839;color:#fff;font-weight:800;font-size:13px}.close-position:disabled{opacity:.55}.empty{text-align:center;padding:70px 20px;color:#7b8793}.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}.bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
+body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-width:760px;margin:auto;font-family:Arial,Helvetica,sans-serif}.positions-page h1{margin:0 0 6px;font-size:28px}.account-top{border:1px solid #e0e5e9;border-radius:16px;padding:14px 16px;margin:0 0 18px;background:#fff;box-shadow:0 5px 18px #0000000d;display:flex;justify-content:space-between;gap:12px}.account-top small{display:block;color:#7b8793;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.account-top strong{display:block;margin-top:5px;font-size:19px;color:#182332}.account-top .account-side{text-align:right}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 16px;background:#f3f5f7;padding:4px;border-radius:12px}.tab{border:0;background:transparent;border-radius:9px;padding:11px 8px;font-weight:800;color:#687786;cursor:pointer}.tab.active{background:#fff;color:#182332;box-shadow:0 2px 8px #00000010}.sub{color:#7b8793;font-size:13px;margin-bottom:18px}.position-card{border:1px solid #e0e5e9;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:0 5px 18px #0000000d}.pos-head{display:flex;justify-content:space-between;align-items:center}.side-buy{color:#00a875;font-weight:800}.side-sell{color:#e6004d;font-weight:800}.pos-symbol{font-weight:800}.pos-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;color:#687786;font-size:12px}.pos-meta b{display:block;color:#182332;font-size:14px;margin-top:3px}.close-position{margin-top:14px;width:100%;height:42px;border:0;border-radius:10px;background:#182839;color:#fff;font-weight:800;font-size:13px}.close-position:disabled{opacity:.55}.empty{text-align:center;padding:70px 20px;color:#7b8793}.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}.bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
 @media(min-width:761px){.bottom-nav{display:none}}
 </style></head>
 <body>
 <main class="positions-page"><h1>Positions</h1>
 <div class="account-top"><div><small>Balance</small><strong id="positionBalance">—</strong></div><div class="account-side"><small>Equity</small><strong id="positionEquity">—</strong></div></div>
-<div class="sub">Simulated trades placed from your terminal</div><div id="positions"></div></main>
+<div class="tabs"><button class="tab active" data-tab="open">Open</button><button class="tab" data-tab="pending">Pending</button><button class="tab" data-tab="closed">Closed</button></div><div class="sub" id="tabSub">Open trades</div><div id="positions"></div></main>
 <nav class="bottom-nav"><a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a><a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Charts</span></a><a href="position.html" class="active"><span class="bn-icon">♮</span><span class="bn-label">Position</span></a></nav>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
@@ -27,7 +27,8 @@ function money(v){return '$'+Number(v||0).toLocaleString('en-US',{minimumFractio
 function price(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5})}
 let livePositions=[];
 let liveBalance=0;
-let liveStartingBalance=0;
+let currentTab='open';
+let tabData={open:[],pending:[],closed:[]};
 let liveQuoteRequest=false;
 
 function contractSize(symbol){
@@ -36,104 +37,78 @@ function contractSize(symbol){
   return 1;
 }
 function calcLivePnl(p,price){
-  const entry=Number(p.entryPrice||0), lot=Number(p.lot||0), q=Number(price||0);
+  const entry=Number(p.entryPrice||0),lot=Number(p.lot||0),q=Number(price||0);
   if(!entry||!q||!lot)return 0;
   let v=(p.side==='BUY'?q-entry:entry-q)*lot*contractSize(p.symbol);
   if(p.symbol==='FX:USDJPY')v/=q;
   return Number.isFinite(v)?v:0;
 }
 function paintLivePositions(){
-  const el=document.getElementById('positions');
-  if(!el||!livePositions.length)return;
+  if(currentTab!=='open'||!livePositions.length)return;
   let openPnl=0;
-  el.querySelectorAll('.position-card').forEach((card,i)=>{
-    const p=livePositions[i]; if(!p)return;
-    const current=Number(p.currentPrice||p.entryPrice||0);
-    const pnl=calcLivePnl(p,current);
+  document.querySelectorAll('.position-card').forEach((card,i)=>{
+    const p=livePositions[i];if(!p)return;
+    const current=Number(p.currentPrice||p.entryPrice||0),pnl=calcLivePnl(p,current);
     openPnl+=pnl;
     const values=card.querySelectorAll('.pos-meta b');
     if(values[2])values[2].textContent=price(current);
-    if(values[3]){
-      values[3].textContent=(pnl>=0?'+':'')+money(pnl);
-      values[3].style.color=pnl>=0?'#00a875':'#e6004d';
-    }
+    if(values[3]){values[3].textContent=(pnl>=0?'+':'')+money(pnl);values[3].style.color=pnl>=0?'#00a875':'#e6004d';}
   });
   document.getElementById('positionEquity').textContent=money(liveBalance+openPnl);
 }
 async function refreshLivePnl(){
-  if(liveQuoteRequest||!livePositions.length)return;
+  if(liveQuoteRequest||!livePositions.length||currentTab!=='open')return;
   liveQuoteRequest=true;
   try{
     const symbols=[...new Set(livePositions.map(p=>p.symbol).filter(Boolean))].join(',');
     const data=await positionApi('/api/market/quotes?symbols='+encodeURIComponent(symbols));
-    for(const p of livePositions){
-      const q=Number(data.quotes?.[p.symbol]?.price||0);
-      if(q)p.currentPrice=q;
-    }
+    for(const p of livePositions){const q=Number(data.quotes?.[p.symbol]?.price||0);if(q)p.currentPrice=q;}
     paintLivePositions();
   }catch(e){}finally{liveQuoteRequest=false}
 }
-function renderPositionData(data){
-  liveBalance=Number(data.account?.balance||0);
-  liveStartingBalance=Number(data.account?.startingBalance||liveBalance);
-  livePositions=(data.positions||[]).map(p=>({...p,currentPrice:Number(p.currentPrice||p.entryPrice||0)}));
-  document.getElementById('positionBalance').textContent=money(liveBalance);
-  document.getElementById('positionEquity').textContent=money(Number(data.account?.equity||liveBalance));
+function renderCards(items){
   const el=document.getElementById('positions');
-  if(!livePositions.length){el.innerHTML='<div class="empty">No open positions yet.<br>Place a BUY or SELL trade from Charts.</div>';return}
-  el.innerHTML=livePositions.map(p=>{
-    const pnl=calcLivePnl(p,p.currentPrice);
-    return '<article class="position-card"><div class="pos-head"><span class="'+(p.side==='BUY'?'side-buy':'side-sell')+'">'+p.side+'</span><span class="pos-symbol">'+(p.name||p.symbol)+'</span></div><div class="pos-meta"><div>Lot<b>'+p.lot+'</b></div><div>Entry<b>'+price(p.entryPrice)+'</b></div><div>Current<b>'+price(p.currentPrice)+'</b></div><div>P&L<b style="color:'+(pnl>=0?'#00a875':'#e6004d')+'">'+(pnl>=0?'+':'')+money(pnl)+'</b></div><div>SL<b>'+(p.stopLoss?price(p.stopLoss):'—')+'</b></div><div>TP<b>'+(p.takeProfit?price(p.takeProfit):'—')+'</b></div></div><button class="close-position" data-id="'+p.id+'">Close Trade</button></article>';
+  if(!items.length){
+    const msg=currentTab==='open'?'No open trades yet.':currentTab==='pending'?'No pending orders.':'No closed trades yet.';
+    el.innerHTML='<div class="empty">'+msg+'</div>';return;
+  }
+  el.innerHTML=items.map(p=>{
+    const isClosed=currentTab==='closed';
+    const pnl=isClosed?Number(p.realizedPnl||p.pnl||0):calcLivePnl(p,p.currentPrice||p.entryPrice);
+    return '<article class="position-card"><div class="pos-head"><span class="'+(p.side==='BUY'?'side-buy':'side-sell')+'">'+p.side+'</span><span class="pos-symbol">'+(p.name||p.symbol)+'</span></div><div class="pos-meta"><div>Lot<b>'+p.lot+'</b></div><div>Entry<b>'+price(p.entryPrice)+'</b></div><div>'+(isClosed?'Close':'Current')+'<b>'+price(isClosed?p.closePrice:p.currentPrice)+'</b></div><div>P&L<b style="color:'+(pnl>=0?'#00a875':'#e6004d')+'">'+(pnl>=0?'+':'')+money(pnl)+'</b></div><div>SL<b>'+(p.stopLoss?price(p.stopLoss):'—')+'</b></div><div>TP<b>'+(p.takeProfit?price(p.takeProfit):'—')+'</b></div></div>'+(currentTab==='open'?'<button class="close-position" data-id="'+p.id+'">Close Trade</button>':'')+'</article>';
   }).join('');
-  el.querySelectorAll('.close-position').forEach(btn=>btn.addEventListener('click',async()=>{
+  if(currentTab==='open')document.querySelectorAll('.close-position').forEach(btn=>btn.addEventListener('click',async()=>{
     btn.disabled=true;btn.textContent='Closing…';
-    try{const data=await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});btn.textContent='Closed';renderPositionData({account:data.account||{},positions:[]});setTimeout(loadPositions,250)}
+    try{await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});await loadPositions();}
     catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}
   }));
-  paintLivePositions();
 }
-
-function renderCachedTrade(){
-  try{
-    const raw=sessionStorage.getItem('auraLastTrade');if(!raw)return;
-    const data=JSON.parse(raw);
-    if(!data||Date.now()-Number(data.at||0)>30000)return;
-    const p=data.position;
-    renderPositionData({account:data.account||{},positions:[{
-      ...p,name:p.symbol==='OANDA:XAUUSD'?'GOLD':p.symbol,currentPrice:p.entryPrice,pnl:0
-    }]});
-    sessionStorage.removeItem('auraLastTrade');
-  }catch(e){}
+function renderCurrentTab(){
+  const labels={open:'Open trades',pending:'Pending orders',closed:'Closed trades'};
+  document.getElementById('tabSub').textContent=labels[currentTab];
+  renderCards(tabData[currentTab]||[]);
+  if(currentTab==='open'){livePositions=tabData.open;paintLivePositions();}
 }
-renderCachedTrade();
+document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{currentTab=btn.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===btn));renderCurrentTab();}));
 
+function renderPositionData(data){
+  liveBalance=Number(data.account?.balance||0);
+  document.getElementById('positionBalance').textContent=money(liveBalance);
+  document.getElementById('positionEquity').textContent=money(Number(data.account?.equity||liveBalance));
+  tabData.open=(data.open||data.positions||[]).map(p=>({...p,currentPrice:Number(p.currentPrice||p.entryPrice||0)}));
+  tabData.pending=data.pending||[];
+  tabData.closed=data.closed||[];
+  livePositions=tabData.open;
+  renderCurrentTab();
+}
 async function loadPositions(){
-  const data=await positionApi('/api/trading/positions');
+  const data=await positionApi('/api/trading/history');
   renderPositionData(data);
 }
 if(!terminalSessionToken){location.replace('terminal.html');}
-else{
-  loadPositions().catch(e=>{
-    if(/revoked|expired|not active|Terminal login required/i.test(e.message||'')){
-      sessionStorage.removeItem('auraTerminalSession');
-      sessionStorage.removeItem('auraTerminalRole');
-      location.replace('terminal.html');
-      return;
-    }
-    document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>';
-  });
-}
-setInterval(()=>{
-  if(terminalSessionToken)loadPositions().catch(e=>{
-    if(/revoked|expired|not active/i.test(e.message||'')){
-      sessionStorage.removeItem('auraTerminalSession');
-      sessionStorage.removeItem('auraTerminalRole');
-      location.replace('terminal.html');
-    }
-  });
-},5000);
-
-// Fast UI-side P&L refresh. The quote endpoint is cached server-side to keep
-// the simulated terminal responsive without hammering the market provider.
-setInterval(refreshLivePnl,250);
-</script></body></html>
+else{loadPositions().catch(e=>{
+  if(/revoked|expired|not active|Terminal login required/i.test(e.message||'')){sessionStorage.removeItem('auraTerminalSession');sessionStorage.removeItem('auraTerminalRole');location.replace('terminal.html');return}
+  document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>';
+});}
+setInterval(()=>{if(terminalSessionToken)loadPositions().catch(()=>{});},5000);
+setInterval(refreshLivePnl,250);</script></body></html>
