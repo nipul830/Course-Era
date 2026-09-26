@@ -17,7 +17,7 @@ body{background:#fff;color:#182332}
 .notice{margin:12px 2px 0;color:#7a8795;font-size:11px}
 .desktop-head{display:none}
 .desktop-head h1{margin:0;color:#d6b35a;font-size:32px}.desktop-head p{margin:4px 0 0;color:#8c7b53}
-.status{padding:8px 12px;border:1px solid #d6b35a;border-radius:999px;color:#9b671f;font-size:11px;font-weight:700}
+.status{padding:8px 12px;border:1px solid #00a875;border-radius:999px;color:#00a875;font-size:11px;font-weight:800}
 .desktop-orders{display:none}
 .desktop-orders .trade-btn{border:0;border-radius:12px;padding:14px 18px;font-size:17px;font-weight:800;cursor:pointer;color:#fff;box-shadow:0 5px 14px #0001}
 .desktop-orders .trade-btn.sell{background:#ec0050}.desktop-orders .trade-btn.buy{background:#00bd84}
@@ -106,7 +106,7 @@ body{background:#fff}
 </header>
 
 <main class="terminal-page">
- <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">SIMULATED</span></div>
+ <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">LIVE</span></div>
  <div class="desktop-orders" aria-label="Simulated trade controls">
    <button class="trade-btn sell" type="button" onclick="placeSimulatedOrder('SELL')">SELL <span id="desktopSellPrice">4,288.33</span></button>
    <button class="trade-btn buy" type="button" onclick="placeSimulatedOrder('BUY')">BUY <span id="desktopBuyPrice">4,288.89</span></button>
@@ -122,7 +122,7 @@ body{background:#fff}
      <div class="account-label">Trading Account <span class="terminal-role-badge" id="terminalRoleBadge">—</span></div>
      <div class="account-values"><span>Balance <b id="terminalBalance">—</b></span><span>Equity <b id="terminalEquity">—</b></span></div>
    </div>
-   <div style="display:flex;align-items:center;gap:8px"><span class="status">SIMULATED</span><button class="terminal-logout" id="terminalLogout" type="button">Logout</button></div>
+   <div style="display:flex;align-items:center;gap:8px"><span class="status">LIVE</span><button class="terminal-logout" id="terminalLogout" type="button">Logout</button></div>
  </div>
  <div class="quote-row top-quotes">
    <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
@@ -637,7 +637,7 @@ async function refreshMarket(retry=true){
     const sl=document.getElementById('stopLoss'),tp=document.getElementById('takeProfit');
     if(sl)sl.placeholder='SL < '+fmt(q.price);
     if(tp)tp.placeholder='TP > '+fmt(q.price);
-    setTradeStatus('Live market • '+fmt(q.price)+(q.stale?' • cached':'')+' • spread '+fmt(spread)+' • SIMULATED',true);
+    setTradeStatus('Live market • '+fmt(q.price)+(q.stale?' • cached':'')+' • spread '+fmt(spread),true);
   }catch(e){
     if(retry){
       setTimeout(()=>refreshMarket(false),500);
