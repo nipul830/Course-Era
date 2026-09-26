@@ -87,7 +87,7 @@ body{background:#fff}
       <button id="terminalTraderMode" class="active" type="button">Trading Password</button>
       <button id="terminalInvestorMode" type="button">Investor Password</button>
     </div>
-    <button class="terminal-login-btn" id="terminalLoginBtn" type="button">Login to Terminal</button>
+    <button class="terminal-login-btn" id="terminalLoginBtn" type="button" onclick="loginTerminal()">Login to Terminal</button>
     <div class="terminal-login-status" id="terminalLoginStatus"></div>
     <p class="terminal-security-note">Investor mode is read-only. If the account is breached, both terminal passwords are revoked.</p>
   </div>
@@ -238,16 +238,21 @@ async function terminalApi(path,opt={}){
   return data;
 }
 async function loginTerminal(){
+  const btn=document.getElementById('terminalLoginBtn');
+  setTerminalLoginStatus('Connecting to terminal…',true);
   const loginId=document.getElementById('terminalLoginId')?.value.trim().toUpperCase()||'';
   const password=document.getElementById('terminalLoginPassword')?.value||'';
-  const btn=document.getElementById('terminalLoginBtn');
   if(!loginId||!password){setTerminalLoginStatus('Enter Login ID and password');return}
   if(btn){btn.disabled=true;btn.textContent='Signing in…'}
   try{
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),15000);
     const r=await fetch('https://course-era.onrender.com/api/terminal/login',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({loginId,password,mode:terminalRole})
+      body:JSON.stringify({loginId,password,mode:terminalRole}),
+      signal:controller.signal
     });
+    clearTimeout(timeout);
     let d={};try{d=await r.json()}catch(e){}
     if(!r.ok)throw new Error(d.detail||d.error||('Terminal login failed (HTTP '+r.status+')'));
     terminalSessionToken=d.token||'';
@@ -258,7 +263,9 @@ async function loginTerminal(){
     setTerminalLoginStatus('',true);
     // Open the terminal immediately after successful login — no refresh required.
     showTerminal(terminalRole);
-  }catch(e){setTerminalLoginStatus(e.message||'Terminal login failed',false)}
+  }catch(e){
+    setTerminalLoginStatus(e.name==='AbortError'?'Server timeout — please try again':(e.message||'Terminal login failed'),false);
+  }
   finally{if(btn){btn.disabled=false;btn.textContent='Login to Terminal'}}
 }
 function syncSymbolButton(){
