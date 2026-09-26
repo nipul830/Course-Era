@@ -38,9 +38,10 @@ function price(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDig
 function phaseLabel(value){
   const v=String(value||'').trim().toLowerCase();
   if(v.includes('funded'))return 'FUNDED';
-  if(v.includes('phase 2')||v.includes('phase2')||v==='2')return 'PHASE 2';
-  if(v.includes('phase 1')||v.includes('phase1')||v==='1')return 'PHASE 1';
-  return 'TRADING';
+  if(v.includes('phase 2')||v.includes('phase2'))return 'PHASE 2';
+  if(v.includes('phase 1')||v.includes('phase1'))return 'PHASE 1';
+  if(v.includes('2 step')||v.includes('2-step'))return 'PHASE 1';
+  return 'PHASE 1';
 }
 let livePositions=[];
 let liveBalance=0;
