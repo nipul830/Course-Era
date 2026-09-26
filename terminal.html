@@ -762,7 +762,7 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
     if(data.account) { sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account)); renderTerminalAccount(data.account); }
-    setTimeout(()=>location.replace('position.html'),120);
+    
   }catch(e){
     setTradeStatus(e.message||'Trade failed',false);
   }finally{
