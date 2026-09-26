@@ -6,7 +6,7 @@ body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-w
 </style></head>
 <body>
 <main class="positions-page"><h1>Positions</h1>
-<div class="account-top"><div><small>Balance</small><strong id="positionBalance">—</strong></div><div class="account-side"><small>Equity</small><strong id="positionEquity">—</strong></div></div>
+<div class="account-top"><div><small>Balance</small><strong id="positionBalance">—</strong></div><div class="account-side"><small>P&amp;L</small><strong id="positionPnl">—</strong></div></div>
 <div class="tabs"><button class="tab active" data-tab="open">Open</button><button class="tab" data-tab="closed">Closed</button></div><div class="sub" id="tabSub">Open trades</div><div id="positions"></div></main>
 <nav class="bottom-nav"><a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a><a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Charts</span></a><a href="position.html" class="active"><span class="bn-icon">♮</span><span class="bn-label">Position</span></a></nav>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -54,7 +54,7 @@ function paintLivePositions(){
     if(values[2])values[2].textContent=price(current);
     if(values[3]){values[3].textContent=(pnl>=0?'+':'')+money(pnl);values[3].style.color=pnl>=0?'#00a875':'#e6004d';}
   });
-  document.getElementById('positionEquity').textContent=money(liveBalance+openPnl);
+  const pnlEl=document.getElementById('positionPnl'); if(pnlEl){pnlEl.textContent=(openPnl>=0?'+':'')+money(openPnl);pnlEl.style.color=openPnl>=0?'#00a875':'#e6004d';}
 }
 async function refreshLivePnl(){
   if(liveQuoteRequest||!livePositions.length||currentTab!=='open')return;
@@ -97,7 +97,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>
 function renderPositionData(data){
   liveBalance=Number(data.account?.balance||0);
   document.getElementById('positionBalance').textContent=money(liveBalance);
-  document.getElementById('positionEquity').textContent=money(Number(data.account?.equity||liveBalance));
+  const initialPnl=tabData.open.reduce((sum,p)=>sum+calcLivePnl(p,p.currentPrice||p.entryPrice),0); const pnlEl=document.getElementById('positionPnl'); if(pnlEl){pnlEl.textContent=(initialPnl>=0?'+':'')+money(initialPnl);pnlEl.style.color=initialPnl>=0?'#00a875':'#e6004d';}
   tabData.open=(data.open||data.positions||[]).map(p=>({...p,currentPrice:Number(p.currentPrice||p.entryPrice||0)}));
   tabData.closed=data.closed||[];
   livePositions=tabData.open;
