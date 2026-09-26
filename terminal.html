@@ -364,7 +364,7 @@ function ensureRiskConfirmBar(){
 function showRiskConfirmBar(type){
   const bar=ensureRiskConfirmBar();
   const text=bar.querySelector('.chart-risk-confirm-text');
-  if(text)text.textContent=(type==='stopLoss'?'SL':'TP')+' moved • tap OK to save';
+  if(text)text.textContent=type&&type.includes('LIMIT')||type&&type.includes('STOP') ? type+' • tap OK to save' : (type==='stopLoss'?'SL':'TP')+' moved • tap OK to save';
   if(!bar.isConnected&&chartOrderActions?.parentElement)chartOrderActions.parentElement.appendChild(bar);
   bar.classList.add('open');
 }
@@ -420,6 +420,7 @@ async function confirmPendingRiskChange(){
 }
 function handleRiskConfirmOutside(ev){
   if(riskConfirmBar&&riskConfirmBar.contains(ev.target))return;
+  if(pendingOrderDraft&&pendingOrderHandle&&pendingOrderHandle.contains(ev.target))return;
   if(pendingOrderDraft){clearPendingOrderDraft();setTradeStatus('Pending order cancelled',true);return}
   if(!chartRiskPending)return;
   cancelPendingRiskChange();
@@ -454,6 +455,7 @@ function renderPendingOrderDraft(){
 }
 function startPendingOrderDrag(ev){
   if(!pendingOrderDraft||!chartOrderActions)return;
+  ev.stopPropagation();
   try{ev.currentTarget.setPointerCapture(ev.pointerId)}catch(e){}
   pendingOrderDraft.dragPointerId=ev.pointerId;
   pendingOrderDraft.dragging=true;
