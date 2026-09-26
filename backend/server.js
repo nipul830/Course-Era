@@ -1807,6 +1807,32 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
     res.status(500).json({error:"Could not close position",detail:e.message || "Unknown server error"});
   }
 });
+app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
+  try {
+    const {ref,data}=await loadTradingAccount(req.terminal.uid);
+    const snap=await ref.collection("positions").get();
+    const all=snap.docs.map(d=>({id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}));
+    const open=all.filter(p=>p.status==="open");
+    const pending=all.filter(p=>p.status==="pending");
+    const closed=all.filter(p=>p.status==="closed").sort((a,b)=>{
+      const at=a.closedAt?.toMillis?.()||0,bt=b.closedAt?.toMillis?.()||0;return bt-at;
+    });
+    const symbols=[...new Set(open.map(p=>p.symbol).filter(Boolean))];
+    if(symbols.length){
+      try {
+        const quotes=await getMarketQuotes(symbols);
+        for(const p of open) p.currentPrice=Number(quotes[p.symbol]?.price||p.currentPrice||p.entryPrice||0);
+      } catch(e) {}
+    }
+    res.json({
+      account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0)},
+      open,pending,closed
+    });
+  } catch(e) {
+    res.status(500).json({error:"Could not load trade history",detail:e.message||"Unknown error"});
+  }
+});
+
 app.patch("/api/trading/positions/:id", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
