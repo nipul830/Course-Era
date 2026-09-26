@@ -596,7 +596,7 @@ function updateChartRiskHandles(){
     entryBtn.setAttribute('aria-label',(side==='BUY'?'Buy':'Sell')+' entry');
     entryBtn.style.transform='translateY('+Math.round(y-15)+'px)';
     updateChartEntryInfo(p,id,y);
-    const close=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(id)+'"]');
+    const close=chartOrderActions.querySelector('.chart-close-btn[data-position-id="'+CSS.escape(id)+'"]');
     if(close)close.style.transform='translateY('+Math.round(y-14)+'px)';
     if(!expandedChartPositions.has(id))continue;
     for(const type of ['stopLoss','takeProfit']){
@@ -645,7 +645,7 @@ function updateChartOrderActions(){
     const y=candleSeries.priceToCoordinate(entry);
     if(y==null)continue;
     activeClose.add(id);
-    let close=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(id)+'"]');
+    let close=chartOrderActions.querySelector('.chart-close-btn[data-position-id="'+CSS.escape(id)+'"]');
     if(!close){
       close=document.createElement('button');
       close.type='button';
