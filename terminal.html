@@ -178,7 +178,10 @@ body{background:#fff}
 let terminalRole='trader';
 let terminalSessionToken=sessionStorage.getItem('auraTerminalSession')||'';
 function terminalLoggedIn(){return Boolean(terminalSessionToken)}
-let currentSymbol='OANDA:XAUUSD';
+const AURA_SYMBOL_STORAGE='auraTerminalSymbol';
+const AURA_ALLOWED_SYMBOLS=['OANDA:XAUUSD','FX:EURUSD','FX:GBPUSD','FX:USDJPY','FX:AUDUSD','BINANCE:BTCUSDT','BINANCE:ETHUSDT','BINANCE:SOLUSDT','BINANCE:XRPUSDT','INDEX:NAS100','INDEX:DEX40','INDEX:US30','OIL:USOIL','NASDAQ:AAPL','NASDAQ:NVDA'];
+const savedAuraSymbol=localStorage.getItem(AURA_SYMBOL_STORAGE)||'';
+let currentSymbol=AURA_ALLOWED_SYMBOLS.includes(savedAuraSymbol)?savedAuraSymbol:'OANDA:XAUUSD';
 let latestQuote=null;
 let marketRequest=null;
 let chartMountedSymbol='';
@@ -199,6 +202,7 @@ function showTerminal(role){
   document.body.classList.toggle('read-only',terminalRole==='investor');
   const badge=document.getElementById('terminalRoleBadge');
   if(badge)badge.textContent=terminalRole==='investor'?'Investor':'Trading';
+  syncSymbolButton();
   mountChart('tvMobile',currentSymbol);
   refreshMarket();
   refreshTerminalAccount();
@@ -239,6 +243,12 @@ async function loginTerminal(){
     showTerminal(terminalRole);
   }catch(e){setTerminalLoginStatus(e.message||'Terminal login failed',false)}
   finally{if(btn){btn.disabled=false;btn.textContent='Login to Terminal'}}
+}
+function syncSymbolButton(){
+  const btn=document.getElementById('symbolBtn');
+  if(!btn)return;
+  const option=document.querySelector('#symbolList button[data-symbol="'+CSS.escape(currentSymbol)+'"]');
+  if(option)btn.textContent=(option.dataset.name||currentSymbol)+' ▾';
 }
 function setTradeStatus(message,good){
   const el=document.getElementById('tradeStatus');
@@ -465,7 +475,9 @@ document.getElementById('terminalLogout')?.addEventListener('click',()=>{
   if(symbolBtn&&symbolList){
     symbolBtn.addEventListener('click',e=>{e.stopPropagation();symbolList.classList.toggle('open')});
     symbolList.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
-      currentSymbol=btn.dataset.symbol;symbolBtn.textContent=btn.dataset.name+' ▾';symbolList.classList.remove('open');
+      currentSymbol=btn.dataset.symbol;
+      localStorage.setItem(AURA_SYMBOL_STORAGE,currentSymbol);
+      symbolBtn.textContent=btn.dataset.name+' ▾';symbolList.classList.remove('open');
       mountChart('tvMobile',currentSymbol);refreshMarket();
     }));
     document.addEventListener('click',e=>{if(!e.target.closest('.symbol-picker'))symbolList.classList.remove('open')});
