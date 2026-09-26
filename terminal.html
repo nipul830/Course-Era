@@ -378,6 +378,12 @@ function updateLiveCandle(price){
   const p=Number(price);
   const live=window.__auraOpenBar;
   if(!live||live.symbol!==currentSymbol||live.interval!==activeTimeframe)return;
+  const seconds={ '1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400 }[activeTimeframe]||900;
+  if(Math.floor(Date.now()/1000) >= Number(live.time)+seconds){
+    window.__auraOpenBar=null;
+    loadChartCandles(currentSymbol,activeTimeframe);
+    return;
+  }
   live.close=p;
   live.high=Math.max(Number(live.high),p);
   live.low=Math.min(Number(live.low),p);
