@@ -21,8 +21,6 @@ body{background:#fff;color:#182332}
 .desktop-orders{display:none}
 .desktop-orders .trade-btn{border:0;border-radius:12px;padding:14px 18px;font-size:17px;font-weight:800;cursor:pointer;color:#fff;box-shadow:0 5px 14px #0001}
 .desktop-orders .trade-btn.sell{background:#ec0050}.desktop-orders .trade-btn.buy{background:#00bd84}
-.desktop-orders .pending-desktop{border:1px solid #dce2e7;border-radius:12px;background:#f7f8fa;color:#182332;font-weight:800;font-size:13px;cursor:pointer}
-.desktop-orders .trade-btn:active,.desktop-orders .pending-desktop:active{transform:scale(.985)}
 @media(max-width:760px){.desktop-orders{display:none}}
 
 body{background:#fff}
@@ -72,7 +70,7 @@ body{background:#fff}
  .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
  .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
-.terminal-login-screen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;font-family:Arial,Helvetica,sans-serif}.terminal-login-card{width:min(430px,92vw);background:#fff;border:1px solid #e0e5e9;border-radius:22px;padding:28px;box-shadow:0 18px 50px #00000012}.terminal-login-card h1{margin:0 0 7px;color:#182332;font-size:28px}.terminal-login-card p{margin:0 0 20px;color:#7b8793;font-size:13px}.terminal-field{display:block;margin:12px 0}.terminal-field span{display:block;color:#536273;font-size:12px;font-weight:800;margin-bottom:6px}.terminal-field input{width:100%;height:48px;border:1px solid #dce2e7;border-radius:11px;padding:0 13px;font-size:15px;outline:0}.terminal-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.terminal-mode button{height:42px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;color:#596879;font-weight:800;cursor:pointer}.terminal-mode button.active{background:#182839;color:#fff;border-color:#182839}.terminal-login-btn{width:100%;height:48px;border:0;border-radius:11px;background:#d6b35a;color:#080808;font-weight:900;font-size:15px;cursor:pointer}.terminal-login-status{min-height:20px;margin-top:12px;color:#e6004d;font-size:12px;font-weight:700}.terminal-security-note{margin-top:16px!important;color:#9b8552!important;font-size:11px!important}.terminal-logout{border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;cursor:pointer}.terminal-role-badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;background:#eef2f5;color:#526274;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.read-only .quote{opacity:.45;pointer-events:none}.read-only .pending-btn,.read-only .risk-input,.read-only .lot-control{opacity:.55;pointer-events:none}
+.terminal-login-screen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;font-family:Arial,Helvetica,sans-serif}.terminal-login-card{width:min(430px,92vw);background:#fff;border:1px solid #e0e5e9;border-radius:22px;padding:28px;box-shadow:0 18px 50px #00000012}.terminal-login-card h1{margin:0 0 7px;color:#182332;font-size:28px}.terminal-login-card p{margin:0 0 20px;color:#7b8793;font-size:13px}.terminal-field{display:block;margin:12px 0}.terminal-field span{display:block;color:#536273;font-size:12px;font-weight:800;margin-bottom:6px}.terminal-field input{width:100%;height:48px;border:1px solid #dce2e7;border-radius:11px;padding:0 13px;font-size:15px;outline:0}.terminal-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.terminal-mode button{height:42px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;color:#596879;font-weight:800;cursor:pointer}.terminal-mode button.active{background:#182839;color:#fff;border-color:#182839}.terminal-login-btn{width:100%;height:48px;border:0;border-radius:11px;background:#d6b35a;color:#080808;font-weight:900;font-size:15px;cursor:pointer}.terminal-login-status{min-height:20px;margin-top:12px;color:#e6004d;font-size:12px;font-weight:700}.terminal-security-note{margin-top:16px!important;color:#9b8552!important;font-size:11px!important}.terminal-logout{border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;cursor:pointer}.terminal-role-badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;background:#eef2f5;color:#526274;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.read-only .quote{opacity:.45;pointer-events:none}.read-only .risk-input,.read-only .lot-control{opacity:.55;pointer-events:none}
 </style>
 <link rel="preconnect" href="https://course-era.onrender.com" crossorigin><link rel="preconnect" href="https://s3.tradingview.com" crossorigin><link rel="preconnect" href="https://www.gstatic.com" crossorigin></head>
 <body>
@@ -943,13 +941,6 @@ document.getElementById('terminalLogout')?.addEventListener('click',()=>{
       lot.appendChild(frag);
     };
     if('requestIdleCallback' in window)requestIdleCallback(fillLots,{timeout:1200});else setTimeout(fillLots,0);
-  }
-  const pendingBtn=document.getElementById('pendingBtn'),pendingMenu=document.getElementById('pendingMenu');
-  if(pendingBtn&&pendingMenu){
-    pendingBtn.addEventListener('click',()=>pendingMenu.classList.toggle('open'));
-    pendingMenu.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
-      pendingBtn.textContent=btn.dataset.pending+' ✓';pendingMenu.classList.remove('open');
-    }));
   }
   const symbolBtn=document.getElementById('symbolBtn'),symbolList=document.getElementById('symbolList');
   if(symbolBtn&&symbolList){
