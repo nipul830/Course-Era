@@ -276,7 +276,29 @@ function setTradeStatus(message,good){
 }
 function renderTerminalAccount(account){
   terminalAccountState=account||terminalAccountState||{};
-  const money=v=>'
+  const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const balance=Number(terminalAccountState.balance||0);
+  const equity=Number(terminalAccountState.equity||balance);
+  const openPnl=Number(terminalAccountState.openPnl??(equity-balance));
+  const margin=Number(terminalAccountState.margin||0);
+  const freeMargin=equity-margin;
+  const marginLevel=margin>0?(equity/margin)*100:null;
+  const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+  set('terminalBalance',money(balance));
+  set('detailBalance',money(balance));
+  set('detailPnl',(openPnl>=0?'+':'')+money(openPnl));
+  set('detailEquity',money(equity));
+  set('detailMargin',margin?money(margin):'—');
+  set('detailFreeMargin',margin?money(freeMargin):money(equity));
+  set('detailMarginLevel',margin?marginLevel.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—');
+  set('detailRisk',terminalAccountState.status==='breached'?'Breached':'Safe');
+  set('detailStatus',terminalAccountState.status==='active'?'LIVE':String(terminalAccountState.status||'—').toUpperCase());
+  set('detailRole',terminalRole==='investor'?'INVESTOR':'TRADING');
+  const header=document.getElementById('terminalHeaderPnl');
+  const detail=document.getElementById('detailPnl');
+  [header,detail].forEach(el=>{if(el){el.classList.toggle('positive',openPnl>=0);el.classList.toggle('negative',openPnl<0);}});
+  if(header)header.textContent=(openPnl>=0?'+':'')+money(openPnl);
+}
 const accountToggle=document.getElementById('accountToggle');
 if(accountToggle)accountToggle.addEventListener('click',()=>{const panel=document.getElementById('accountPanel');const open=panel.classList.toggle('expanded');accountToggle.setAttribute('aria-expanded',String(open));});
 function updateLiveAccountEquity(){
