@@ -52,6 +52,7 @@ let bucket;
 function initFirebase() {
   if (admin.apps.length) return;
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const credentialFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || "/etc/secrets/firebase-service-account.json";
 
   if (raw) {
     admin.initializeApp({
@@ -59,10 +60,20 @@ function initFirebase() {
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
     });
   } else {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
-    });
+    // Render Secret Files are mounted under /etc/secrets. Prefer the configured
+    // file when it exists, and fall back to Application Default Credentials.
+    try {
+      const serviceAccount = JSON.parse(readFileSync(credentialFile, "utf8"));
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
+      });
+    } catch {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
+      });
+    }
   }
 
   db = admin.firestore();
