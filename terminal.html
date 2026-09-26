@@ -444,7 +444,8 @@ function updateChartRiskHandles(){
     if(close)close.style.transform='translateY('+Math.round(y-14)+'px)';
     if(!expandedChartPositions.has(id))continue;
     for(const type of ['stopLoss','takeProfit']){
-      const price=getChartRiskDraft(p,type);
+      const storedRisk=Number(p[type]);
+      const price=Number.isFinite(storedRisk)&&storedRisk>0?storedRisk:getChartRiskDraft(p,type);
       const ry=candleSeries.priceToCoordinate(price);
       if(ry==null)continue;
       const key=id+'-'+type;
