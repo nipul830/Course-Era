@@ -679,7 +679,7 @@ function renderChartOrderLines(){
   if(!candleSeries)return;
   clearChartPriceLines();
   const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol):[];
-  const visiblePositions=positions.filter(p=>expandedChartPositions.has(String(p.id)));
+  const visiblePositions=positions;
   positions.forEach(p=>{
     const entry=Number(p.entryPrice);
     if(!Number.isFinite(entry)||entry<=0)return;
