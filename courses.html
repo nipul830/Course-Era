@@ -118,7 +118,7 @@
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="firebase-config.js"></script><script src="aura-account.js"></script><script src="aura.js"></script><script>
+<script src="firebase-config.js?v=7"></script><script src="aura-account.js?v=7"></script><script src="aura.js?v=7"></script><script>
 async function loadPurchasedRules(account){
   try{
     const r=await fetch('https://course-era.onrender.com/api/challenge-rules');
@@ -182,38 +182,75 @@ document.querySelectorAll('.field-copy').forEach(function(btn){
   };
 });
 
-ceAuth.onAuthStateChanged(async function(user){
-  if(!user)return;
-  const account=await auraAccount();
-  const balance=document.getElementById('accountBalance');
-  const equity=document.getElementById('accountEquity');
-  const pnl=document.getElementById('accountPnl');
-  const profitPercent=document.getElementById('profitPercent');
-  const openPositionsCount=document.getElementById('openPositionsCount');
-  const daily=document.getElementById('dailyDrawdown');
-  const max=document.getElementById('maxDrawdown');
-  const status=document.getElementById('accountStatus');
-  if(account){
+let dashboardRefreshTimer=null;
+let dashboardLoading=false;
+
+async function loadDashboard(user){
+  if(!user || dashboardLoading)return;
+  dashboardLoading=true;
+  try{
+    const balance=document.getElementById('accountBalance');
+    const equity=document.getElementById('accountEquity');
+    const pnl=document.getElementById('accountPnl');
+    const profitPercent=document.getElementById('profitPercent');
+    const openPositionsCount=document.getElementById('openPositionsCount');
+    const daily=document.getElementById('dailyDrawdown');
+    const max=document.getElementById('maxDrawdown');
+    const status=document.getElementById('accountStatus');
+
+    const account=await auraAccount();
+    if(account && account.__error){
+      if(balance)balance.textContent='—';
+      if(equity)equity.textContent='—';
+      if(pnl)pnl.textContent='—';
+      console.warn('Dashboard account load failed:',account.__error);
+      return;
+    }
+
+    if(!account){
+      if(balance)balance.textContent='—';
+      if(equity)equity.textContent='—';
+      if(pnl)pnl.textContent='—';
+      return;
+    }
+
     if(balance)balance.textContent=auraMoney(account.balance);
     if(equity)equity.textContent=auraMoney(account.equity);
-    if(pnl){pnl.textContent=auraMoney(account.pnl);pnl.style.color=Number(account.pnl||0)<0?'#ff5b70':'#68d58a'}
+    if(pnl){
+      pnl.textContent=auraMoney(account.pnl);
+      pnl.style.color=Number(account.pnl||0)<0?'#ff5b70':'#68d58a';
+    }
     const pct=account.startingBalance?((Number(account.pnl||0)/Number(account.startingBalance))*100):0;
     if(profitPercent)profitPercent.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+
     try{
       const positions=JSON.parse(localStorage.getItem('auraPositions')||'[]');
       if(openPositionsCount)openPositionsCount.textContent=Array.isArray(positions)?positions.length:'0';
       const empty=document.getElementById('tradeEmpty');
       if(empty)empty.textContent=positions.length?'Open positions: '+positions.length:'No open trades';
     }catch(e){}
+
     loadTerminalCredentials(user,account);
     if(daily)daily.textContent=Number(account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(account.dailyDrawdownLimit||4).toFixed(2)+'%';
     if(max)max.textContent=Number(account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(account.maxDrawdownLimit||8).toFixed(2)+'%';
     if(status)status.textContent='TERMINAL '+String(account.status||'active').toUpperCase();
-  }else{
-    if(balance)balance.textContent='—';
-    if(equity)equity.textContent='—';
+  }finally{
+    dashboardLoading=false;
   }
+}
+
+ceAuth.onAuthStateChanged(function(user){
+  if(!user){
+    if(dashboardRefreshTimer)clearInterval(dashboardRefreshTimer);
+    dashboardRefreshTimer=null;
+    return;
+  }
+  loadDashboard(user);
+  if(dashboardRefreshTimer)clearInterval(dashboardRefreshTimer);
+  dashboardRefreshTimer=setInterval(function(){loadDashboard(user)},15000);
 });
+
+if(ceAuth.currentUser)loadDashboard(ceAuth.currentUser);
 </script>
 </body>
 </html>
