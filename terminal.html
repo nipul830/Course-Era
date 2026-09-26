@@ -258,7 +258,58 @@ function setTradeStatus(message,good){
 }
 function renderTerminalAccount(account){
   const b=document.getElementById('terminalBalance'),e=document.getElementById('terminalEquity');
-  const money=v=>'
+  const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(b)b.textContent=money(account?.balance);
+  if(e)e.textContent=money(account?.equity);
+}
+function clearChartPriceLines(){
+  if(!candleSeries)return;
+  for(const line of chartPriceLines){
+    try{candleSeries.removePriceLine(line)}catch(e){}
+  }
+  chartPriceLines=[];
+}
+function renderChartOrderLines(){
+  if(!candleSeries)return;
+  clearChartPriceLines();
+  const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol):[];
+  positions.forEach((p,idx)=>{
+    const entry=Number(p.entryPrice);
+    if(!Number.isFinite(entry)||entry<=0)return;
+    const side=String(p.side||'').toUpperCase();
+    const tag=side==='BUY'?'BUY':'SELL';
+    chartPriceLines.push(candleSeries.createPriceLine({
+      price:entry,
+      color:side==='BUY'?'#00a875':'#ec0050',
+      lineWidth:2,
+      lineStyle:0,
+      axisLabelVisible:true,
+      title:tag+' ENTRY'+(positions.length>1?' #'+(idx+1):'')
+    }));
+    const sl=Number(p.stopLoss);
+    if(Number.isFinite(sl)&&sl>0){
+      chartPriceLines.push(candleSeries.createPriceLine({
+        price:sl,
+        color:'#e35b63',
+        lineWidth:1,
+        lineStyle:2,
+        axisLabelVisible:true,
+        title:'SL'+(positions.length>1?' #'+(idx+1):'')
+      }));
+    }
+    const tp=Number(p.takeProfit);
+    if(Number.isFinite(tp)&&tp>0){
+      chartPriceLines.push(candleSeries.createPriceLine({
+        price:tp,
+        color:'#00a875',
+        lineWidth:1,
+        lineStyle:2,
+        axisLabelVisible:true,
+        title:'TP'+(positions.length>1?' #'+(idx+1):'')
+      }));
+    }
+  });
+}
 async function refreshTerminalAccount(){
   try{
     const data=await terminalApi('/api/trading/positions');
