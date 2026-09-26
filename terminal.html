@@ -360,6 +360,33 @@ async function endRiskDrag(ev){
     setTradeStatus(e.message||'Could not update risk level',false);
   }
 }
+function updateChartOrderActions(){
+  if(!chartOrderActions||!candleSeries)return;
+  const positions=terminalPositions.filter(x=>x&&x.symbol===currentSymbol);
+  const activeIds=new Set();
+  for(const p of positions){
+    const entry=Number(p.entryPrice);
+    const id=String(p.id||'');
+    if(!id||!Number.isFinite(entry)||entry<=0)continue;
+    activeIds.add(id);
+    const y=candleSeries.priceToCoordinate(entry);
+    if(y==null)continue;
+    let close=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(id)+'"]');
+    if(!close){
+      close=document.createElement('button');
+      close.type='button';
+      close.className='chart-close-btn';
+      close.dataset.positionId=id;
+      close.textContent='×';
+      close.title='Close trade';
+      close.addEventListener('click',()=>confirmCloseTrade(terminalPositions.find(x=>String(x.id)===id)));
+      chartOrderActions.appendChild(close);
+    }
+    close.style.transform='translateY('+Math.round(y-14)+'px)';
+  }
+  chartOrderActions.querySelectorAll('.chart-close-btn').forEach(x=>{if(!activeIds.has(String(x.dataset.positionId)))x.remove()});
+  updateChartRiskHandles();
+}
 function updateChartRiskHandles(){
   if(!chartOrderActions||!candleSeries)return;
   const positions=terminalPositions.filter(x=>x&&x.symbol===currentSymbol);
