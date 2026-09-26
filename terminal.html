@@ -186,6 +186,7 @@ let latestQuote=null;
 let marketRequest=null;
 let terminalPositions=[];
 let chartPriceLines=[];
+let chartRiskPriceLines=new Map();
 let chartOrderActions=null;
 let chartOrderActionRaf=0;
 let chartRiskDrag=null;
@@ -273,6 +274,7 @@ function clearChartPriceLines(){
     try{candleSeries.removePriceLine(line)}catch(e){}
   }
   chartPriceLines=[];
+  chartRiskPriceLines.clear();
   if(chartOrderActions)chartOrderActions.innerHTML='';
 }
 function ensureCloseTradeModal(){
@@ -335,10 +337,23 @@ async function moveRiskDrag(ev){
   if((d.type==='stopLoss'&&market>0&&((side==='BUY'&&price>=market)||(side==='SELL'&&price<=market))) ||
      (d.type==='takeProfit'&&market>0&&((side==='BUY'&&price<=market)||(side==='SELL'&&price>=market))))return;
   d.position[d.type]=price;
-  chartRiskDrafts.set(String(d.position.id)+'-'+d.type,price);
-  renderChartOrderLines();
-  const h=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(String(d.position.id)+'-'+d.type)+'"]');
-  if(h){h.classList.add('dragging');try{h.setPointerCapture(ev.pointerId)}catch(e){}}
+  const key=String(d.position.id)+'-'+d.type;
+  chartRiskDrafts.set(key,price);
+  const line=chartRiskPriceLines.get(key);
+  if(line&&typeof line.applyOptions==='function')line.applyOptions({price});
+  const h=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(key)+'"]');
+  if(h){
+    const entry=Number(d.position.entryPrice);
+    const entryY=candleSeries.priceToCoordinate(entry);
+    const ry=candleSeries.priceToCoordinate(price);
+    if(ry!=null){
+      let visualY=ry;
+      if(entryY!=null&&Math.abs(ry-entryY)<38)visualY=entryY+(d.type==='stopLoss'?-42:42);
+      h.style.transform='translateY('+Math.round(visualY-14)+'px)';
+      h.dataset.price=String(price);
+    }
+    h.classList.add('dragging');
+  }
   ev.preventDefault();
 }
 async function endRiskDrag(ev){
@@ -515,12 +530,16 @@ function renderChartOrderLines(){
   });
   visiblePositions.forEach((p,idx)=>{
     const sl=getChartRiskDraft(p,'stopLoss'),tp=getChartRiskDraft(p,'takeProfit');
-    if(Number.isFinite(sl)&&sl>0)chartPriceLines.push(candleSeries.createPriceLine({
-      price:sl,color:'#e35b63',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'SL'+(visiblePositions.length>1?' #'+(idx+1):'')
-    }));
-    if(Number.isFinite(tp)&&tp>0)chartPriceLines.push(candleSeries.createPriceLine({
-      price:tp,color:'#00a875',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP'+(visiblePositions.length>1?' #'+(idx+1):'')
-    }));
+    if(Number.isFinite(sl)&&sl>0){
+      const line=candleSeries.createPriceLine({price:sl,color:'#e35b63',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'SL'+(visiblePositions.length>1?' #'+(idx+1):'')});
+      chartPriceLines.push(line);
+      chartRiskPriceLines.set(String(p.id)+'-stopLoss',line);
+    }
+    if(Number.isFinite(tp)&&tp>0){
+      const line=candleSeries.createPriceLine({price:tp,color:'#00a875',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP'+(visiblePositions.length>1?' #'+(idx+1):'')});
+      chartPriceLines.push(line);
+      chartRiskPriceLines.set(String(p.id)+'-takeProfit',line);
+    }
   });
   updateChartOrderActions();
 }
