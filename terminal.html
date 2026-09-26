@@ -169,7 +169,8 @@ function terminalLoggedIn(){return Boolean(terminalSessionToken)}
 const AURA_SYMBOL_STORAGE='auraTerminalSymbol';
 const AURA_ALLOWED_SYMBOLS=['OANDA:XAUUSD','FX:EURUSD','FX:GBPUSD','FX:USDJPY','FX:AUDUSD','BINANCE:BTCUSDT','BINANCE:ETHUSDT','BINANCE:SOLUSDT','BINANCE:XRPUSDT','INDEX:NAS100','INDEX:DEX40','INDEX:US30','OIL:USOIL','NASDAQ:AAPL','NASDAQ:NVDA'];
 const savedAuraSymbol=localStorage.getItem(AURA_SYMBOL_STORAGE)||'';
-let currentSymbol=AURA_ALLOWED_SYMBOLS.includes(savedAuraSymbol)?savedAuraSymbol:'OANDA:XAUUSD';
+const chartUrlSymbol=new URLSearchParams(location.search).get('symbol')||'';
+let currentSymbol=AURA_ALLOWED_SYMBOLS.includes(chartUrlSymbol)?chartUrlSymbol:(AURA_ALLOWED_SYMBOLS.includes(savedAuraSymbol)?savedAuraSymbol:'OANDA:XAUUSD');
 let latestQuote=null;
 let marketRequest=null;
 let terminalPositions=[];
