@@ -46,7 +46,7 @@ body{background:#fff}
  .instrument-sub span{color:#98a3ad}.instrument-tools{display:flex;gap:10px}.instrument-name{cursor:pointer}.instrument-name .chev{font-size:18px;margin-left:3px}.watchlist{position:absolute;left:28px;right:28px;top:76px;background:#fff;border:1px solid #dce2e7;border-radius:16px;box-shadow:0 12px 30px #0002;max-height:360px;overflow-y:auto;display:none;z-index:30}.watchlist.open{display:block}.watch-group{padding:10px 14px 6px;font-size:11px;font-weight:800;color:#8a96a2;text-transform:uppercase;border-bottom:1px solid #eef1f4}.watch-item{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:#fff;text-align:left;color:#17212b}.watch-item:last-child{border-bottom:0}.watch-item strong{font-size:15px}.watch-item span{font-size:11px;color:#7c8995}.watch-item:active{background:#f3f6f8}
 
  .chart-wrap{position:relative;flex:1;min-height:0;height:auto;margin:8px 0 0;overflow:hidden}
- .tv-mobile{height:100%;width:100%;background:#fff;display:flex;flex-direction:column}.aura-chart-toolbar{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-bottom:1px solid #edf0f3;background:#fff;overflow-x:auto}.aura-chart-toolbar button{border:0;background:transparent;color:#667085;font-size:11px;font-weight:800;padding:6px 9px;border-radius:7px}.aura-chart-toolbar button.active{background:#eef2f5;color:#17212b}.aura-chart-live{margin-left:auto;color:#00a875;font-size:9px;font-weight:900;white-space:nowrap}.aura-chart-canvas{position:relative;flex:1;min-height:0;width:100%}
+ .tv-mobile{height:100%;width:100%;background:#fff;display:flex;flex-direction:column}.aura-chart-toolbar{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-bottom:1px solid #edf0f3;background:#fff;overflow-x:auto}.aura-chart-toolbar button{border:0;background:transparent;color:#667085;font-size:11px;font-weight:800;padding:6px 9px;border-radius:7px}.aura-chart-toolbar button.active{background:#eef2f5;color:#17212b}.aura-chart-live{margin-left:auto;color:#00a875;font-size:9px;font-weight:900;white-space:nowrap}.aura-chart-canvas{position:relative;flex:1;min-height:0;width:100%}.chart-order-actions{position:absolute;inset:0;pointer-events:none;z-index:20}.chart-close-btn{position:absolute;right:8px;width:28px;height:28px;border:1px solid #dce2e7;border-radius:50%;background:#fff;color:#e6004d;font-size:18px;font-weight:900;line-height:26px;padding:0;box-shadow:0 3px 10px #0002;pointer-events:auto;touch-action:manipulation}.chart-close-btn:active{transform:scale(.92)}.chart-close-modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:100;padding:20px}.chart-close-modal.open{display:flex}.chart-close-card{width:min(340px,92vw);background:#fff;border-radius:18px;padding:20px;box-shadow:0 18px 50px #0004}.chart-close-card h3{margin:0 0 8px;color:#182332;font-size:19px}.chart-close-card p{margin:0 0 18px;color:#687786;font-size:13px;line-height:1.45}.chart-close-actions{display:flex;gap:9px}.chart-close-actions button{flex:1;height:44px;border-radius:11px;font-weight:800;font-size:13px}.chart-close-cancel{border:1px solid #dce2e7;background:#f7f8fa;color:#344252}.chart-close-confirm{border:0;background:#e6004d;color:#fff}
  .top-quotes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 78px;align-items:stretch;padding:0 12px;margin:0;gap:7px;width:100%}
  .top-quotes .quote{min-height:58px;height:58px;border-radius:13px;color:#fff;border:0;box-shadow:none}
  .top-quotes .quote.sell{background:#ec0050 !important}
@@ -186,6 +186,8 @@ let latestQuote=null;
 let marketRequest=null;
 let terminalPositions=[];
 let chartPriceLines=[];
+let chartOrderActions=null;
+let chartOrderActionRaf=0;
 let chartMountedSymbol='';
 
 function setTerminalLoginStatus(message,good){
@@ -268,6 +270,77 @@ function clearChartPriceLines(){
     try{candleSeries.removePriceLine(line)}catch(e){}
   }
   chartPriceLines=[];
+  if(chartOrderActions)chartOrderActions.innerHTML='';
+}
+function ensureCloseTradeModal(){
+  let modal=document.getElementById('chartCloseModal');
+  if(modal)return modal;
+  modal=document.createElement('div');
+  modal.id='chartCloseModal';
+  modal.className='chart-close-modal';
+  modal.innerHTML='<div class="chart-close-card" role="dialog" aria-modal="true"><h3>Close Trade?</h3><p id="chartCloseText">This will close the selected market position at the current market price.</p><div class="chart-close-actions"><button type="button" class="chart-close-cancel" id="chartCloseCancel">Cancel</button><button type="button" class="chart-close-confirm" id="chartCloseConfirm">Close Trade</button></div></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});
+  modal.querySelector('#chartCloseCancel').addEventListener('click',()=>modal.classList.remove('open'));
+  return modal;
+}
+async function confirmCloseTrade(position){
+  const modal=ensureCloseTradeModal();
+  const text=modal.querySelector('#chartCloseText');
+  const confirm=modal.querySelector('#chartCloseConfirm');
+  if(text)text.textContent=(position.side||'')+' '+Number(position.lot||0).toFixed(2)+' lot • Entry '+Number(position.entryPrice||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5})+'. Close this trade at the current market price?';
+  modal.classList.add('open');
+  confirm.onclick=async()=>{
+    confirm.disabled=true;confirm.textContent='Closing…';
+    try{
+      const data=await terminalApi('/api/trading/positions/'+encodeURIComponent(position.id)+'/close',{method:'POST'});
+      modal.classList.remove('open');
+      if(data.account){
+        sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account));
+        renderTerminalAccount(data.account);
+      }
+      setTradeStatus('Trade closed at '+Number(data.closePrice).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5}),true);
+      await refreshTerminalAccount();
+    }catch(e){
+      if(text)text.textContent=e.message||'Could not close trade';
+    }finally{
+      confirm.disabled=false;confirm.textContent='Close Trade';
+    }
+  };
+}
+function updateChartOrderActions(){
+  if(!chartOrderActions||!candleSeries)return;
+  const activeIds=new Set();
+  for(const p of terminalPositions.filter(x=>x&&x.symbol===currentSymbol)){
+    const entry=Number(p.entryPrice);
+    if(!p.id||!Number.isFinite(entry)||entry<=0)continue;
+    const y=candleSeries.priceToCoordinate(entry);
+    if(y==null)continue;
+    activeIds.add(String(p.id));
+    let btn=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(String(p.id))+'"]');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.type='button';
+      btn.className='chart-close-btn';
+      btn.dataset.positionId=String(p.id);
+      btn.textContent='×';
+      btn.title='Close trade';
+      btn.addEventListener('click',()=>confirmCloseTrade(terminalPositions.find(x=>String(x.id)===String(p.id))));
+      chartOrderActions.appendChild(btn);
+    }
+    btn.style.transform='translateY('+Math.round(y-14)+'px)';
+  }
+  chartOrderActions.querySelectorAll('.chart-close-btn').forEach(btn=>{
+    if(!activeIds.has(String(btn.dataset.positionId)))btn.remove();
+  });
+}
+function startChartOrderActionSync(){
+  if(chartOrderActionRaf)cancelAnimationFrame(chartOrderActionRaf);
+  const tick=()=>{
+    updateChartOrderActions();
+    chartOrderActionRaf=requestAnimationFrame(tick);
+  };
+  chartOrderActionRaf=requestAnimationFrame(tick);
 }
 function renderChartOrderLines(){
   if(!candleSeries)return;
@@ -279,36 +352,19 @@ function renderChartOrderLines(){
     const side=String(p.side||'').toUpperCase();
     const tag=side==='BUY'?'BUY':'SELL';
     chartPriceLines.push(candleSeries.createPriceLine({
-      price:entry,
-      color:side==='BUY'?'#00a875':'#ec0050',
-      lineWidth:2,
-      lineStyle:0,
-      axisLabelVisible:true,
+      price:entry,color:side==='BUY'?'#00a875':'#ec0050',lineWidth:2,lineStyle:0,axisLabelVisible:true,
       title:tag+' ENTRY'+(positions.length>1?' #'+(idx+1):'')
     }));
     const sl=Number(p.stopLoss);
-    if(Number.isFinite(sl)&&sl>0){
-      chartPriceLines.push(candleSeries.createPriceLine({
-        price:sl,
-        color:'#e35b63',
-        lineWidth:1,
-        lineStyle:2,
-        axisLabelVisible:true,
-        title:'SL'+(positions.length>1?' #'+(idx+1):'')
-      }));
-    }
+    if(Number.isFinite(sl)&&sl>0)chartPriceLines.push(candleSeries.createPriceLine({
+      price:sl,color:'#e35b63',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'SL'+(positions.length>1?' #'+(idx+1):'')
+    }));
     const tp=Number(p.takeProfit);
-    if(Number.isFinite(tp)&&tp>0){
-      chartPriceLines.push(candleSeries.createPriceLine({
-        price:tp,
-        color:'#00a875',
-        lineWidth:1,
-        lineStyle:2,
-        axisLabelVisible:true,
-        title:'TP'+(positions.length>1?' #'+(idx+1):'')
-      }));
-    }
+    if(Number.isFinite(tp)&&tp>0)chartPriceLines.push(candleSeries.createPriceLine({
+      price:tp,color:'#00a875',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP'+(positions.length>1?' #'+(idx+1):'')
+    }));
   });
+  updateChartOrderActions();
 }
 async function refreshTerminalAccount(){
   try{
@@ -476,7 +532,9 @@ async function mountChart(id,symbol){
     });
     const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);
     const canvas=document.createElement('div');canvas.className='aura-chart-canvas';
+    chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);
     el.appendChild(toolbar);el.appendChild(canvas);
+    startChartOrderActionSync();
     lightweightChart=LightweightCharts.createChart(canvas,{width:canvas.clientWidth,height:canvas.clientHeight,layout:{background:{color:'#fff'},textColor:'#5f6e7d'},grid:{vertLines:{color:'#eef1f4'},horzLines:{color:'#eef1f4'}},rightPriceScale:{borderColor:'#dfe5ea'},timeScale:{borderColor:'#dfe5ea',timeVisible:true,secondsVisible:false}});
     candleSeries=lightweightChart.addCandlestickSeries({upColor:'#00a875',downColor:'#ec0050',borderUpColor:'#00a875',borderDownColor:'#ec0050',wickUpColor:'#00a875',wickDownColor:'#ec0050'});
     if(chartResizeObserver)chartResizeObserver.disconnect();
