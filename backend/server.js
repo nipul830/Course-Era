@@ -412,7 +412,8 @@ app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
         id: account.accountId,
         balance: Number(account.balance ?? account.startingBalance ?? 0),
         equity: Number(account.equity ?? account.balance ?? account.startingBalance ?? 0),
-        status: account.status
+        status: account.status,
+        challenge: account.challenge || ""
       }
     });
   } catch (e) {
