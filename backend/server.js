@@ -48,6 +48,11 @@ app.use(rateLimit({
 
 let db;
 let bucket;
+// Short-lived terminal auth cache: the terminal polls market data frequently,
+// so validating the same session against Firestore on every poll can exhaust
+// the free Firestore read quota. Revocation is still re-checked after expiry.
+const terminalAuthCache = new Map();
+const TERMINAL_AUTH_CACHE_MS = 10000;
 
 function initFirebase() {
   if (admin.apps.length) return;
@@ -305,20 +310,30 @@ async function requireTerminalAuth(req, res, next) {
     if (!token.credentialId || !token.accountId || !token.uid || !["trader","investor"].includes(token.role)) {
       return res.status(401).json({ error: "Valid terminal credentials are required" });
     }
+    const cacheKey = String(header.slice(7));
+    const cached = terminalAuthCache.get(cacheKey);
+    if (cached && (Date.now() - cached.at) < TERMINAL_AUTH_CACHE_MS) {
+      req.terminal = { ...cached.terminal };
+      return next();
+    }
+
     const credentialSnap = await db.collection("terminalCredentials").doc(String(token.credentialId)).get();
     if (!credentialSnap.exists) return res.status(401).json({ error: "Terminal credentials revoked" });
     const credential = credentialSnap.data() || {};
     if (credential.status !== "active" || credential.userId !== token.uid || credential.accountId !== token.accountId) {
+      terminalAuthCache.delete(cacheKey);
       return res.status(401).json({ error: "Terminal credentials revoked" });
     }
     const accountRef = db.collection("users").doc(token.uid).collection("trading").doc("account");
     const accountSnap = await accountRef.get();
     const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
     if (!accountSnap.exists || account.status !== "active") {
+      terminalAuthCache.delete(cacheKey);
       await revokeTerminalCredentials(account, account.status === "breached" ? (account.breachReason || "Account breached") : "Account inactive");
       return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status || "inactive" });
     }
     req.terminal = { ...token, credentialId: String(token.credentialId), terminalRole: token.role, accountRef, account };
+    terminalAuthCache.set(cacheKey, { at: Date.now(), terminal: { ...req.terminal } });
     next();
   } catch (e) {
     res.status(401).json({ error: "Invalid or expired terminal session" });
@@ -388,12 +403,8 @@ app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
       role: mode
     });
 
-    await snap.ref.update({
-      lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastLoginMode: mode,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
+    // Login itself does not need a Firestore write. Avoid consuming a write
+    // quota unit just to record a cosmetic login timestamp.
     res.json({
       token: sessionToken,
       role: mode,
