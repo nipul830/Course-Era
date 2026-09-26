@@ -1781,7 +1781,10 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     const entryPrice=side==="BUY"?Number(quote.ask||quote.price):Number(quote.bid||quote.price);
     if (side==="BUY" && ((stopLoss!==null&&stopLoss>=entryPrice) || (takeProfit!==null&&takeProfit<=entryPrice))) return res.status(400).json({error:"BUY SL must be below entry and TP above entry"});
     if (side==="SELL" && ((stopLoss!==null&&stopLoss<=entryPrice) || (takeProfit!==null&&takeProfit>=entryPrice))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
-    const {ref,data}=await loadTradingAccount(req.terminal.uid);
+    // Reuse the account snapshot already loaded by terminal auth.
+    // This removes an extra Firestore read from every market order.
+    const ref=req.terminal.accountRef || (await loadTradingAccount(req.terminal.uid)).ref;
+    const data=req.terminal.account || (await loadTradingAccount(req.terminal.uid)).data;
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
     const positionRef=ref.collection("positions").doc();
