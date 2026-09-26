@@ -1,5 +1,6 @@
 (function(){
   const AURA_API_BASE='https://course-era.onrender.com';
+  const ACCOUNT_TIMEOUT_MS=8000;
   let accountPromise=null;
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -12,10 +13,14 @@
         try{
           const user=ceAuth.currentUser;
           const token=await user.getIdToken(false);
+          const controller=new AbortController();
+          const timeout=setTimeout(()=>controller.abort(),ACCOUNT_TIMEOUT_MS);
           const res=await fetch(AURA_API_BASE+'/api/trading-account',{
             headers:{Authorization:'Bearer '+token},
-            cache:'no-store'
+            cache:'no-store',
+            signal:controller.signal
           });
+          clearTimeout(timeout);
           let data={};try{data=await res.json()}catch(e){}
           if(!res.ok){
             const err=new Error(data.error||'Account unavailable');
@@ -31,7 +36,7 @@
         }
       }
       console.warn('Aura account unavailable:',lastError?.message||lastError);
-      return null;
+      return { __error: String(lastError?.message||'Account unavailable') };
     })().finally(()=>{accountPromise=null});
     return accountPromise;
   }
