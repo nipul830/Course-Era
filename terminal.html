@@ -435,6 +435,41 @@ function updateChartRiskHandles(){
   chartOrderActions.querySelectorAll('.chart-entry-toggle').forEach(x=>{if(!activeEntries.has(String(x.dataset.entryId)))x.remove()});
   chartOrderActions.querySelectorAll('.chart-risk-handle').forEach(x=>{if(!activeRisk.has(String(x.dataset.riskKey)))x.remove()});
 }
+function updateChartOrderActions(){
+  if(!chartOrderActions||!candleSeries)return;
+  updateChartRiskHandles();
+  const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol):[];
+  const activeClose=new Set();
+  for(const p of positions){
+    const entry=Number(p.entryPrice);
+    if(!p.id||!Number.isFinite(entry)||entry<=0)continue;
+    const id=String(p.id);
+    const y=candleSeries.priceToCoordinate(entry);
+    if(y==null)continue;
+    activeClose.add(id);
+    let close=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(id)+'"]');
+    if(!close){
+      close=document.createElement('button');
+      close.type='button';
+      close.className='chart-close-btn';
+      close.dataset.positionId=id;
+      close.textContent='×';
+      close.title='Close trade';
+      close.setAttribute('aria-label','Close trade');
+      close.addEventListener('click',ev=>{
+        ev.preventDefault();
+        ev.stopPropagation();
+        const position=terminalPositions.find(x=>String(x.id)===id);
+        if(position)confirmCloseTrade(position);
+      });
+      chartOrderActions.appendChild(close);
+    }
+    close.style.transform='translateY('+Math.round(y-14)+'px)';
+  }
+  chartOrderActions.querySelectorAll('.chart-close-btn').forEach(x=>{
+    if(!activeClose.has(String(x.dataset.positionId)))x.remove();
+  });
+}
 function startChartOrderActionSync(){
   if(chartOrderActionRaf)cancelAnimationFrame(chartOrderActionRaf);
   const tick=()=>{
