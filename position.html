@@ -123,5 +123,5 @@ else{loadPositions().catch(e=>{
   if(/revoked|expired|not active|Terminal login required/i.test(e.message||'')){sessionStorage.removeItem('auraTerminalSession');sessionStorage.removeItem('auraTerminalRole');location.replace('terminal.html');return}
   document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>';
 });}
-setInterval(()=>{if(terminalSessionToken)loadPositions().catch(()=>{});},5000);
-setInterval(refreshLivePnl,250);</script></body></html>
+setInterval(()=>{if(terminalSessionToken)loadPositions().catch(()=>{});},30000);
+setInterval(refreshLivePnl,3000);</script></body></html>
