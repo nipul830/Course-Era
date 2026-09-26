@@ -1397,13 +1397,18 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
     }
 
     const account = {
+      accountId: "AF-ACC-" + new Date().getFullYear() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase(),
       startingBalance,
       balance: startingBalance,
       equity: startingBalance,
       pnl: 0,
+      openPnl: 0,
       currency: "USD",
       challenge: course.title || "Funded Account",
       sourcePaymentId: payment.id,
+      status: "active",
+      dailyDrawdownPct: 0,
+      maxDrawdownPct: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
