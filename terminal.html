@@ -880,7 +880,7 @@ function startTerminalPolling(){
   if(accountTimer)clearInterval(accountTimer);
   marketTimer=setInterval(function(){
     if(terminalSessionToken)refreshMarket();
-  },10000);
+  },3000);
   accountTimer=setInterval(function(){
     if(terminalSessionToken){
       lastTerminalAccountRefresh=Date.now();
