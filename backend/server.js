@@ -26,7 +26,8 @@ const allowedOrigins = [
     .filter(Boolean),
   "capacitor://localhost",
   "http://localhost",
-  "https://localhost"
+  "https://localhost",
+  "https://nipul830.github.io"
 ];
 
 app.use(helmet());
