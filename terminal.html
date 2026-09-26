@@ -438,7 +438,12 @@ function updateChartRiskHandles(){
         handle.addEventListener('pointerdown',startRiskDrag);
         chartOrderActions.appendChild(handle);
       }
-      handle.style.transform='translateY('+Math.round(ry-14)+'px)';
+      const entryY=candleSeries.priceToCoordinate(Number(p.entryPrice));
+      let visualY=ry;
+      if(entryY!=null && Math.abs(ry-entryY)<38){
+        visualY=entryY+(type==='stopLoss'?-42:42);
+      }
+      handle.style.transform='translateY('+Math.round(visualY-14)+'px)';
     }
   }
   chartOrderActions.querySelectorAll('.chart-entry-toggle').forEach(x=>{if(!activeEntries.has(String(x.dataset.entryId)))x.remove()});
