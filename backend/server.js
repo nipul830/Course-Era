@@ -1527,7 +1527,13 @@ const MARKET_SYMBOLS = {
   "BINANCE:BTCUSDT": { yahoo:"BTC-USD", name:"BTC/USD", kind:"crypto", contractSize:1 },
   "BINANCE:ETHUSDT": { yahoo:"ETH-USD", name:"ETH/USD", kind:"crypto", contractSize:1 },
   "BINANCE:SOLUSDT": { yahoo:"SOL-USD", name:"SOL/USD", kind:"crypto", contractSize:1 },
-  "BINANCE:XRPUSDT": { yahoo:"XRP-USD", name:"XRP/USD", kind:"crypto", contractSize:1 }
+  "BINANCE:XRPUSDT": { yahoo:"XRP-USD", name:"XRP/USD", kind:"crypto", contractSize:1 },
+  "INDEX:NAS100": { yahoo:"^NDX", name:"NAS100", kind:"index", contractSize:1 },
+  "INDEX:DEX40": { yahoo:"^GDAXI", name:"DEX40", kind:"index", contractSize:1 },
+  "INDEX:US30": { yahoo:"^DJI", name:"US30", kind:"index", contractSize:1 },
+  "OIL:USOIL": { yahoo:"CL=F", name:"US OIL", kind:"oil", contractSize:1 },
+  "NASDAQ:AAPL": { yahoo:"AAPL", name:"APPLE", kind:"stock", contractSize:1 },
+  "NASDAQ:NVDA": { yahoo:"NVDA", name:"NVIDIA", kind:"stock", contractSize:1 }
 };
 const quoteCache = new Map();
 
