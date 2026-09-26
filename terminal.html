@@ -190,6 +190,7 @@ let chartOrderActions=null;
 let chartOrderActionRaf=0;
 let chartRiskDrag=null;
 let expandedChartPositions=new Set();
+let chartRiskDrafts=new Map();
 let chartMountedSymbol='';
 
 function setTerminalLoginStatus(message,good){
@@ -315,12 +316,14 @@ function startRiskDrag(ev){
   const el=ev.currentTarget;
   const position=terminalPositions.find(x=>String(x.id)===String(el.dataset.positionId));
   if(!position)return;
-  chartRiskDrag={el,position,type:el.dataset.riskType,old:Number(position[el.dataset.riskType]),pointerId:ev.pointerId};
+  const type=el.dataset.riskType;
+  const old=Number.isFinite(Number(position[type]))&&Number(position[type])>0?Number(position[type]):Number(chartRiskDrafts.get(String(position.id)+'-'+type)||el.dataset.price);
+  chartRiskDrag={el,position,type,old,pointerId:ev.pointerId};
   try{el.setPointerCapture(ev.pointerId)}catch(e){}
   el.classList.add('dragging');
   ev.preventDefault();
 }
-function moveRiskDrag(ev){
+async function moveRiskDrag(ev){
   const d=chartRiskDrag;
   if(!d||ev.pointerId!==d.pointerId||!candleSeries||!chartOrderActions)return;
   const rect=chartOrderActions.getBoundingClientRect();
@@ -332,6 +335,7 @@ function moveRiskDrag(ev){
   if((d.type==='stopLoss'&&market>0&&((side==='BUY'&&price>=market)||(side==='SELL'&&price<=market))) ||
      (d.type==='takeProfit'&&market>0&&((side==='BUY'&&price<=market)||(side==='SELL'&&price>=market))))return;
   d.position[d.type]=price;
+  chartRiskDrafts.set(String(d.position.id)+'-'+d.type,price);
   renderChartOrderLines();
   const h=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(String(d.position.id)+'-'+d.type)+'"]');
   if(h){h.classList.add('dragging');try{h.setPointerCapture(ev.pointerId)}catch(e){}}
@@ -344,7 +348,9 @@ async function endRiskDrag(ev){
   d.el.classList.remove('dragging');
   const value=Number(d.position[d.type]);
   if(!Number.isFinite(value)||value<=0){
-    d.position[d.type]=d.old;renderChartOrderLines();return;
+    if(Number.isFinite(d.old)&&d.old>0)d.position[d.type]=d.old;else d.position[d.type]=null;
+    chartRiskDrafts.set(String(d.position.id)+'-'+d.type,Number(d.position[d.type])||0);
+    renderChartOrderLines();return;
   }
   try{
     setTradeStatus('Updating '+(d.type==='stopLoss'?'SL':'TP')+'…',true);
@@ -352,40 +358,16 @@ async function endRiskDrag(ev){
     const result=await terminalApi('/api/trading/positions/'+encodeURIComponent(d.position.id),{method:'PATCH',body:payload});
     d.position.stopLoss=result.stopLoss;
     d.position.takeProfit=result.takeProfit;
+    chartRiskDrafts.set(String(d.position.id)+'-stopLoss',Number(result.stopLoss)||0);
+    chartRiskDrafts.set(String(d.position.id)+'-takeProfit',Number(result.takeProfit)||0);
     renderChartOrderLines();
     setTradeStatus((d.type==='stopLoss'?'SL':'TP')+' updated',true);
   }catch(e){
-    d.position[d.type]=d.old;
+    d.position[d.type]=d.old>0?d.old:null;
+    chartRiskDrafts.set(String(d.position.id)+'-'+d.type,Number(d.position[d.type])||0);
     renderChartOrderLines();
     setTradeStatus(e.message||'Could not update risk level',false);
   }
-}
-function updateChartOrderActions(){
-  if(!chartOrderActions||!candleSeries)return;
-  const positions=terminalPositions.filter(x=>x&&x.symbol===currentSymbol);
-  const activeIds=new Set();
-  for(const p of positions){
-    const entry=Number(p.entryPrice);
-    const id=String(p.id||'');
-    if(!id||!Number.isFinite(entry)||entry<=0)continue;
-    activeIds.add(id);
-    const y=candleSeries.priceToCoordinate(entry);
-    if(y==null)continue;
-    let close=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(id)+'"]');
-    if(!close){
-      close=document.createElement('button');
-      close.type='button';
-      close.className='chart-close-btn';
-      close.dataset.positionId=id;
-      close.textContent='×';
-      close.title='Close trade';
-      close.addEventListener('click',()=>confirmCloseTrade(terminalPositions.find(x=>String(x.id)===id)));
-      chartOrderActions.appendChild(close);
-    }
-    close.style.transform='translateY('+Math.round(y-14)+'px)';
-  }
-  chartOrderActions.querySelectorAll('.chart-close-btn').forEach(x=>{if(!activeIds.has(String(x.dataset.positionId)))x.remove()});
-  updateChartRiskHandles();
 }
 function updateChartRiskHandles(){
   if(!chartOrderActions||!candleSeries)return;
@@ -405,7 +387,12 @@ function updateChartRiskHandles(){
       entryBtn.className='chart-entry-toggle';
       entryBtn.dataset.entryId=id;
       entryBtn.addEventListener('click',()=>{
-        if(expandedChartPositions.has(id))expandedChartPositions.delete(id);else expandedChartPositions.add(id);
+        if(expandedChartPositions.has(id))expandedChartPositions.delete(id);
+        else expandedChartPositions.add(id);
+        if(expandedChartPositions.has(id)){
+          getChartRiskDraft(p,'stopLoss');
+          getChartRiskDraft(p,'takeProfit');
+        }
         renderChartOrderLines();
       });
       chartOrderActions.appendChild(entryBtn);
@@ -413,15 +400,14 @@ function updateChartRiskHandles(){
     const side=String(p.side||'').toUpperCase();
     entryBtn.classList.toggle('buy',side==='BUY');entryBtn.classList.toggle('sell',side==='SELL');
     entryBtn.classList.toggle('expanded',expandedChartPositions.has(id));
-    entryBtn.textContent=expandedChartPositions.has(id)?' '+(side==='BUY'?'▲':'▼'):' '+(side==='BUY'?'▲':'▼');
+    entryBtn.textContent=' '+(side==='BUY'?'▲':'▼');
     entryBtn.setAttribute('aria-label',(side==='BUY'?'Buy':'Sell')+' entry');
     entryBtn.style.transform='translateY('+Math.round(y-15)+'px)';
     const close=chartOrderActions.querySelector('[data-position-id="'+CSS.escape(id)+'"]');
     if(close)close.style.transform='translateY('+Math.round(y-14)+'px)';
     if(!expandedChartPositions.has(id))continue;
     for(const type of ['stopLoss','takeProfit']){
-      const price=Number(p[type]);
-      if(!Number.isFinite(price)||price<=0)continue;
+      const price=getChartRiskDraft(p,type);
       const ry=candleSeries.priceToCoordinate(price);
       if(ry==null)continue;
       const key=id+'-'+type;
@@ -439,12 +425,11 @@ function updateChartRiskHandles(){
         handle.addEventListener('pointerdown',startRiskDrag);
         chartOrderActions.appendChild(handle);
       }
-      const entryY=candleSeries.priceToCoordinate(Number(p.entryPrice));
+      const entryY=candleSeries.priceToCoordinate(entry);
       let visualY=ry;
-      if(entryY!=null && Math.abs(ry-entryY)<38){
-        visualY=entryY+(type==='stopLoss'?-42:42);
-      }
+      if(entryY!=null&&Math.abs(ry-entryY)<38)visualY=entryY+(type==='stopLoss'?-42:42);
       handle.style.transform='translateY('+Math.round(visualY-14)+'px)';
+      handle.dataset.price=String(price);
     }
   }
   chartOrderActions.querySelectorAll('.chart-entry-toggle').forEach(x=>{if(!activeEntries.has(String(x.dataset.entryId)))x.remove()});
