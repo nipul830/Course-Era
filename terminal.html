@@ -892,7 +892,8 @@ function startTerminalPolling(){
 startTerminalPolling();
 </script>
 </body>
-</html>+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+</html>
++Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const oldEquity=Number(e?.dataset.value);
   if(b){
     b.textContent=money(terminalAccountState.balance);
@@ -1287,6 +1288,7 @@ async function refreshMarket(retry=true){
     if(!q?.price)throw new Error('Market price unavailable');
     latestQuote=q;
     updateLiveCandle(Number(q.price));
+    updateLiveAccountEquity();
     await checkAutoCloseForQuote();
     const sell=Number(q.bid||q.price),buy=Number(q.ask||q.price);
     const spread=Math.max(0,buy-sell); document.querySelectorAll('.spread').forEach(el=>el.textContent=spread.toFixed(2));
@@ -1539,7 +1541,7 @@ function startTerminalPolling(){
   if(accountTimer)clearInterval(accountTimer);
   marketTimer=setInterval(function(){
     if(terminalSessionToken)refreshMarket();
-  },10000);
+  },3000);
   accountTimer=setInterval(function(){
     if(terminalSessionToken){
       lastTerminalAccountRefresh=Date.now();
