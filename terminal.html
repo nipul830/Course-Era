@@ -687,7 +687,7 @@ function renderChartOrderLines(){
     if(!Number.isFinite(entry)||entry<=0)return;
     const side=String(p.side||'').toUpperCase();
     candleSeries && chartPriceLines.push(candleSeries.createPriceLine({
-      price:entry,color:side==='BUY'?'#00a875':'#ec0050',lineWidth:2,lineStyle:0,axisLabelVisible:false,title:''
+      price:entry,color:side==='BUY'?'#00a875':'#ec0050',lineWidth:2,lineStyle:0,axisLabelVisible:true,title:''
     }));
   });
   visiblePositions.forEach((p,idx)=>{
