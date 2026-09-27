@@ -795,7 +795,7 @@ app.put("/api/challenges", requireAuth, requireAdmin, async (req, res) => {
     }
     const items = req.body.challenges.map(x => ({
       id: cleanId(x.id), model: String(x.model || "").trim(), size: String(x.size || "").trim(),
-      accountSize: Number(x.accountSize), price: Number(x.price),
+      accountSize: Number(x.accountSize), price: Number(x.price), discountPercent: Math.min(100, Math.max(0, Number(x.discountPercent) || 0)),
       ...(x.dailyDrawdown ? { dailyDrawdown:String(x.dailyDrawdown) } : {}),
       ...(x.totalDrawdown ? { totalDrawdown:String(x.totalDrawdown) } : {}),
       ...(x.profitTarget ? { profitTarget:String(x.profitTarget) } : {}),
@@ -826,7 +826,9 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
     const catalog = await getChallengeCatalog();
     const challenge = catalog.find(x => x.id === challengeId);
     if (!challenge) return res.status(404).json({ error:"Challenge not found" });
-    const expectedAmount = currency === "INR" ? Math.round(Number(challenge.price) * 98) : Number(challenge.price);
+    const discountPercent = Math.min(100, Math.max(0, Number(challenge.discountPercent) || 0));
+    const discountedPrice = Math.round(Number(challenge.price) * (1 - discountPercent / 100) * 100) / 100;
+    const expectedAmount = currency === "INR" ? Math.round(discountedPrice * 98) : discountedPrice;
     if (Math.abs(expectedAmount - amount) > 0.01) return res.status(400).json({ error:"Payment amount does not match selected currency price" });
 
     const duplicate = await db.collection("payments").where("transactionId","==",transactionId).limit(1).get();
