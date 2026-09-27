@@ -945,7 +945,7 @@ function updateCandleCountdown(){
       const h=el.parentElement?.clientHeight||0;
       // Keep the countdown just below the live-price marker, in the
       // right-side area marked for the user, while following price vertically.
-      const offset=18;
+      const offset=0;
       el.style.top=Math.max(12,Math.min(Math.max(12,h-12),y+offset))+'px';
       el.style.display='block';
     }
