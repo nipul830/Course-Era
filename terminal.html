@@ -806,6 +806,10 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('stopLoss'))document.getElementById('stopLoss').value='';
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
+    // Show the newly opened position immediately; the server response is already authoritative.
+    terminalPositions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>String(p.id)!==String(data.position.id)):[];
+    terminalPositions.push({...data.position,status:'open',currentPrice:Number(data.position.entryPrice)});
+    renderChartOrderLines();
     if(data.account) { sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account)); renderTerminalAccount(data.account); }
     await refreshTerminalAccount();
     
