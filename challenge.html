@@ -63,7 +63,7 @@ async function loadChallenges(){
   const res=await fetch(API+'/api/challenges'); const data=await res.json(); if(!res.ok)throw new Error(data.error||'Could not load challenges'); return data.challenges||[];
 }
 function card(x){
-  const inr=Math.round(Number(x.price)*98);
+  const discount=Math.min(100,Math.max(0,Number(x.discountPercent)||0)); const finalPrice=Math.round(Number(x.price)*(1-discount/100)*100)/100; const inr=Math.round(finalPrice*98);
   const rules=[];
   if(x.dailyDrawdown)rules.push('<div><b>Daily Drawdown:</b> '+x.dailyDrawdown+'</div>');
   if(x.totalDrawdown)rules.push('<div><b>Total Drawdown:</b> '+x.totalDrawdown+'</div>');
@@ -71,7 +71,24 @@ function card(x){
   if(x.phase1Profit)rules.push('<div><b>Phase 1 Profit:</b> '+x.phase1Profit+'</div>');
   if(x.phase2Profit)rules.push('<div><b>Phase 2 Profit:</b> '+x.phase2Profit+'</div>');
   if(x.evaluation)rules.push('<div><b>Evaluation:</b> '+x.evaluation+'</div>');
-  return '<article class="account-card"><div class="account-type">'+x.model.toUpperCase()+'</div><h2>'+x.size+'</h2><div class="price" data-inr="'+inr+'" data-usdt="'+Number(x.price).toFixed(2)+'">₹'+inr.toLocaleString('en-IN')+'</div><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize).toLocaleString('en-US')+'</b></div></div><button class="buy-now" data-id="'+x.id+'">Buy Now</button></article>';
+  return '<article class="account-card"><div class="account-type">'+x.model.toUpperCase()+'</div><h2>'+x.size+'</h2><div class="price" data-inr="'+inr+'" data-usdt="'+finalPrice.toFixed(2)+'">'+(discount>0?'<span style="text-decoration:line-through;opacity:.5;font-size:15px"><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize).toLocaleString('en-US')+'</b></div></div><button class="buy-now" data-id="'+x.id+'">Buy Now</button></article>';
+}
+(async function(){
+  try{
+    const items=await loadChallenges();
+    ['one','two','instant'].forEach(model=>{
+      const key=model==='one'?'1 Step':model==='two'?'2 Step':'Instant';
+      document.getElementById(model+'Grid').innerHTML=items.filter(x=>x.model===key).map(card).join('');
+    });
+    document.getElementById('challengeStatus').textContent='Choose an account to continue to checkout.';
+    document.querySelectorAll('.account-card').forEach(card=>{card.querySelectorAll('.currency-btn').forEach(b=>b.onclick=()=>{card.querySelectorAll('.currency-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');const price=card.querySelector('.price');price.textContent=b.dataset.currency==='USDT'?price.dataset.usdt+' USDT':'₹'+Number(price.dataset.inr).toLocaleString('en-IN');});});
+    document.querySelectorAll('.buy-now').forEach(btn=>btn.onclick=()=>{const card=btn.closest('.account-card');const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';localStorage.setItem('auraSelectedChallengeId',btn.dataset.id);localStorage.setItem('auraSelectedCurrency',currency);location.href='checkout.html';});
+  }catch(e){document.getElementById('challengeStatus').textContent=e.message;}
+})();
+document.querySelectorAll('.challenge-tab').forEach(tab=>tab.addEventListener('click',function(){
+ document.querySelectorAll('.challenge-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.challenge-panel').forEach(x=>x.classList.remove('active'));tab.classList.add('active');document.getElementById(tab.dataset.tab).classList.add('active');
+}));
+</script>+Number(x.price).toFixed(2)+'</span> ':'')+'₹'+inr.toLocaleString('en-IN')+(discount>0?'<small style="display:block;font-size:12px;color:#f1d98a">'+discount+'% OFF</small>':'')+'</div><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize).toLocaleString('en-US')+'</b></div></div><button class="buy-now" data-id="'+x.id+'">Buy Now</button></article>';
 }
 (async function(){
   try{
