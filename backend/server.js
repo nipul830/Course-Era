@@ -488,6 +488,7 @@ app.get("/api/trading-credentials", requireAuth, async (req, res) => {
 
     res.json({ loginId, tradingPassword, investorPassword, accountId: account.accountId || "" });
   } catch (e) {
+    console.error("TRADING_CREDENTIALS_ERROR:", e);
     res.status(500).json({ error: "Could not load terminal credentials", detail: e.message });
   }
 });
