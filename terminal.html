@@ -670,6 +670,10 @@ function startChartOrderActionSync(){
     chartOrderActionRaf=requestAnimationFrame(tick);
   };
   chartOrderActionRaf=requestAnimationFrame(tick);
+  if(lightweightChart){
+    lightweightChart.subscribeVisibleLogicalRangeChange(()=>requestAnimationFrame(()=>updateChartOrderActions()));
+    lightweightChart.timeScale().subscribeSizeChange?.(()=>requestAnimationFrame(()=>updateChartOrderActions()));
+  }
 }
 function renderChartOrderLines(){
   if(!candleSeries)return;
@@ -1006,9 +1010,15 @@ async function mountChart(id,symbol){
     });
     chartResizeObserver.observe(canvas);
     if(window.visualViewport){
-      window.visualViewport.addEventListener('resize',()=>requestAnimationFrame(()=>updateCandleCountdown()),{passive:true});
+      window.visualViewport.addEventListener('resize',()=>requestAnimationFrame(()=>{
+        updateCandleCountdown();
+        updateChartOrderActions();
+      }),{passive:true});
     }
-    window.addEventListener('resize',()=>requestAnimationFrame(()=>updateCandleCountdown()),{passive:true});
+    window.addEventListener('resize',()=>requestAnimationFrame(()=>{
+      updateCandleCountdown();
+      updateChartOrderActions();
+    }),{passive:true});
     await loadChartCandles(symbol,activeTimeframe);
   }catch(e){
     console.error('Aura chart error',e);
