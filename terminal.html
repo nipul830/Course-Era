@@ -711,6 +711,52 @@ async function refreshTerminalAccount(){
     }
   }
 }
+function applyLiveMarketQuote(q){
+  if(!q?.price)return;
+  latestQuote=q;
+  updateLiveCandle(Number(q.price));
+  updateLiveAccountEquity();
+  checkAutoCloseForQuote().catch(()=>{});
+  const sell=Number(q.bid||q.price),buy=Number(q.ask||q.price);
+  const spread=Math.max(0,buy-sell);
+  document.querySelectorAll('.spread').forEach(el=>el.textContent=spread.toFixed(2));
+  const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
+  ['sellPrice','desktopSellPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=fmt(sell)});
+  ['buyPrice','desktopBuyPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=fmt(buy)});
+  const sl=document.getElementById('stopLoss'),tp=document.getElementById('takeProfit');
+  if(sl)sl.placeholder='SL < '+fmt(q.price);
+  if(tp)tp.placeholder='TP > '+fmt(q.price);
+  setTradeStatus('Live market • '+fmt(q.price)+(q.stale?' • cached':'')+' • spread '+fmt(spread),true);
+}
+function connectMarketWebSocket(){
+  if(!terminalSessionToken||!window.WebSocket)return;
+  if(marketWs && (marketWs.readyState===WebSocket.OPEN||marketWs.readyState===WebSocket.CONNECTING))return;
+  if(marketWsReconnectTimer){clearTimeout(marketWsReconnectTimer);marketWsReconnectTimer=null;}
+  const wsBase='wss://course-era.onrender.com/ws/market?token='+encodeURIComponent(terminalSessionToken);
+  try{
+    marketWs=new WebSocket(wsBase);
+    marketWs.onopen=()=>{
+      marketWs.send(JSON.stringify({type:'subscribe',symbol:currentSymbol}));
+      setTradeStatus('Live market stream connected',true);
+    };
+    marketWs.onmessage=ev=>{
+      try{
+        const msg=JSON.parse(ev.data);
+        if(msg.type==='quote')applyLiveMarketQuote(msg.quote);
+      }catch{}
+    };
+    marketWs.onerror=()=>{};
+    marketWs.onclose=()=>{
+      marketWs=null;
+      if(terminalSessionToken){
+        marketWsReconnectTimer=setTimeout(connectMarketWebSocket,1500);
+      }
+    };
+  }catch{
+    marketWs=null;
+  }
+}
+
 async function refreshMarket(retry=true){
   if(marketRequest)return marketRequest;
   marketRequest=(async()=>{
@@ -718,10 +764,7 @@ async function refreshMarket(retry=true){
     const data=await terminalApi('/api/market/quotes?symbols='+encodeURIComponent(currentSymbol));
     const q=data.quotes?.[currentSymbol];
     if(!q?.price)throw new Error('Market price unavailable');
-    latestQuote=q;
-    updateLiveCandle(Number(q.price));
-    updateLiveAccountEquity();
-    await checkAutoCloseForQuote();
+    applyLiveMarketQuote(q);
     const sell=Number(q.bid||q.price),buy=Number(q.ask||q.price);
     const spread=Math.max(0,buy-sell); document.querySelectorAll('.spread').forEach(el=>el.textContent=spread.toFixed(2));
     const fmt=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:n<10?5:2,maximumFractionDigits:n<10?5:2});
@@ -771,6 +814,8 @@ async function placeSimulatedOrder(side){
     buttons.forEach(x=>x.disabled=false);
   }
 }
+let marketWs=null;
+let marketWsReconnectTimer=null;
 let lightweightChart=null;
 let candleSeries=null;
 let chartResizeObserver=null;
@@ -916,6 +961,8 @@ document.getElementById('terminalLoginBtn')?.addEventListener('click',loginTermi
 document.getElementById('terminalLoginPassword')?.addEventListener('keydown',e=>{if(e.key==='Enter')loginTerminal()});
 document.getElementById('terminalLogout')?.addEventListener('click',()=>{
   terminalSessionToken='';
+  if(marketWs){try{marketWs.close()}catch{}marketWs=null;}
+  if(marketWsReconnectTimer){clearTimeout(marketWsReconnectTimer);marketWsReconnectTimer=null;}
   sessionStorage.removeItem('auraTerminalSession');
   sessionStorage.removeItem('auraTerminalRole');
   showTerminalLogin('');
@@ -942,7 +989,9 @@ document.getElementById('terminalLogout')?.addEventListener('click',()=>{
       currentSymbol=btn.dataset.symbol;
       localStorage.setItem(AURA_SYMBOL_STORAGE,currentSymbol);
       symbolBtn.textContent=btn.dataset.name+' ▾';symbolList.classList.remove('open');
-      mountChart('tvMobile',currentSymbol);refreshMarket();
+      mountChart('tvMobile',currentSymbol);
+      if(marketWs?.readyState===WebSocket.OPEN)marketWs.send(JSON.stringify({type:'subscribe',symbol:currentSymbol}));
+      refreshMarket();
     }));
     document.addEventListener('click',e=>{if(!e.target.closest('.symbol-picker'))symbolList.classList.remove('open')});
   }
@@ -964,9 +1013,7 @@ let accountTimer=null;
 function startTerminalPolling(){
   if(marketTimer)clearInterval(marketTimer);
   if(accountTimer)clearInterval(accountTimer);
-  marketTimer=setInterval(function(){
-    if(terminalSessionToken)refreshMarket();
-  },3000);
+  if(terminalSessionToken)connectMarketWebSocket();
   accountTimer=setInterval(function(){
     if(terminalSessionToken){
       lastTerminalAccountRefresh=Date.now();
