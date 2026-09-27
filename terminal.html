@@ -844,7 +844,8 @@ let marketWsReconnectTimer=null;
 let lightweightChart=null;
 let candleSeries=null;
 let chartResizeObserver=null;
-let activeTimeframe='15m';
+const AURA_TIMEFRAME_STORAGE='auraTerminalTimeframe';
+let activeTimeframe=(()=>{const saved=localStorage.getItem(AURA_TIMEFRAME_STORAGE);return ['1m','5m','15m','30m','1h','4h'].includes(saved)?saved:'15m';})();
 let chartDataRequest=null;
 
 function ensureLightweightCharts(){
@@ -983,7 +984,7 @@ async function mountChart(id,symbol){
     ['1m','5m','15m','30m','1h','4h'].forEach(tf=>{
       const btn=document.createElement('button');
       btn.textContent=tf;btn.className=tf===activeTimeframe?'active':'';
-      btn.onclick=()=>{activeTimeframe=tf;toolbar.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');window.__auraOpenBar=null;updateCandleCountdown();loadChartCandles(currentSymbol,tf);};
+      btn.onclick=()=>{activeTimeframe=tf;localStorage.setItem(AURA_TIMEFRAME_STORAGE,tf);toolbar.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');window.__auraOpenBar=null;updateCandleCountdown();loadChartCandles(currentSymbol,tf);};
       toolbar.appendChild(btn);
     });
     const countdown=document.createElement('span');countdown.id='auraCandleCountdown';countdown.className='aura-chart-countdown';countdown.textContent='—:—';toolbar.appendChild(countdown);
