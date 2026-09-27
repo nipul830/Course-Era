@@ -12,7 +12,10 @@ import { WebSocketServer, WebSocket } from "ws";
 const app = express();
 const httpServer = http.createServer(app);
 const meetingWss = new WebSocketServer({ noServer: true });
+const marketWss = new WebSocketServer({ noServer: true });
 const meetingRooms = new Map();
+const marketClients = new Map();
+let marketStreamTimer = null;
 const PORT = Number(process.env.PORT || 3000);
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -1977,6 +1980,60 @@ function meetingRoomId(value) {
   return String(value || "").trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80);
 }
 
+function marketWsSubscribe(ws, symbol) {
+  const clean = String(symbol || "").trim();
+  if (!MARKET_SYMBOLS[clean]) return;
+  for (const set of marketClients.values()) set.delete(ws);
+  if (!marketClients.has(clean)) marketClients.set(clean, new Set());
+  marketClients.get(clean).add(ws);
+  ws.marketSymbol = clean;
+}
+
+async function broadcastMarketTick() {
+  if (!marketClients.size) return;
+  const symbols = [...marketClients.keys()];
+  try {
+    const quotes = await getMarketQuotes(symbols);
+    for (const [symbol, clients] of marketClients) {
+      const quote = quotes[symbol];
+      if (!quote) continue;
+      const payload = JSON.stringify({ type: "quote", quote });
+      for (const ws of clients) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(payload);
+      }
+    }
+  } catch {}
+}
+
+function ensureMarketStream() {
+  if (marketStreamTimer) return;
+  marketStreamTimer = setInterval(() => {
+    broadcastMarketTick().catch(() => {});
+    if (!marketClients.size) {
+      clearInterval(marketStreamTimer);
+      marketStreamTimer = null;
+    }
+  }, 500);
+}
+
+async function verifyMarketSocket(req) {
+  const url = new URL(req.url || "", "http://localhost");
+  const token = url.searchParams.get("token") || "";
+  if (!token) throw new Error("Terminal authentication required");
+  const payload = verifyTerminalSessionToken(token);
+  if (!payload.credentialId || !payload.accountId || !payload.uid || !["trader","investor"].includes(payload.role)) {
+    throw new Error("Valid terminal credentials are required");
+  }
+  initFirebase();
+  const credentialSnap = await db.collection("terminalCredentials").doc(String(payload.credentialId)).get();
+  if (!credentialSnap.exists) throw new Error("Terminal credentials revoked");
+  const credential = credentialSnap.data() || {};
+  if (credential.status !== "active" || credential.userId !== payload.uid || credential.accountId !== payload.accountId) {
+    throw new Error("Terminal credentials revoked");
+  }
+  return payload;
+}
+
 async function verifyMeetingSocket(req) {
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token") || "";
@@ -2126,9 +2183,30 @@ meetingWss.on("connection", (ws, req, auth, code) => {
   ws.on("error", cleanup);
 });
 
+marketWss.on("connection", (ws) => {
+  ws.on("message", raw => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      if (msg.type === "subscribe") marketWsSubscribe(ws, msg.symbol);
+    } catch {}
+  });
+  ws.on("close", () => {
+    for (const set of marketClients.values()) set.delete(ws);
+    for (const [symbol, set] of marketClients) if (!set.size) marketClients.delete(symbol);
+  });
+});
+
 httpServer.on("upgrade", async (req, socket, head) => {
   try {
     const url = new URL(req.url || "", "http://localhost");
+    if (url.pathname === "/ws/market") {
+      await verifyMarketSocket(req);
+      marketWss.handleUpgrade(req, socket, head, ws => {
+        marketWss.emit("connection", ws, req);
+      });
+      ensureMarketStream();
+      return;
+    }
     if (url.pathname !== "/ws/meeting") {
       socket.destroy();
       return;
