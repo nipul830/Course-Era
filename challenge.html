@@ -58,7 +58,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-const API='https://course-era.onrender.com';
+const API='https://aurafirming.in';
 async function loadChallenges(){
   const res=await fetch(API+'/api/challenges'); const data=await res.json(); if(!res.ok)throw new Error(data.error||'Could not load challenges'); return data.challenges||[];
 }
