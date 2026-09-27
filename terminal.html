@@ -848,12 +848,14 @@ const AURA_TIMEFRAME_STORAGE='auraTerminalTimeframe';
 const AURA_TIMEFRAMES=['1m','5m','15m','30m','1h','4h'];
 function getSavedTimeframe(){
   try{
-    const urlTf=new URLSearchParams(window.location.search).get('tf');
-    if(AURA_TIMEFRAMES.includes(urlTf))return urlTf;
+    // localStorage is the primary source so a stale URL parameter
+    // can never override the user's last selected timeframe.
     const saved=localStorage.getItem(AURA_TIMEFRAME_STORAGE);
     if(AURA_TIMEFRAMES.includes(saved))return saved;
     const sessionSaved=sessionStorage.getItem(AURA_TIMEFRAME_STORAGE);
     if(AURA_TIMEFRAMES.includes(sessionSaved))return sessionSaved;
+    const urlTf=new URLSearchParams(window.location.search).get('tf');
+    if(AURA_TIMEFRAMES.includes(urlTf))return urlTf;
   }catch{}
   return '15m';
 }
