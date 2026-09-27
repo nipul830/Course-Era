@@ -732,7 +732,7 @@ function connectMarketWebSocket(){
   if(!terminalSessionToken||!window.WebSocket)return;
   if(marketWs && (marketWs.readyState===WebSocket.OPEN||marketWs.readyState===WebSocket.CONNECTING))return;
   if(marketWsReconnectTimer){clearTimeout(marketWsReconnectTimer);marketWsReconnectTimer=null;}
-  const wsBase='wss://course-era.onrender.com/ws/market?token='+encodeURIComponent(terminalSessionToken);
+  const wsBase='wss://aurafirming.in/ws/market?token='+encodeURIComponent(terminalSessionToken);
   try{
     marketWs=new WebSocket(wsBase);
     marketWs.onopen=()=>{
@@ -807,6 +807,7 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
     if(data.account) { sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account)); renderTerminalAccount(data.account); }
+    await refreshTerminalAccount();
     
   }catch(e){
     setTradeStatus(e.message||'Trade failed',false);
