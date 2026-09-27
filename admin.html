@@ -10,7 +10,7 @@
 .challenge-form .full{grid-column:1/-1}.catalog-card{border:1px solid #302713;border-radius:14px;padding:14px;margin:12px 0}
 .catalog-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.catalog-grid label{color:#9b8552;font-size:11px;font-weight:800}.catalog-grid input,.catalog-grid select{margin-top:5px}
 .catalog-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}.admin-btn{border:1px solid #302713;border-radius:9px;font-weight:900;cursor:pointer;padding:11px 15px;background:#111;color:#f1d98a}.admin-btn.primary{background:#d6b35a;color:#080808}.admin-btn.danger{background:#260909;color:#ff9b9b}
-.rules-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;border:0;background:transparent;color:#f1d98a;font-size:22px;font-weight:900;padding:2px 0 10px;cursor:pointer}.rules-toggle span:last-child{font-size:16px}.rule-model{border:1px solid #302713;border-radius:14px;margin:12px 0;padding:14px}.rule-model h3{color:#fff;margin:0 0 12px}.rule-row{display:flex;gap:8px;margin:8px 0}.rule-row input{flex:1}.rule-add,.rule-remove,.rules-save{border:1px solid #302713;border-radius:9px;font-weight:900;cursor:pointer}.rule-add{background:#111;color:#f1d98a;padding:9px 13px}.rule-remove{background:#260909;color:#ff9b9b;padding:0 13px}.rules-save{background:#d6b35a;color:#080808;padding:12px 18px;margin-top:8px}
+.rule-model{border:1px solid #302713;border-radius:14px;margin:12px 0;padding:14px}.rule-model h3{color:#fff;margin:0 0 12px}.rule-row{display:flex;gap:8px;margin:8px 0}.rule-row input{flex:1}.rule-add,.rule-remove,.rules-save{border:1px solid #302713;border-radius:9px;font-weight:900;cursor:pointer}.rule-add{background:#111;color:#f1d98a;padding:9px 13px}.rule-remove{background:#260909;color:#ff9b9b;padding:0 13px}.rules-save{background:#d6b35a;color:#080808;padding:12px 18px;margin-top:8px}
 .payment{background:#050505;border:1px solid #302713;border-radius:16px;padding:18px;margin:12px 0}.row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:center}.muted2{color:#9b8552;font-size:12px}.actions{margin:0}.btn.reject{background:#2a0909;color:#ff9b9b;border-color:#5a1717}.proof{max-width:120px;max-height:90px;border-radius:8px;margin-top:8px}
 @media(max-width:800px){.challenge-form,.catalog-grid{grid-template-columns:1fr}.challenge-form .full{grid-column:auto}.row{grid-template-columns:1fr}.actions{margin-top:8px}}
 </style></head>
@@ -34,12 +34,12 @@
 <div class="full catalog-actions"><button class="admin-btn primary" id="addChallenge" type="button">+ Add Challenge</button><span id="catalogStatus" class="muted2"></span></div>
 </div><div id="catalog"></div></section>
 
-<section class="admin-section" id="rulesSection"><button type="button" id="rulesToggle" class="rules-toggle"><span>Challenge Rules</span><span id="rulesChevron">▼</span></button><div id="rulesBody"><p>Manage the rules shown inside purchased accounts. Add or remove numbered rules with the + button.</p><div id="rulesEditor"></div><button class="rules-save" type="button" id="saveRules">Save Rules</button><span id="rulesStatus" class="muted2" style="margin-left:10px"></span></div></section>
+<section class="admin-section" id="rulesSection"><h2 style="margin-bottom:6px">Challenge Rules</h2><p>Manage the rules shown inside purchased accounts. Add or remove numbered rules with the + button.</p><div id="rulesEditor"></div><button class="rules-save" type="button" id="saveRules">Save Rules</button><span id="rulesStatus" class="muted2" style="margin-left:10px"></span></section>
 <div id="list"></div></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=6"></script>
 <script>
 const API='';
-document.getElementById('rulesToggle').addEventListener('click',()=>{const body=document.getElementById('rulesBody');const open=body.style.display!=='none';body.style.display=open?'none':'block';document.getElementById('rulesChevron').textContent=open?'▶':'▼'});
+
 const RULE_MODELS=['1 Step','2 Step','Instant'];
 let challenges=[];
 let challengeRules={'1 Step':['Daily Drawdown: 4%','Total Drawdown: 8%','Profit Target: 10%'],'2 Step':['Daily Drawdown: 4%','Total Drawdown: 8%','Phase 1 Profit Target: 8%','Phase 2 Profit Target: 6%'],'Instant':['Daily Drawdown: 3%']};
