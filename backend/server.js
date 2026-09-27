@@ -476,15 +476,46 @@ app.get("/api/trading-credentials", requireAuth, async (req, res) => {
     const account = accountSnap.data() || {};
     if (account.status !== "active") return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status });
 
-    const ensured = await createTerminalCredentials(accountRef, req.user.uid, account);
-    const data = ensured.data || {};
-    const loginId = data.loginId || ensured.id;
-    const tradingPassword = ensured.created
-      ? ensured.credentials.tradingPassword
-      : decryptTerminalSecret(data.tradingPasswordEnc);
-    const investorPassword = ensured.created
-      ? ensured.credentials.investorPassword
-      : decryptTerminalSecret(data.investorPasswordEnc);
+    let ensured = await createTerminalCredentials(accountRef, req.user.uid, account);
+    let data = ensured.data || {};
+    let loginId = data.loginId || ensured.id;
+    let tradingPassword;
+    let investorPassword;
+
+    try {
+      if (ensured.created) {
+        tradingPassword = ensured.credentials.tradingPassword;
+        investorPassword = ensured.credentials.investorPassword;
+      } else {
+        tradingPassword = decryptTerminalSecret(data.tradingPasswordEnc);
+        investorPassword = decryptTerminalSecret(data.investorPasswordEnc);
+      }
+    } catch (decryptError) {
+      // Credentials may have been encrypted on an older deployment with different
+      // key material. Revoke that credential and issue a fresh one for this active
+      // trading account so the dashboard can recover without changing the account.
+      console.warn("TRADING_CREDENTIALS_ROTATING_LEGACY:", decryptError.message);
+      if (loginId) {
+        await db.collection("terminalCredentials").doc(loginId).set({
+          status: "revoked",
+          revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+          revokedReason: "Credential encryption key changed",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+      await accountRef.update({
+        terminalCredentialId: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      const freshAccountSnap = await accountRef.get();
+      const freshAccount = freshAccountSnap.data() || {};
+      ensured = await createTerminalCredentials(accountRef, req.user.uid, freshAccount);
+      data = ensured.data || {};
+      loginId = data.loginId || ensured.id;
+      if (!ensured.created) throw new Error("Could not rotate terminal credentials");
+      tradingPassword = ensured.credentials.tradingPassword;
+      investorPassword = ensured.credentials.investorPassword;
+    }
 
     res.json({ loginId, tradingPassword, investorPassword, accountId: account.accountId || "" });
   } catch (e) {
