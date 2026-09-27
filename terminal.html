@@ -632,6 +632,8 @@ function updateChartOrderActions(){
   if(!chartOrderActions||!candleSeries)return;
   updateChartRiskHandles();
   const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol):[];
+  // MT5-style: all trade markers are derived from the chart series price coordinate
+  // on every render pass, so price levels stay fixed while the chart moves/zooms.
   const activeClose=new Set();
   for(const p of positions){
     const entry=Number(p.entryPrice);
