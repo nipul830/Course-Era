@@ -36,7 +36,9 @@ const allowedOrigins = [
     .filter(Boolean),
   "capacitor://localhost",
   "http://localhost",
-  "https://localhost"
+  "https://localhost",
+  "https://aurafirming.in",
+  "https://www.aurafirming.in"
 ];
 
 app.use(helmet({
