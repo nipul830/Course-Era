@@ -106,8 +106,8 @@ body{background:#fff}
 <main class="terminal-page">
  <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">LIVE</span></div>
  <div class="desktop-orders" aria-label="Simulated trade controls">
-   <button class="trade-btn sell" type="button" onclick="placeSimulatedOrder('SELL')">SELL <span id="desktopSellPrice">4,288.33</span></button>
-   <button class="trade-btn buy" type="button" onclick="placeSimulatedOrder('BUY')">BUY <span id="desktopBuyPrice">4,288.89</span></button>
+   <button class="trade-btn sell" type="button" onclick="placeSimulatedOrder('SELL');return false;">SELL <span id="desktopSellPrice">4,288.33</span></button>
+   <button class="trade-btn buy" type="button" onclick="placeSimulatedOrder('BUY');return false;">BUY <span id="desktopBuyPrice">4,288.89</span></button>
  </div>
  <section class="tv-shell"><div class="tv-widget" id="tvChart"></div></section>
  <p class="notice">TradingView market data can be real-time, delayed, or end-of-day depending on the instrument and exchange. Aura Farming execution is simulated only.</p>
@@ -122,8 +122,8 @@ body{background:#fff}
    <div style="display:flex;align-items:center;gap:8px"><span class="status">LIVE</span><button class="terminal-logout" id="terminalLogout" type="button">Logout</button></div>
  </div>
  <div class="quote-row top-quotes">
-   <button class="quote sell" onclick="placeSimulatedOrder('SELL')"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
-   <button class="quote buy" onclick="placeSimulatedOrder('BUY')"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
+   <button type="button" class="quote sell" onclick="placeSimulatedOrder('SELL');return false;"><div class="label">SELL</div><div class="price" id="sellPrice">4,288.33</div></button>
+   <button type="button" class="quote buy" onclick="placeSimulatedOrder('BUY');return false;"><div class="label">BUY</div><div class="price" id="buyPrice">4,288.89</div></button>
    <div class="symbol-picker">
      <button class="symbol-btn" id="symbolBtn" type="button">GOLD ▾</button>
      <div class="symbol-list" id="symbolList">
