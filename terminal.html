@@ -830,11 +830,21 @@ let chartDataRequest=null;
 function ensureLightweightCharts(){
   return new Promise((resolve,reject)=>{
     if(window.LightweightCharts)return resolve();
-    const sc=document.createElement('script');
-    sc.src='https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js';
-    sc.onload=()=>resolve();
-    sc.onerror=()=>reject(new Error('Chart library failed to load'));
-    document.head.appendChild(sc);
+    const sources=[
+      'https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js',
+      'https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js'
+    ];
+    let n=0;
+    const load=()=>{
+      if(window.LightweightCharts)return resolve();
+      if(n>=sources.length)return reject(new Error('Chart library failed to load'));
+      const sc=document.createElement('script');
+      sc.src=sources[n++];
+      sc.onload=()=>window.LightweightCharts?resolve():load();
+      sc.onerror=load;
+      document.head.appendChild(sc);
+    };
+    load();
   });
 }
 
