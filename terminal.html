@@ -999,8 +999,16 @@ async function mountChart(id,symbol){
     chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);chartOrderActions.addEventListener('pointermove',moveRiskDrag);chartOrderActions.addEventListener('pointerup',endRiskDrag);chartOrderActions.addEventListener('pointercancel',endRiskDrag);canvas.addEventListener('pointerdown',handleRiskConfirmOutside);
     const countdown=document.createElement('div');countdown.id='auraCandleCountdown';countdown.className='aura-chart-countdown';countdown.textContent='—:—';canvas.appendChild(countdown);
     if(chartResizeObserver)chartResizeObserver.disconnect();
-    chartResizeObserver=new ResizeObserver(()=>lightweightChart?.applyOptions({width:canvas.clientWidth,height:canvas.clientHeight}));
+    chartResizeObserver=new ResizeObserver(()=>{
+      if(!lightweightChart)return;
+      lightweightChart.applyOptions({width:canvas.clientWidth,height:canvas.clientHeight});
+      requestAnimationFrame(()=>updateCandleCountdown());
+    });
     chartResizeObserver.observe(canvas);
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize',()=>requestAnimationFrame(()=>updateCandleCountdown()),{passive:true});
+    }
+    window.addEventListener('resize',()=>requestAnimationFrame(()=>updateCandleCountdown()),{passive:true});
     await loadChartCandles(symbol,activeTimeframe);
   }catch(e){
     console.error('Aura chart error',e);
