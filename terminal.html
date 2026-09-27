@@ -327,12 +327,18 @@ async function confirmCloseTrade(position){
     try{
       const data=await terminalApi('/api/trading/positions/'+encodeURIComponent(position.id)+'/close',{method:'POST'});
       modal.classList.remove('open');
+      // Remove the position from the terminal immediately. A background refresh
+      // reconciles the account without blocking the close action/UI.
+      terminalPositions=Array.isArray(terminalPositions)
+        ? terminalPositions.filter(p=>String(p.id)!==String(position.id))
+        : [];
+      renderChartOrderLines();
       if(data.account){
         sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account));
         renderTerminalAccount(data.account);
       }
       setTradeStatus('Trade closed at '+Number(data.closePrice).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5}),true);
-      await refreshTerminalAccount();
+      refreshTerminalAccount();
     }catch(e){
       if(text)text.textContent=e.message||'Could not close trade';
     }finally{
