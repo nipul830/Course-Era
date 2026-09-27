@@ -724,7 +724,7 @@ function applyLiveMarketQuote(q){
   if(!q?.price)return;
   latestQuote=q;
   updateLiveCandle(Number(q.price));
-  requestAnimationFrame(()=>updateChartOrderActions());
+  updateChartOrderActions();
   updateLiveAccountEquity();
   checkAutoCloseForQuote().catch(()=>{});
   const sell=Number(q.bid||q.price),buy=Number(q.ask||q.price);
@@ -979,7 +979,7 @@ function updateLiveCandle(price){
     low:Number(live.low),
     close:Number(live.close)
   });
-  requestAnimationFrame(()=>updateChartOrderActions());
+  updateChartOrderActions();
 }
 
 async function mountChart(id,symbol){
