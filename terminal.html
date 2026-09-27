@@ -886,6 +886,7 @@ async function loadChartCandles(symbol,interval){
         symbol:currentSymbol,
         interval
       } : null;
+      updateCandleCountdown();
       if(data.quote?.price){
         latestQuote=data.quote;
         updateLiveCandle(Number(data.quote.price));
@@ -924,6 +925,21 @@ async function checkAutoCloseForQuote(){
     }
   }
 }
+function updateCandleCountdown(){
+  const el=document.getElementById('auraCandleCountdown');
+  if(!el)return;
+  const live=window.__auraOpenBar;
+  const seconds={ '1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400 }[activeTimeframe]||900;
+  if(!live||!Number.isFinite(Number(live.time))){
+    el.textContent='Candle —:—';
+    return;
+  }
+  const remaining=Math.max(0,Number(live.time)+seconds-Math.floor(Date.now()/1000));
+  const m=Math.floor(remaining/60),s=remaining%60;
+  el.textContent='Candle '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+setInterval(updateCandleCountdown,1000);
+
 function updateLiveCandle(price){
   if(!candleSeries||!Number.isFinite(Number(price)))return;
   const p=Number(price);
@@ -959,10 +975,11 @@ async function mountChart(id,symbol){
     ['1m','5m','15m','30m','1h','4h'].forEach(tf=>{
       const btn=document.createElement('button');
       btn.textContent=tf;btn.className=tf===activeTimeframe?'active':'';
-      btn.onclick=()=>{activeTimeframe=tf;toolbar.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');window.__auraOpenBar=null;loadChartCandles(currentSymbol,tf);};
+      btn.onclick=()=>{activeTimeframe=tf;toolbar.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');window.__auraOpenBar=null;updateCandleCountdown();loadChartCandles(currentSymbol,tf);};
       toolbar.appendChild(btn);
     });
     const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);
+    const countdown=document.createElement('span');countdown.id='auraCandleCountdown';countdown.className='aura-chart-countdown';countdown.textContent='Candle —:—';toolbar.appendChild(countdown);
     const canvas=document.createElement('div');canvas.className='aura-chart-canvas';
     chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);chartOrderActions.addEventListener('pointermove',moveRiskDrag);chartOrderActions.addEventListener('pointerup',endRiskDrag);chartOrderActions.addEventListener('pointercancel',endRiskDrag);canvas.addEventListener('pointerdown',handleRiskConfirmOutside);
     el.appendChild(toolbar);el.appendChild(canvas);
