@@ -992,7 +992,7 @@ async function mountChart(id,symbol){
     const canvas=document.createElement('div');canvas.className='aura-chart-canvas';
     el.appendChild(toolbar);el.appendChild(canvas);
     lightweightChart=LightweightCharts.createChart(canvas,{width:canvas.clientWidth,height:canvas.clientHeight,layout:{background:{color:'#fff'},textColor:'#5f6e7d'},grid:{vertLines:{color:'#eef1f4'},horzLines:{color:'#eef1f4'}},rightPriceScale:{borderColor:'#dfe5ea'},timeScale:{borderColor:'#dfe5ea',timeVisible:true,secondsVisible:false}});
-    candleSeries=lightweightChart.addCandlestickSeries({upColor:'#00a875',downColor:'#ec0050',borderUpColor:'#00a875',borderDownColor:'#ec0050',wickUpColor:'#00a875',wickDownColor:'#00a875'});
+    candleSeries=lightweightChart.addCandlestickSeries({upColor:'#00a875',downColor:'#ec0050',borderUpColor:'#00a875',borderDownColor:'#ec0050',wickUpColor:'#00a875',wickDownColor:'#ec0050'});
     chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);chartOrderActions.addEventListener('pointermove',moveRiskDrag);chartOrderActions.addEventListener('pointerup',endRiskDrag);chartOrderActions.addEventListener('pointercancel',endRiskDrag);canvas.addEventListener('pointerdown',handleRiskConfirmOutside);
     const countdown=document.createElement('div');countdown.id='auraCandleCountdown';countdown.className='aura-chart-countdown';countdown.textContent='—:—';chartOrderActions.appendChild(countdown);
     if(chartResizeObserver)chartResizeObserver.disconnect();
