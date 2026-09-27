@@ -1911,8 +1911,15 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
     if(!snap.exists) return res.status(404).json({error:"Position not found"});
     const p=snap.data();
     if(p.status!=="open") return res.status(409).json({error:"Position is already closed"});
-    const quotes=await getMarketQuotes([p.symbol]);
-    const q=Number(quotes[p.symbol]?.price||0);
+    // Use the latest server-side market tick first so closing a trade does not
+    // wait on another external market-data request. The market websocket refreshes
+    // quoteCache continuously; only fall back to the feed when no cached quote exists.
+    let cachedQuote=quoteCache.get(p.symbol);
+    let q=Number(cachedQuote?.price||0);
+    if(!q){
+      const quotes=await getMarketQuotes([p.symbol]);
+      q=Number(quotes[p.symbol]?.price||0);
+    }
     if(!q) return res.status(502).json({error:"No live market price available"});
     const pnl=tradePnl(p,q);
     await positionRef.update({
@@ -1921,19 +1928,19 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
       updatedAt:admin.firestore.FieldValue.serverTimestamp()
     });
     const balance=Number(data.balance ?? data.startingBalance ?? 0)+pnl;
-    const starting=Number(data.startingBalance ?? balance);
     await ref.update({
       balance,
       updatedAt:admin.firestore.FieldValue.serverTimestamp()
     });
-    const refreshed=await refreshTradingAccount(req.terminal.uid,quotes);
+    // Fast close response: do not run a second full account reconciliation here.
+    // The client already has live market/account data and can update immediately.
     const account={
-      id:refreshed.accountId || data.accountId || "account",
-      balance:Number(refreshed.balance||balance),
-      equity:Number(refreshed.equity||refreshed.balance||balance),
-      pnl:Number(refreshed.pnl||0),
-      openPnl:Number(refreshed.openPnl||0),
-      status:refreshed.status || data.status || "active"
+      id:data.accountId || "account",
+      balance,
+      equity:balance,
+      pnl:balance-Number(data.startingBalance ?? balance),
+      openPnl:0,
+      status:data.status || "active"
     };
     res.json({message:"Position closed",closePrice:q,realizedPnl:pnl,account});
   } catch(e) {
