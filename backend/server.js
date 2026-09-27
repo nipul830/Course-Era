@@ -1922,20 +1922,20 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
     });
     const balance=Number(data.balance ?? data.startingBalance ?? 0)+pnl;
     const starting=Number(data.startingBalance ?? balance);
-    const account={
-      id:data.accountId || "account",
-      balance,
-      equity:balance,
-      pnl:balance-starting,
-      openPnl:0,
-      status:data.status || "active"
-    };
     await ref.update({
-      balance,equity:balance,pnl:balance-starting,openPnl:0,
+      balance,
       updatedAt:admin.firestore.FieldValue.serverTimestamp()
     });
+    const refreshed=await refreshTradingAccount(req.terminal.uid,quotes);
+    const account={
+      id:refreshed.accountId || data.accountId || "account",
+      balance:Number(refreshed.balance||balance),
+      equity:Number(refreshed.equity||refreshed.balance||balance),
+      pnl:Number(refreshed.pnl||0),
+      openPnl:Number(refreshed.openPnl||0),
+      status:refreshed.status || data.status || "active"
+    };
     res.json({message:"Position closed",closePrice:q,realizedPnl:pnl,account});
-    refreshTradingAccount(req.terminal.uid,quotes).catch(()=>{});
   } catch(e) {
     console.error("TRADING_CLOSE_ERROR", e);
     res.status(500).json({error:"Could not close position",detail:e.message || "Unknown server error"});
