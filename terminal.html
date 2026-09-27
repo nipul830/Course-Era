@@ -436,12 +436,12 @@ function startRiskDrag(ev){
 function chartOverlayYFromPrice(price){
   if(!candleSeries||!chartOrderActions)return null;
   const ry=candleSeries.priceToCoordinate(Number(price));
-  if(ry==null||!Number.isFinite(Number(ry)))return null;
-  const canvas=chartOrderActions.parentElement;
-  const overlayRect=chartOrderActions.getBoundingClientRect();
-  const canvasRect=canvas?.getBoundingClientRect?.();
-  const offset=canvasRect&&overlayRect?Number(canvasRect.top-overlayRect.top):0;
-  return Number(ry)+offset;
+  return ry==null||!Number.isFinite(Number(ry))?null:Number(ry);
+}
+function setChartOverlayY(el,y,offset){
+  if(!el||y==null)return;
+  el.style.top=Math.round(Number(y)+Number(offset||0))+'px';
+  el.style.transform='none';
 }
 function chartPriceFromPointer(clientY){
   if(!candleSeries||!chartOrderActions)return null;
@@ -474,7 +474,7 @@ async function moveRiskDrag(ev){
     if(ry!=null){
       let visualY=ry;
       if(entryY!=null&&Math.abs(ry-entryY)<38)visualY=entryY+(d.type==='stopLoss'?-42:42);
-      h.style.transform='translate3d(0,'+Math.round(visualY-24)+'px,0)';
+      setChartOverlayY(h,visualY,-24);
       h.dataset.price=String(price);
     }
     h.classList.add('dragging');
@@ -557,7 +557,7 @@ function updateChartRiskValue(position,id,type,price,ry){
     line.applyOptions({title:''});
   }
   const overlayY=chartOverlayYFromPrice(price);
-  if(overlayY!=null)valueEl.style.transform='translate3d(0,'+Math.round(overlayY-10)+'px,0)';
+  if(overlayY!=null)setChartOverlayY(valueEl,overlayY,-10);
 }
 function getChartRiskDraft(position,type){
   if(!position||!position.id)return null;
@@ -615,12 +615,12 @@ function updateChartRiskHandles(){
     entryBtn.textContent=' '+(side==='BUY'?'▲':'▼');
     entryBtn.setAttribute('aria-label',(side==='BUY'?'Buy':'Sell')+' entry');
     const entryY=chartOverlayYFromPrice(entry);
-    entryBtn.style.transform='translate3d(0,'+Math.round((entryY??y)-15)+'px,0)';
+    setChartOverlayY(entryBtn,entryY??y,-15);
     updateChartEntryInfo(p,id,y);
     const close=chartOrderActions.querySelector('.chart-close-btn[data-position-id="'+CSS.escape(id)+'"]');
     if(close){
       const closeY=chartOverlayYFromPrice(entry);
-      close.style.transform='translate3d(0,'+Math.round((closeY??y)-14)+'px,0)';
+      setChartOverlayY(close,closeY??y,-14);
     }
     for(const type of ['stopLoss','takeProfit']){
       const storedRisk=Number(p[type]);
@@ -643,7 +643,7 @@ function updateChartRiskHandles(){
         chartOrderActions.appendChild(handle);
       }
       const visualY=ry;
-      handle.style.transform='translate3d(0,'+Math.round(visualY-24)+'px,0)';
+      setChartOverlayY(handle,visualY,-24);
       handle.dataset.price=String(price);
       updateChartRiskValue(p,id,type,price,ry);
     }
