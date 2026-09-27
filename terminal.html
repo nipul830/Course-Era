@@ -71,7 +71,7 @@ body{background:#fff}
  .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
 .terminal-login-screen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;font-family:Arial,Helvetica,sans-serif}.terminal-login-card{width:min(430px,92vw);background:#fff;border:1px solid #e0e5e9;border-radius:22px;padding:28px;box-shadow:0 18px 50px #00000012}.terminal-login-card h1{margin:0 0 7px;color:#182332;font-size:28px}.terminal-login-card p{margin:0 0 20px;color:#7b8793;font-size:13px}.terminal-field{display:block;margin:12px 0}.terminal-field span{display:block;color:#536273;font-size:12px;font-weight:800;margin-bottom:6px}.terminal-field input{width:100%;height:48px;border:1px solid #dce2e7;border-radius:11px;padding:0 13px;font-size:15px;outline:0}.terminal-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.terminal-mode button{height:42px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;color:#596879;font-weight:800;cursor:pointer}.terminal-mode button.active{background:#182839;color:#fff;border-color:#182839}.terminal-login-btn{width:100%;height:48px;border:0;border-radius:11px;background:#d6b35a;color:#080808;font-weight:900;font-size:15px;cursor:pointer}.terminal-login-status{min-height:20px;margin-top:12px;color:#e6004d;font-size:12px;font-weight:700}.terminal-security-note{margin-top:16px!important;color:#9b8552!important;font-size:11px!important}.terminal-logout{border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;cursor:pointer}.terminal-role-badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;background:#eef2f5;color:#526274;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.read-only .quote{opacity:.45;pointer-events:none}.read-only .risk-input,.read-only .lot-control{opacity:.55;pointer-events:none}
-.aura-chart-toolbar{position:relative}.aura-chart-canvas{position:relative}.aura-chart-countdown{position:absolute;right:8px;top:20px;z-index:10000;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.72);backdrop-filter:blur(4px);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;pointer-events:none;color:#475467;display:block}.aura-chart-live{margin-right:0}</style>
+.aura-chart-toolbar{position:relative}.aura-chart-canvas{position:relative}.aura-chart-countdown{position:absolute;right:8px;top:0;z-index:10000;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.72);backdrop-filter:blur(4px);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;pointer-events:none;color:#475467;display:block;transform:translateY(-50%)}.aura-chart-live{margin-right:0}</style>
 <link rel="preconnect" href="https://aurafirming.in" crossorigin><link rel="preconnect" href="https://s3.tradingview.com" crossorigin><link rel="preconnect" href="https://www.gstatic.com" crossorigin></head>
 <body>
 
@@ -943,7 +943,7 @@ function updateCandleCountdown(){
     const y=lightweightChart.priceScale('right').priceToCoordinate(price);
     if(Number.isFinite(y)){
       const h=el.parentElement?.clientHeight||0;
-      el.style.top=Math.max(4,Math.min(Math.max(4,h-28),y-14))+'px';
+      el.style.top=Math.max(10,Math.min(Math.max(10,h-10),y))+'px';
       el.style.display='block';
     }
   }catch{
@@ -993,7 +993,7 @@ async function mountChart(id,symbol){
     const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);
     const canvas=document.createElement('div');canvas.className='aura-chart-canvas';
     chartOrderActions=document.createElement('div');chartOrderActions.className='chart-order-actions';canvas.appendChild(chartOrderActions);chartOrderActions.addEventListener('pointermove',moveRiskDrag);chartOrderActions.addEventListener('pointerup',endRiskDrag);chartOrderActions.addEventListener('pointercancel',endRiskDrag);canvas.addEventListener('pointerdown',handleRiskConfirmOutside);
-    const countdown=document.createElement('div');countdown.id='auraCandleCountdown';countdown.className='aura-chart-countdown';countdown.textContent='—:—';canvas.appendChild(countdown);
+    const countdown=document.createElement('div');countdown.id='auraCandleCountdown';countdown.className='aura-chart-countdown';countdown.textContent='—:—';chartOrderActions.appendChild(countdown);
     el.appendChild(toolbar);el.appendChild(canvas);
     startChartOrderActionSync();
     lightweightChart=LightweightCharts.createChart(canvas,{width:canvas.clientWidth,height:canvas.clientHeight,layout:{background:{color:'#fff'},textColor:'#5f6e7d'},grid:{vertLines:{color:'#eef1f4'},horzLines:{color:'#eef1f4'}},rightPriceScale:{borderColor:'#dfe5ea'},timeScale:{borderColor:'#dfe5ea',timeVisible:true,secondsVisible:false}});
