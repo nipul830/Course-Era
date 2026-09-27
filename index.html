@@ -57,7 +57,7 @@
       <a href="invite.html">Invite</a>
       <div class="profile-language"><span>Language</span><span class="language-pill">English</span></div>
     </div>
-    <button type="button" class="profile-logout" onclick="ceAuth.signOut()">Sign Out</button>
+    <button type="button" class="profile-logout" id="profileLogoutBtn">Sign Out</button>
   </div>
 </header>
 
@@ -101,6 +101,14 @@
 <script src="firebase-config.js?v=6"></script>
 <script>
 
+async function auraSignOut(){
+  try{ await ceAuth.signOut(); }catch(e){ console.error('SIGN_OUT_ERROR',e); }
+  try{ localStorage.clear(); sessionStorage.clear(); }catch(e){}
+  window.location.replace('login.html');
+}
+document.getElementById('profileLogoutBtn')?.addEventListener('click',function(e){
+  e.preventDefault(); e.stopPropagation(); auraSignOut();
+});
 ceAuth.onAuthStateChanged(async function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
@@ -117,7 +125,7 @@ ceAuth.onAuthStateChanged(async function(user){
     profilePhoto=profilePhoto||user.photoURL||'';
     try{
       var token=await user.getIdToken();
-      var pr=await fetch('https://course-era.onrender.com/api/profile',{headers:{Authorization:'Bearer '+token}});
+      var pr=await fetch('https://aurafirming.in/api/profile',{headers:{Authorization:'Bearer '+token}});
       if(pr.ok){var pd=await pr.json();profilePhoto=pd.photoURL||profilePhoto}
     }catch(e){}
     if(profilePhoto){
