@@ -169,8 +169,13 @@ function terminalLoggedIn(){return Boolean(terminalSessionToken)}
 const AURA_SYMBOL_STORAGE='auraTerminalSymbol';
 const AURA_ALLOWED_SYMBOLS=['OANDA:XAUUSD','FX:EURUSD','FX:GBPUSD','FX:USDJPY','FX:AUDUSD','BINANCE:BTCUSDT','BINANCE:ETHUSDT','BINANCE:SOLUSDT','BINANCE:XRPUSDT','INDEX:NAS100','INDEX:DEX40','INDEX:US30','OIL:USOIL','NASDAQ:AAPL','NASDAQ:NVDA'];
 const savedAuraSymbol=localStorage.getItem(AURA_SYMBOL_STORAGE)||'';
+const lastTradeSymbol=localStorage.getItem('auraLastTradeSymbol')||'';
 const chartUrlSymbol=new URLSearchParams(location.search).get('symbol')||'';
-let currentSymbol=AURA_ALLOWED_SYMBOLS.includes(chartUrlSymbol)?chartUrlSymbol:(AURA_ALLOWED_SYMBOLS.includes(savedAuraSymbol)?savedAuraSymbol:'OANDA:XAUUSD');
+let currentSymbol=AURA_ALLOWED_SYMBOLS.includes(chartUrlSymbol)
+  ? chartUrlSymbol
+  : (AURA_ALLOWED_SYMBOLS.includes(lastTradeSymbol)
+    ? lastTradeSymbol
+    : (AURA_ALLOWED_SYMBOLS.includes(savedAuraSymbol)?savedAuraSymbol:'OANDA:XAUUSD'));
 let latestQuote=null;
 let marketRequest=null;
 let terminalPositions=[];
@@ -806,6 +811,14 @@ async function placeSimulatedOrder(side){
     if(document.getElementById('stopLoss'))document.getElementById('stopLoss').value='';
     if(document.getElementById('takeProfit'))document.getElementById('takeProfit').value='';
     sessionStorage.setItem('auraLastTrade',JSON.stringify({position:data.position,account:data.account,at:Date.now()}));
+    // Keep the last traded instrument when navigating between Position and Charts.
+    if(data.position?.symbol && AURA_ALLOWED_SYMBOLS.includes(String(data.position.symbol))){
+      localStorage.setItem('auraLastTradeSymbol',String(data.position.symbol));
+      localStorage.setItem(AURA_SYMBOL_STORAGE,String(data.position.symbol));
+      currentSymbol=String(data.position.symbol);
+      const symbolBtn=document.getElementById('symbolBtn');
+      if(symbolBtn)symbolBtn.textContent=(data.position.name||currentSymbol)+' ▾';
+    }
     // Show the newly opened position immediately; the server response is already authoritative.
     terminalPositions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>String(p.id)!==String(data.position.id)):[];
     terminalPositions.push({...data.position,status:'open',currentPrice:Number(data.position.entryPrice)});
