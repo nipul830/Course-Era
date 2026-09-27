@@ -433,11 +433,28 @@ function startRiskDrag(ev){
   el.classList.add('dragging');
   ev.preventDefault();
 }
+function chartOverlayYFromPrice(price){
+  if(!candleSeries||!chartOrderActions)return null;
+  const ry=candleSeries.priceToCoordinate(Number(price));
+  if(ry==null||!Number.isFinite(Number(ry)))return null;
+  const canvas=chartOrderActions.parentElement;
+  const overlayRect=chartOrderActions.getBoundingClientRect();
+  const canvasRect=canvas?.getBoundingClientRect?.();
+  const offset=canvasRect&&overlayRect?Number(canvasRect.top-overlayRect.top):0;
+  return Number(ry)+offset;
+}
+function chartPriceFromPointer(clientY){
+  if(!candleSeries||!chartOrderActions)return null;
+  const overlayRect=chartOrderActions.getBoundingClientRect();
+  const canvas=chartOrderActions.parentElement;
+  const canvasRect=canvas?.getBoundingClientRect?.();
+  const offset=canvasRect&&overlayRect?Number(canvasRect.top-overlayRect.top):0;
+  return candleSeries.coordinateToPrice((Number(clientY)-overlayRect.top)-offset);
+}
 async function moveRiskDrag(ev){
   const d=chartRiskDrag;
   if(!d||ev.pointerId!==d.pointerId||!candleSeries||!chartOrderActions)return;
-  const rect=chartOrderActions.getBoundingClientRect();
-  const raw=candleSeries.coordinateToPrice(ev.clientY-rect.top);
+  const raw=chartPriceFromPointer(ev.clientY);
   if(raw==null||!Number.isFinite(Number(raw)))return;
   const price=Number(raw);
   const market=Number(latestQuote?.price||0);
@@ -452,12 +469,12 @@ async function moveRiskDrag(ev){
   const h=chartOrderActions.querySelector('[data-risk-key="'+CSS.escape(key)+'"]');
   if(h){
     const entry=Number(d.position.entryPrice);
-    const entryY=candleSeries.priceToCoordinate(entry);
-    const ry=candleSeries.priceToCoordinate(price);
+    const entryY=chartOverlayYFromPrice(entry);
+    const ry=chartOverlayYFromPrice(price);
     if(ry!=null){
       let visualY=ry;
       if(entryY!=null&&Math.abs(ry-entryY)<38)visualY=entryY+(d.type==='stopLoss'?-42:42);
-      h.style.transform='translateY('+Math.round(visualY-14)+'px)';
+      h.style.transform='translate3d(0,'+Math.round(visualY-24)+'px,0)';
       h.dataset.price=String(price);
     }
     h.classList.add('dragging');
@@ -539,7 +556,8 @@ function updateChartRiskValue(position,id,type,price,ry){
   if(line&&typeof line.applyOptions==='function'){
     line.applyOptions({title:''});
   }
-  valueEl.style.transform='translateY('+Math.round(ry-10)+'px)';
+  const overlayY=chartOverlayYFromPrice(price);
+  if(overlayY!=null)valueEl.style.transform='translate3d(0,'+Math.round(overlayY-10)+'px,0)';
 }
 function getChartRiskDraft(position,type){
   if(!position||!position.id)return null;
@@ -596,14 +614,18 @@ function updateChartRiskHandles(){
     entryBtn.classList.toggle('expanded',expandedChartPositions.has(id));
     entryBtn.textContent=' '+(side==='BUY'?'▲':'▼');
     entryBtn.setAttribute('aria-label',(side==='BUY'?'Buy':'Sell')+' entry');
-    entryBtn.style.transform='translateY('+Math.round(y-15)+'px)';
+    const entryY=chartOverlayYFromPrice(entry);
+    entryBtn.style.transform='translate3d(0,'+Math.round((entryY??y)-15)+'px,0)';
     updateChartEntryInfo(p,id,y);
     const close=chartOrderActions.querySelector('.chart-close-btn[data-position-id="'+CSS.escape(id)+'"]');
-    if(close)close.style.transform='translateY('+Math.round(y-14)+'px)';
+    if(close){
+      const closeY=chartOverlayYFromPrice(entry);
+      close.style.transform='translate3d(0,'+Math.round((closeY??y)-14)+'px,0)';
+    }
     for(const type of ['stopLoss','takeProfit']){
       const storedRisk=Number(p[type]);
       const price=Number.isFinite(storedRisk)&&storedRisk>0?storedRisk:getChartRiskDraft(p,type);
-      const ry=candleSeries.priceToCoordinate(price);
+      const ry=chartOverlayYFromPrice(price);
       if(ry==null)continue;
       const key=id+'-'+type;
       activeRisk.add(key);
@@ -621,7 +643,7 @@ function updateChartRiskHandles(){
         chartOrderActions.appendChild(handle);
       }
       const visualY=ry;
-      handle.style.transform='translateY('+Math.round(visualY-24)+'px)';
+      handle.style.transform='translate3d(0,'+Math.round(visualY-24)+'px,0)';
       handle.dataset.price=String(price);
       updateChartRiskValue(p,id,type,price,ry);
     }
