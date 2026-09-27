@@ -100,7 +100,31 @@ function renderCards(items){
   if(currentTab==='open')document.querySelectorAll('.open-chart').forEach(btn=>btn.addEventListener('click',()=>{ const symbol=btn.dataset.symbol; if(symbol) location.href='terminal.html?symbol='+encodeURIComponent(symbol); }));
   if(currentTab==='open')document.querySelectorAll('.close-position').forEach(btn=>btn.addEventListener('click',async()=>{
     btn.disabled=true;btn.textContent='Closing…';
-    try{await positionApi('/api/trading/positions/'+encodeURIComponent(btn.dataset.id)+'/close',{method:'POST'});await loadPositions();}
+    try{
+      const id=String(btn.dataset.id);
+      const data=await positionApi('/api/trading/positions/'+encodeURIComponent(id)+'/close',{method:'POST'});
+      // Remove the trade from Open immediately; history/account reconciliation
+      // continues in the background so the close button never waits on it.
+      const closed=tabData.open.find(x=>String(x.id)===id);
+      tabData.open=(tabData.open||[]).filter(x=>String(x.id)!==id);
+      if(closed){
+        tabData.closed=[{
+          ...closed,
+          status:'closed',
+          closePrice:Number(data.closePrice||closed.currentPrice||closed.entryPrice||0),
+          realizedPnl:Number(data.realizedPnl||0),
+          closedAt:new Date().toISOString()
+        },...(tabData.closed||[])];
+      }
+      if(data.account){
+        liveBalance=Number(data.account.balance||liveBalance);
+        document.getElementById('positionBalance').textContent=money(liveBalance);
+        document.getElementById('detailPositionBalance').textContent=money(liveBalance);
+      }
+      livePositions=tabData.open;
+      renderCurrentTab();
+      loadPositions().catch(()=>{});
+    }
     catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}
   }));
 }
