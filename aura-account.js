@@ -1,5 +1,5 @@
 (function(){
-  const AURA_API_BASE='https://course-era.onrender.com';
+  const AURA_API_BASE='https://aurafirming.in';
   const ACCOUNT_TIMEOUT_MS=8000;
   let accountPromise=null;
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
