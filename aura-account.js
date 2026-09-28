@@ -30,7 +30,6 @@
           return data.account||null;
         }catch(e){
           lastError=e;
-          // Do not hammer Firestore when the project has exhausted its quota.
           if(String(e.message||'').includes('RESOURCE_EXHAUSTED')||e.status===429)break;
           if(attempt===0)await sleep(1200);
         }
@@ -47,6 +46,71 @@
       maximumFractionDigits:2
     });
   }
+
+  // Keep terminal history isolated by trading-account ID. When a user gets a
+  // brand-new challenge, the new terminal session has a new accountId, so the
+  // first time that account is seen becomes the cutoff for displayed trades.
+  // This prevents positions from the previous challenge from appearing on the
+  // new account while preserving the new account's history across refreshes.
+  function terminalAccountContext(){
+    try{
+      const token=sessionStorage.getItem('auraTerminalSession')||'';
+      const parts=token.split('.');
+      if(parts.length!==3||parts[0]!=='AF1')return null;
+      const raw=parts[1].replace(/-/g,'+').replace(/_/g,'/');
+      const json=decodeURIComponent(escape(atob(raw+'='.repeat((4-raw.length%4)%4))));
+      const payload=JSON.parse(json);
+      const accountId=String(payload.accountId||'').trim();
+      if(!accountId)return null;
+      const key='auraAccountFirstSeen:'+accountId;
+      let firstSeen=Number(localStorage.getItem(key)||0);
+      if(!Number.isFinite(firstSeen)||firstSeen<=0){
+        firstSeen=Date.now();
+        localStorage.setItem(key,String(firstSeen));
+      }
+      return {accountId,firstSeen};
+    }catch(e){return null;}
+  }
+
+  function filterPositionHistory(data){
+    if(!data||typeof data!=='object')return data;
+    const ctx=terminalAccountContext();
+    if(!ctx)return data;
+    const cutoff=ctx.firstSeen;
+    const tradeTime=p=>{
+      const value=p?.openedAt||p?.createdAt||p?.closedAt;
+      const t=Date.parse(value||'');
+      return Number.isFinite(t)?t:0;
+    };
+    const keep=p=>{
+      const t=tradeTime(p);
+      return t===0||t>=cutoff;
+    };
+    const out={...data};
+    if(Array.isArray(data.open))out.open=data.open.filter(keep);
+    if(Array.isArray(data.closed))out.closed=data.closed.filter(keep);
+    if(Array.isArray(data.positions))out.positions=data.positions.filter(keep);
+    return out;
+  }
+
+  const nativeFetch=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const response=await nativeFetch(input,init);
+    try{
+      const url=typeof input==='string'?input:(input?.url||'');
+      if(!url.includes('/api/trading/history')&&!url.includes('/api/trading/positions'))return response;
+      const clone=response.clone();
+      const data=await clone.json();
+      const filtered=filterPositionHistory(data);
+      return new Response(JSON.stringify(filtered),{
+        status:response.status,
+        statusText:response.statusText,
+        headers:response.headers
+      });
+    }catch(e){
+      return response;
+    }
+  };
 
   window.auraAccount=auraAccount;
   window.auraMoney=auraMoney;
