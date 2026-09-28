@@ -155,16 +155,16 @@
   function addDashboardBuyChallengeLink(){
     const path=window.location.pathname.replace(/\/+$/,'');
     if(path!=='/courses' && !path.endsWith('/courses.html'))return;
-    const pageTitle=document.querySelector('.page-title');
-    const eyebrow=pageTitle?.querySelector('.eyebrow');
-    if(!pageTitle||!eyebrow||document.getElementById('dashboardBuyChallenge'))return;
+    const dashboard=document.querySelector('.dashboard');
+    const pageTitle=dashboard?.querySelector('.page-title');
+    if(!dashboard||!pageTitle||document.getElementById('dashboardBuyChallenge'))return;
     const link=document.createElement('a');
     link.id='dashboardBuyChallenge';
     link.href='challenge.html';
     link.textContent='Buy Challenge';
-    link.style.cssText='display:inline-block;margin:0 0 16px;color:#d6b35a;text-decoration:none;font-size:22px;font-weight:900;letter-spacing:.02em;cursor:pointer;';
+    link.style.cssText='display:block;width:max-content;margin:0 auto 28px;padding:10px 24px;border:1px solid #d6b35a;border-radius:999px;background:linear-gradient(180deg,#2a220f,#171106);color:#f1d98a;text-decoration:none;font-size:14px;font-weight:800;letter-spacing:.6px;cursor:pointer;';
     link.setAttribute('aria-label','Buy Challenge');
-    pageTitle.insertBefore(link,eyebrow);
+    dashboard.insertBefore(link,pageTitle);
   }
 
   window.auraTerminalAccountContext=terminalAccountContext;
