@@ -114,9 +114,44 @@
     });
   }
 
-  // History is scoped by the authenticated terminal account on the server.
-  // Never apply a first-seen/time cutoff in the browser: doing so hides valid
-  // history when a user logs out of account A and later logs back into A.
+  // If an API response contains explicit account identifiers, keep only records
+  // belonging to the currently authenticated terminal account. If the server
+  // already scopes the response, records without an account field are preserved.
+  function filterByActiveAccount(data){
+    const ctx=terminalAccountContext();
+    if(!ctx||!data||typeof data!=='object')return data;
+    const accountId=String(ctx.accountId);
+    const belongsToAccount=(p)=>{
+      if(!p||typeof p!=='object')return true;
+      const candidate=p.accountId??p.tradingAccountId??p.account?.accountId??p.account?.id;
+      return candidate==null||String(candidate)===accountId;
+    };
+    const out={...data};
+    for(const key of ['open','closed','positions','trades','history']){
+      if(Array.isArray(data[key]))out[key]=data[key].filter(belongsToAccount);
+    }
+    return out;
+  }
+
+  const nativeFetch=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const response=await nativeFetch(input,init);
+    try{
+      const url=typeof input==='string'?input:(input?.url||'');
+      if(!url.includes('/api/trading/history')&&!url.includes('/api/trading/positions'))return response;
+      const clone=response.clone();
+      const data=await clone.json();
+      const filtered=filterByActiveAccount(data);
+      return new Response(JSON.stringify(filtered),{
+        status:response.status,
+        statusText:response.statusText,
+        headers:response.headers
+      });
+    }catch(e){
+      return response;
+    }
+  };
+
   window.auraTerminalAccountContext=terminalAccountContext;
   window.auraTerminalAccountStorageKey=terminalAccountStorageKey;
   window.auraSaveTerminalAccount=saveTerminalAccount;
