@@ -6,7 +6,7 @@
 <title>Admin — Aura Farming</title>
 <style>
 :root{--gold:#f1d98a;--gold2:#d6b35a;--bg:#000;--card:#070707;--line:#302713;--muted:#9b8552;--ok:#7ee2a8;--err:#ff9b9b}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#fff;font-family:Arial,sans-serif}.top{height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 5%;position:sticky;top:0;background:#000;z-index:10}.brand{font-size:25px;font-weight:900;color:#fff}.logout{border:1px solid var(--line);background:#080706;color:var(--gold);border-radius:9px;padding:10px 16px;font-weight:900;cursor:pointer}.wrap{max-width:1100px;margin:auto;padding:35px 5% 70px}.eyebrow{color:var(--gold2);font-size:12px;font-weight:900;letter-spacing:3px}.title{display:flex;align-items:end;justify-content:space-between;gap:20px}.title h1{font-size:48px;margin:8px 0;color:var(--gold)}.live{color:var(--ok);font-size:13px;font-weight:900}.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-top:20px}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.panel h2{margin:0;color:var(--gold)}.updated{color:var(--muted);font-size:12px}.empty{padding:45px 15px;text-align:center;color:var(--muted)}.item{border:1px solid var(--line);border-radius:14px;padding:17px;margin-top:12px;background:#030303}.row{display:flex;justify-content:space-between;gap:15px}.name{font-weight:900;font-size:18px}.tag{display:inline-block;margin-top:7px;padding:4px 8px;border-radius:7px;background:#171207;color:var(--gold2);font-size:11px;font-weight:900}.meta{color:var(--muted);font-size:13px;line-height:1.7;margin-top:10px}.amount{font-size:22px;color:var(--gold);font-weight:900}.proof{display:block;max-width:240px;max-height:260px;margin-top:12px;border-radius:10px;border:1px solid var(--line);object-fit:contain}.actions{display:flex;gap:8px;margin-top:14px}.actions button{border-radius:8px;padding:10px 14px;font-weight:900;cursor:pointer}.approve{background:var(--gold);border:1px solid var(--gold);color:#080808}.reject{background:#120707;border:1px solid #522626;color:var(--err)}.status{min-height:20px;margin-top:10px;font-size:13px}.error{color:var(--err)}@media(max-width:650px){.title{align-items:flex-start;flex-direction:column}.title h1{font-size:38px}.row{flex-direction:column}.amount{text-align:left}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#fff;font-family:Arial,sans-serif}.top{height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 5%;position:sticky;top:0;background:#000;z-index:10}.brand{font-size:25px;font-weight:900;color:#fff}.logout{border:1px solid var(--line);background:#080706;color:var(--gold);border-radius:9px;padding:10px 16px;font-weight:900;cursor:pointer}.wrap{max-width:1100px;margin:auto;padding:35px 5% 70px}.eyebrow{color:var(--gold2);font-size:12px;font-weight:900;letter-spacing:3px}.title{display:flex;align-items:end;justify-content:space-between;gap:20px}.title h1{font-size:48px;margin:8px 0;color:var(--gold)}.live{color:var(--ok);font-size:13px;font-weight:900}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:22px}.tab{border:1px solid var(--line);background:#080706;color:var(--muted);border-radius:12px;padding:14px 10px;font-weight:900;cursor:pointer;text-align:center}.tab.active{background:var(--gold);color:#080808;border-color:var(--gold)}.tab span{display:block;margin-top:4px;font-size:12px;font-weight:700}.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-top:14px}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.panel h2{margin:0;color:var(--gold)}.updated{color:var(--muted);font-size:12px}.empty{padding:45px 15px;text-align:center;color:var(--muted)}.item{border:1px solid var(--line);border-radius:14px;padding:17px;margin-top:12px;background:#030303}.row{display:flex;justify-content:space-between;gap:15px}.name{font-weight:900;font-size:18px}.tag{display:inline-block;margin-top:7px;padding:4px 8px;border-radius:7px;background:#171207;color:var(--gold2);font-size:11px;font-weight:900}.tag.approved{background:#07170e;color:var(--ok)}.tag.rejected{background:#170707;color:var(--err)}.meta{color:var(--muted);font-size:13px;line-height:1.7;margin-top:10px}.amount{font-size:22px;color:var(--gold);font-weight:900}.proof{display:block;max-width:240px;max-height:260px;margin-top:12px;border-radius:10px;border:1px solid var(--line);object-fit:contain}.reviewed{margin-top:12px;color:var(--muted);font-size:12px}.actions{display:flex;gap:8px;margin-top:14px}.actions button{border-radius:8px;padding:10px 14px;font-weight:900;cursor:pointer}.approve{background:var(--gold);border:1px solid var(--gold);color:#080808}.reject{background:#120707;border:1px solid #522626;color:var(--err)}.status{min-height:20px;margin-top:10px;font-size:13px}.error{color:var(--err)}@media(max-width:650px){.title{align-items:flex-start;flex-direction:column}.title h1{font-size:38px}.row{flex-direction:column}.amount{text-align:left}.tabs{gap:6px}.tab{font-size:13px;padding:12px 5px}}
 </style>
 </head>
 <body>
@@ -14,22 +14,80 @@
 <main class="wrap">
 <div class="eyebrow">AURA FARMING ADMIN</div>
 <div class="title"><h1>Checkout Requests</h1><div class="live">● LIVE QUEUE</div></div>
-<div class="panel"><div class="panel-head"><h2>Instant Checkout</h2><div class="updated" id="updated">Connecting…</div></div><div id="queue"><div class="empty">Loading checkout requests…</div></div><div id="status" class="status"></div></div>
+<div class="tabs">
+  <button class="tab active" data-tab="pending">Pending<span id="pendingCount">0</span></button>
+  <button class="tab" data-tab="approved">Approved<span id="approvedCount">0</span></button>
+  <button class="tab" data-tab="rejected">Rejected<span id="rejectedCount">0</span></button>
+</div>
+<div class="panel"><div class="panel-head"><h2 id="sectionTitle">Pending Requests</h2><div class="updated" id="updated">Connecting…</div></div><div id="queue"><div class="empty">Loading checkout requests…</div></div><div id="status" class="status"></div></div>
 </main>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=12"></script>
 <script>
-const queue=document.getElementById('queue'),updated=document.getElementById('updated'),status=document.getElementById('status');let currentUser=null,loading=false;
+const queue=document.getElementById('queue'),updated=document.getElementById('updated'),status=document.getElementById('status'),sectionTitle=document.getElementById('sectionTitle');
+let currentUser=null,loading=false,currentTab='pending',allPayments=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function token(){return currentUser.getIdToken(true)}
 async function api(path,opt={}){const headers={...(opt.headers||{}),Authorization:'Bearer '+await token()};const r=await fetch(path,{...opt,headers});const text=await r.text();let d={};try{d=text?JSON.parse(text):{}}catch{}if(!r.ok)throw new Error(d.error||d.detail||'Request failed');return d}
 function time(v){if(!v)return '—';if(typeof v==='string')return new Date(v).toLocaleString();if(v._seconds)return new Date(v._seconds*1000).toLocaleString();if(v.seconds)return new Date(v.seconds*1000).toLocaleString();return '—'}
-function render(payments){const pending=payments.filter(p=>p.status==='pending');if(!pending.length){queue.innerHTML='<div class="empty">No pending checkout requests.</div>';return}queue.innerHTML=pending.map(p=>{const title=p.type==='challenge'?((p.challengeModel||'Challenge')+' '+(p.challengeSize||'')):((p.courseTitle||'Course payment'));const proof=p.screenshotUrl?'<img class="proof" src="'+esc(p.screenshotUrl)+'" alt="Payment screenshot">':'';return '<article class="item"><div class="row"><div><div class="name">'+esc(title)+'</div><span class="tag">PENDING</span></div><div class="amount">'+esc(p.currency||'INR')+' '+esc(Number(p.amount||0).toLocaleString('en-IN',{maximumFractionDigits:2}))+'</div></div><div class="meta"><b>User:</b> '+esc(p.userEmail||p.userId)+'<br><b>UTR:</b> '+esc(p.transactionId)+'<br><b>Submitted:</b> '+esc(time(p.submittedAt))+'</div>'+proof+'<div class="actions"><button class="approve" data-id="'+esc(p.id)+'" data-status="approved">Approve</button><button class="reject" data-id="'+esc(p.id)+'" data-status="rejected">Reject</button></div></article>'}).join('');document.querySelectorAll('.actions button').forEach(b=>b.onclick=review)}
-async function load(){if(!currentUser||loading)return;loading=true;try{const d=await api('/api/admin/payments');render(d.payments||[]);updated.textContent='Updated '+new Date().toLocaleTimeString()}catch(e){status.className='status error';status.textContent=e.message}finally{loading=false}}
-async function review(e){const b=e.currentTarget,id=b.dataset.id,action=b.dataset.status;b.disabled=true;try{await api('/api/admin/payments/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:action})});await load()}catch(err){status.className='status error';status.textContent=err.message;b.disabled=false}}
+function paymentTitle(p){return p.type==='challenge'?((p.challengeModel||'Challenge')+' '+(p.challengeSize||'')):((p.courseTitle||'Course payment'))}
+function card(p){
+  const title=paymentTitle(p);
+  const proof=p.screenshotUrl?'<img class="proof" src="'+esc(p.screenshotUrl)+'" alt="Payment screenshot">':'';
+  const statusTag=p.status==='approved'?'<span class="tag approved">APPROVED</span>':p.status==='rejected'?'<span class="tag rejected">REJECTED</span>':'<span class="tag">PENDING</span>';
+  const actions=p.status==='pending'?'<div class="actions"><button class="approve" data-id="'+esc(p.id)+'" data-status="approved">Approve</button><button class="reject" data-id="'+esc(p.id)+'" data-status="rejected">Reject</button></div>':'';
+  const reviewed=p.status!=='pending'?'<div class="reviewed"><b>Reviewed:</b> '+esc(time(p.reviewedAt))+'</div>':'';
+  return '<article class="item"><div class="row"><div><div class="name">'+esc(title)+'</div>'+statusTag+'</div><div class="amount">'+esc(p.currency||'INR')+' '+esc(Number(p.amount||0).toLocaleString('en-IN',{maximumFractionDigits:2}))+'</div></div><div class="meta"><b>User:</b> '+esc(p.userEmail||p.userId)+'<br><b>UTR / Transaction:</b> '+esc(p.transactionId)+'<br><b>Submitted:</b> '+esc(time(p.submittedAt))+'</div>'+proof+reviewed+actions+'</article>';
+}
+function render(){
+  const list=allPayments.filter(p=>p.status===currentTab);
+  const labels={pending:'Pending Requests',approved:'Approved Requests',rejected:'Rejected Requests'};
+  sectionTitle.textContent=labels[currentTab];
+  if(!list.length){queue.innerHTML='<div class="empty">No '+currentTab+' checkout requests.</div>';return}
+  queue.innerHTML=list.map(card).join('');
+  document.querySelectorAll('.actions button').forEach(b=>b.onclick=review);
+}
+function setCounts(){
+  document.getElementById('pendingCount').textContent=allPayments.filter(p=>p.status==='pending').length;
+  document.getElementById('approvedCount').textContent=allPayments.filter(p=>p.status==='approved').length;
+  document.getElementById('rejectedCount').textContent=allPayments.filter(p=>p.status==='rejected').length;
+}
+async function load(){
+  if(!currentUser||loading)return;
+  loading=true;
+  try{
+    const d=await api('/api/admin/payments');
+    allPayments=Array.isArray(d.payments)?d.payments:[];
+    setCounts();
+    render();
+    updated.textContent='Updated '+new Date().toLocaleTimeString();
+  }catch(e){status.className='status error';status.textContent=e.message}
+  finally{loading=false}
+}
+async function review(e){
+  const b=e.currentTarget,id=b.dataset.id,action=b.dataset.status;
+  b.disabled=true;
+  try{
+    await api('/api/admin/payments/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:action})});
+    status.className='status';
+    status.textContent='Payment '+action+'.';
+    await load();
+  }catch(err){status.className='status error';status.textContent=err.message;b.disabled=false}
+}
+document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{
+  currentTab=tab.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===tab));
+  status.textContent='';
+  render();
+});
 document.getElementById('logout').onclick=async()=>{await firebase.auth().signOut();location.replace('admin.html')};
-firebase.auth().onAuthStateChanged(async u=>{if(!u){location.replace('admin.html');return}currentUser=u;try{await load()}catch{}setInterval(load,1000)});
+firebase.auth().onAuthStateChanged(async u=>{
+  if(!u){location.replace('admin.html');return}
+  currentUser=u;
+  try{await load()}catch{}
+  setInterval(load,1000);
+});
 </script>
 </body>
 </html>
