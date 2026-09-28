@@ -68,6 +68,7 @@
       <h1>Trade with<br><span>discipline.</span></h1>
       <p class="lead">A professional simulated prop-trading environment built around risk management, consistency and transparent challenge rules.</p>
       <div class="actions">
+        <a id="heroDashboardBtn" class="btn ghost" href="login.html?next=position.html">Dashboard</a>
         <a id="heroAccountBtn" class="btn primary" href="login.html?next=challenge.html">Buy Challenge</a>
       </div>
     </div>
@@ -106,6 +107,7 @@ document.getElementById('profileLogoutBtn')?.addEventListener('click',function(e
 ceAuth.onAuthStateChanged(async function(user){
   var nav=document.getElementById('authNav');
   var hero=document.getElementById('heroAccountBtn');
+  var dashboard=document.getElementById('heroDashboardBtn');
   var menu=document.getElementById('profileMenu');
   var photo=document.getElementById('navProfilePhoto');
   var blank=document.getElementById('navProfileBlank');
@@ -145,6 +147,7 @@ ceAuth.onAuthStateChanged(async function(user){
         blank.style.display='none';
       }else{photo.hidden=true;photo.style.display='none';blank.style.display='block'}
     }
+    dashboard.href='position.html';
     hero.href='challenge.html';
     hero.textContent='Buy Challenge';
     var btn=document.getElementById('profileNavBtn');
@@ -152,6 +155,7 @@ ceAuth.onAuthStateChanged(async function(user){
   }else{
     nav.innerHTML='<a class="btn primary small" href="login.html?next=challenge.html">Login</a>';
     if(menu) menu.classList.remove('open');
+    dashboard.href='login.html?next=position.html';
     hero.href='login.html?next=challenge.html';
     hero.textContent='Buy Challenge';
   }
