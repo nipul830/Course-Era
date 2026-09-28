@@ -68,7 +68,7 @@
       <h1>Trade with<br><span>discipline.</span></h1>
       <p class="lead">A professional simulated prop-trading environment built around risk management, consistency and transparent challenge rules.</p>
       <div class="actions">
-        <a id="heroAccountBtn" class="btn primary" href="login.html">Trader Login</a>
+        <a id="heroAccountBtn" class="btn primary" href="login.html?next=challenge.html">Buy Challenge</a>
       </div>
     </div>
 
@@ -89,18 +89,12 @@
     </div>
   </section>
 
-  
-
-  
-
-  
 </main>
 <footer>© 2026 Aura Farming · Simulated trading environment. No real brokerage execution.</footer>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script>
-
 async function auraSignOut(){
   try{ await ceAuth.signOut(); }catch(e){ console.error('SIGN_OUT_ERROR',e); }
   try{ localStorage.clear(); sessionStorage.clear(); }catch(e){}
@@ -131,7 +125,6 @@ ceAuth.onAuthStateChanged(async function(user){
     if(profilePhoto){
       try{localStorage.setItem('auraProfilePhoto',profilePhoto)}catch(e){}
       img.hidden=false;img.style.display='block';img.src=profilePhoto;
-      img.setAttribute('src',profilePhoto);
       var navAvatar=document.querySelector('.profile-nav-avatar');
       if(navAvatar){
         navAvatar.style.backgroundImage="url('"+profilePhoto.replace(/'/g,"\\'")+"')";
@@ -152,15 +145,15 @@ ceAuth.onAuthStateChanged(async function(user){
         blank.style.display='none';
       }else{photo.hidden=true;photo.style.display='none';blank.style.display='block'}
     }
-    hero.href='courses.html';
-    hero.textContent='Open Dashboard';
+    hero.href='challenge.html';
+    hero.textContent='Buy Challenge';
     var btn=document.getElementById('profileNavBtn');
     if(btn) btn.addEventListener('click',function(e){e.stopPropagation();var open=menu.classList.toggle('open');menu.setAttribute('aria-hidden',open?'false':'true');btn.setAttribute('aria-expanded',open?'true':'false')});
   }else{
-    nav.innerHTML='<a class="btn primary small" href="login.html">Login</a>';
+    nav.innerHTML='<a class="btn primary small" href="login.html?next=challenge.html">Login</a>';
     if(menu) menu.classList.remove('open');
-    hero.href='login.html';
-    hero.textContent='Trader Login';
+    hero.href='login.html?next=challenge.html';
+    hero.textContent='Buy Challenge';
   }
 });
   document.addEventListener('click',function(e){
