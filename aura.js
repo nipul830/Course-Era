@@ -139,12 +139,8 @@ function logout(){
     if(!pseudoFix.parentNode)document.head.appendChild(pseudoFix);
 
     const title=document.querySelector('.page-title h1');
-    if(title && !title.querySelector('a')){
-      title.textContent='';
-      const link=document.createElement('a');
-      link.href='challenge.html';
-      link.textContent='Buy Challenge';
-      title.appendChild(link);
+    if(title){
+      title.textContent='Dashboard';
     }
   }
 
