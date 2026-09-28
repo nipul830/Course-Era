@@ -36,6 +36,7 @@
       if(!accountId||!account)return;
       sessionStorage.setItem('auraTerminalAccount',JSON.stringify(account));
       localStorage.setItem(terminalAccountStorageKey(accountId),JSON.stringify(account));
+      paintTerminalAccountNumber(accountId);
     }catch(e){}
   }
 
@@ -46,6 +47,28 @@
       const raw=localStorage.getItem(terminalAccountStorageKey(ctx.accountId));
       return raw?JSON.parse(raw):null;
     }catch(e){return null;}
+  }
+
+  function paintTerminalAccountNumber(accountId){
+    if(!accountId)return;
+    const paint=()=>{
+      const label=document.querySelector('.mobile-terminal .account-label');
+      if(!label)return;
+      let el=document.getElementById('terminalAccountNumber');
+      if(!el){
+        el=document.createElement('span');
+        el.id='terminalAccountNumber';
+        el.style.cssText='display:inline-block;margin-left:7px;padding:2px 6px;border:1px solid #d6b35a;border-radius:6px;color:#8b6b22;font-size:9px;font-weight:900;letter-spacing:.03em;text-transform:none;vertical-align:middle;';
+        label.appendChild(el);
+      }
+      el.textContent='A/C '+accountId;
+    };
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint,{once:true});else paint();
+  }
+
+  function syncTerminalAccountNumber(){
+    const ctx=terminalAccountContext();
+    if(ctx)paintTerminalAccountNumber(ctx.accountId);
   }
 
   async function auraAccount(){
@@ -91,14 +114,15 @@
     });
   }
 
-  // Terminal history is already returned by the server for the authenticated
-  // trading account. Do not apply a client-side first-seen/time cutoff: that
-  // incorrectly hides an older account's history when the user logs back in.
-  // The active terminal session/accountId is the source of identity.
+  // History is scoped by the authenticated terminal account on the server.
+  // Never apply a first-seen/time cutoff in the browser: doing so hides valid
+  // history when a user logs out of account A and later logs back into A.
   window.auraTerminalAccountContext=terminalAccountContext;
   window.auraTerminalAccountStorageKey=terminalAccountStorageKey;
   window.auraSaveTerminalAccount=saveTerminalAccount;
   window.auraGetSavedTerminalAccount=getSavedTerminalAccount;
+  window.auraSyncTerminalAccountNumber=syncTerminalAccountNumber;
   window.auraAccount=auraAccount;
   window.auraMoney=auraMoney;
+  syncTerminalAccountNumber();
 })();
