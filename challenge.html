@@ -37,6 +37,19 @@
 let challengeRules={};
 async function loadChallenges(){const res=await fetch('/api/challenges');const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load challenges');return data.challenges||[]}
 async function loadChallengeRules(){const res=await fetch('/api/challenge-rules');if(!res.ok)return{};const data=await res.json();return data.rules||{}}
+function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function extraRuleHtml(rule){
+  if(rule&&typeof rule==='object'){
+    const label=String(rule.label??rule.name??rule.key??'').trim();
+    const value=String(rule.value??rule.val??'').trim();
+    if(label)return '<div><b>'+escapeHtml(label)+':</b> '+escapeHtml(value)+'</div>';
+  }
+  const text=String(rule??'').trim();
+  if(!text)return '';
+  const match=text.match(/^\s*([^:]+):\s*(.*)$/);
+  if(match)return '<div><b>'+escapeHtml(match[1].trim())+':</b> '+escapeHtml(match[2].trim())+'</div>';
+  return '<div>'+escapeHtml(text)+'</div>';
+}
 function card(x){
   const discount=Math.min(100,Math.max(0,Number(x.discountPercent)||0));
   const finalPrice=Math.round(Number(x.price)*(1-discount/100)*100)/100;
@@ -48,7 +61,7 @@ function card(x){
   if(x.phase2Profit)rules.push('<div><b>Phase 2 Profit:</b> '+x.phase2Profit+'</div>');
   if(x.evaluation)rules.push('<div><b>Evaluation:</b> '+x.evaluation+'</div>');
   const extra=Array.isArray(challengeRules[x.model])?challengeRules[x.model]:[];
-  extra.forEach(rule=>{const text=String(rule||'').trim();if(text)rules.push('<div>'+text+'</div>')});
+  extra.forEach(rule=>{const html=extraRuleHtml(rule);if(html)rules.push(html)});
   const oldPrice=Number(x.price).toFixed(2);
   const priceHtml=discount>0?'<span style="text-decoration:line-through;opacity:.5;font-size:15px">'+oldPrice+' USDT</span> '+inr.toLocaleString('en-IN')+' INR<small style="display:block;font-size:12px;color:#f1d98a">'+discount+'% OFF</small>':'₹'+inr.toLocaleString('en-IN');
   return '<article class="account-card">'+'<div class="account-type">'+String(x.model||'').toUpperCase()+'</div>'+'<h2>'+String(x.size||'')+'</h2>'+'<div class="price" data-inr="'+inr+'" data-usdt="'+finalPrice.toFixed(2)+'">'+priceHtml+'</div>'+'<div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div>'+'<div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize||0).toLocaleString('en-US')+'</b></div></div>'+'<button class="buy-now" type="button" data-id="'+x.id+'">Buy Now</button>'+'</article>';
