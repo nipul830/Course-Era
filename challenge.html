@@ -36,6 +36,17 @@
 <script src="firebase-config.js?v=7"></script>
 <script>
 let challengeRules={};
+const challengeTabKey='auraSelectedChallengeTab';
+function activateChallengeTab(tabName,save=true){
+  const tab=document.querySelector('.challenge-tab[data-tab="'+tabName+'"]');
+  const panel=document.getElementById(tabName);
+  if(!tab||!panel)return;
+  document.querySelectorAll('.challenge-tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.challenge-panel').forEach(x=>x.classList.remove('active'));
+  tab.classList.add('active');
+  panel.classList.add('active');
+  if(save)localStorage.setItem(challengeTabKey,tabName);
+}
 async function loadChallenges(){const res=await fetch('/api/challenges');const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load challenges');return data.challenges||[]}
 async function loadChallengeRules(){const res=await fetch('/api/challenge-rules');if(!res.ok)return{};const data=await res.json();return data.rules||{}}
 function escapeHtml(value){return String(value??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]))}
@@ -90,9 +101,11 @@ function card(x){
       const buy=card.querySelector('.buy-now');
       buy.onclick=()=>{const id=buy.dataset.id;const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';localStorage.setItem('auraSelectedChallengeId',id);localStorage.setItem('auraSelectedCurrency',currency);location.href='checkout-v3.html?challengeId='+encodeURIComponent(id)+'&currency='+encodeURIComponent(currency)};
     });
+    const savedTab=localStorage.getItem(challengeTabKey);
+    activateChallengeTab(['one','two','instant'].includes(savedTab)?savedTab:'one',false);
   }catch(e){document.getElementById('challengeStatus').textContent=e.message}
 })();
-document.querySelectorAll('.challenge-tab').forEach(tab=>tab.addEventListener('click',function(){document.querySelectorAll('.challenge-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.challenge-panel').forEach(x=>x.classList.remove('active'));tab.classList.add('active');document.getElementById(tab.dataset.tab).classList.add('active')}));
+document.querySelectorAll('.challenge-tab').forEach(tab=>tab.addEventListener('click',function(){activateChallengeTab(tab.dataset.tab,true)}));
 </script>
 </body>
 </html>
