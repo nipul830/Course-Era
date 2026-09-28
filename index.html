@@ -6,8 +6,9 @@
 <title>Aura Farming — Simulated Prop Trading</title>
 <link rel="stylesheet" href="aura.css">
 <style>
-.actions{display:flex;gap:14px;flex-wrap:wrap}
-.actions .btn{min-width:170px;text-align:center}
+.actions{display:flex;flex-direction:row!important;align-items:center;gap:14px;flex-wrap:nowrap!important}
+.actions .btn{min-width:170px;text-align:center;flex:0 0 auto}
+@media(max-width:520px){.actions .btn{min-width:0;flex:1}.actions{width:100%}}
 </style></head>
 <body>
 <header class="nav">
