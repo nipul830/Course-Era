@@ -825,64 +825,140 @@ app.put("/api/challenges", requireAuth, requireAdmin, async (req, res) => {
 app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), async (req, res) => {
   try {
     initFirebase();
-    const challengeId = String(req.body.challengeId || "").trim();
-    const transactionId = String(req.body.transactionId || "").trim();
-    const method = String(req.body.method || "UPI").trim();
-    const currency = String(req.body.currency || (method === "USDT" ? "USDT" : "INR")).trim().toUpperCase();
-    const amount = positiveAmount(req.body.amount);
-    if (!challengeId || !transactionId || amount === null) return res.status(400).json({ error:"challengeId, transactionId and valid amount are required" });
-    if (!["INR","USDT"].includes(currency)) return res.status(400).json({ error:"Currency must be INR or USDT" });
+
+    const challengeId = String(req.body?.challengeId || "").trim();
+    const transactionId = String(req.body?.transactionId || "").trim();
+    const method = String(req.body?.method || "UPI").trim().toUpperCase();
+    const currency = String(req.body?.currency || (method === "USDT" ? "USDT" : "INR")).trim().toUpperCase();
+    const amount = positiveAmount(req.body?.amount);
+
+    if (!challengeId || !transactionId || amount === null) {
+      return res.status(400).json({ error:"challengeId, transactionId and valid amount are required" });
+    }
+    if (!["INR","USDT"].includes(currency)) {
+      return res.status(400).json({ error:"Currency must be INR or USDT" });
+    }
+
     const catalog = await getChallengeCatalog();
     const challenge = catalog.find(x => x.id === challengeId);
     if (!challenge) return res.status(404).json({ error:"Challenge not found" });
+
     const discountPercent = Math.min(100, Math.max(0, Number(challenge.discountPercent) || 0));
     const discountedPrice = Math.round(Number(challenge.price) * (1 - discountPercent / 100) * 100) / 100;
     const expectedAmount = currency === "INR" ? Math.round(discountedPrice * 98) : discountedPrice;
-    if (Math.abs(expectedAmount - amount) > 0.01) return res.status(400).json({ error:"Payment amount does not match selected currency price" });
 
-    const duplicate = await db.collection("payments").where("transactionId","==",transactionId).limit(1).get();
-    if (!duplicate.empty) return res.status(409).json({ error:"This transaction/reference ID was already submitted" });
+    if (Math.abs(expectedAmount - amount) > 0.01) {
+      return res.status(400).json({
+        error:"Payment amount does not match selected currency price",
+        expectedAmount,
+        receivedAmount:amount,
+        currency
+      });
+    }
 
-    let screenshotUrl="", screenshotPath="", screenshotToken="";
+    // Make repeated submits idempotent for the same logged-in user.
+    // A previous successful submit should not look like a new failure on retry.
+    const duplicate = await db.collection("payments")
+      .where("transactionId","==",transactionId)
+      .limit(5)
+      .get();
+
+    if (!duplicate.empty) {
+      const existingDoc = duplicate.docs.find(d => d.data()?.userId === req.user.uid);
+      if (existingDoc) {
+        const existing = existingDoc.data() || {};
+        if (existing.type === "challenge" && existing.challengeId === challengeId) {
+          return res.status(200).json({
+            id:existingDoc.id,
+            status:existing.status || "pending",
+            message:existing.status === "approved"
+              ? "This payment was already approved."
+              : existing.status === "rejected"
+                ? "This payment was already rejected."
+                : "Payment already submitted. It is waiting for admin review."
+          });
+        }
+        return res.status(409).json({ error:"This transaction/reference ID is already linked to another payment." });
+      }
+      return res.status(409).json({ error:"This transaction/reference ID was already submitted" });
+    }
+
+    let screenshotUrl = "";
+    let screenshotPath = "";
+
     if (req.file) {
-      const safe=req.file.originalname.replace(/[^a-zA-Z0-9._-]/g,"_");
-      screenshotPath="payment-proofs/"+req.user.uid+"/"+Date.now()+"-"+safe;
+      const safe = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0,120);
+      const stamp = Date.now();
+      screenshotPath = "payment-proofs/" + req.user.uid + "/" + stamp + "-" + safe;
+
       if (bucket) {
         try {
-          screenshotToken=crypto.randomUUID();
-          const file=bucket.file(screenshotPath);
-          await file.save(req.file.buffer,{metadata:{
-            contentType:req.file.mimetype,
-            metadata:{firebaseStorageDownloadTokens:screenshotToken}
-          }});
-          screenshotUrl="https://firebasestorage.googleapis.com/v0/b/"+encodeURIComponent(bucket.name)+"/o/"+encodeURIComponent(screenshotPath)+"?alt=media&token="+encodeURIComponent(screenshotToken);
+          const screenshotToken = crypto.randomUUID();
+          const file = bucket.file(screenshotPath);
+          await file.save(req.file.buffer, {
+            resumable:false,
+            metadata:{
+              contentType:req.file.mimetype,
+              metadata:{firebaseStorageDownloadTokens:screenshotToken}
+            }
+          });
+          screenshotUrl =
+            "https://firebasestorage.googleapis.com/v0/b/" +
+            encodeURIComponent(bucket.name) +
+            "/o/" + encodeURIComponent(screenshotPath) +
+            "?alt=media&token=" + encodeURIComponent(screenshotToken);
         } catch (storageError) {
           console.warn("Payment screenshot Storage upload failed; using Firestore fallback:", storageError?.message || storageError);
-          if (req.file.buffer.length > 500000) {
-            return res.status(400).json({error:"Payment screenshot storage is unavailable. Please use a screenshot under 500 KB and try again."});
-          }
-          screenshotUrl="data:"+req.file.mimetype+";base64,"+req.file.buffer.toString("base64");
-          screenshotPath="";
-          screenshotToken="";
+          screenshotPath = "";
         }
-      } else {
-        if (req.file.buffer.length > 500000) {
-          return res.status(400).json({error:"Payment screenshot storage is unavailable. Please use a screenshot under 500 KB and try again."});
+      }
+
+      // Storage is optional. For small mobile screenshots, keep the proof in the
+      // payment document so submission can still succeed when Storage is unavailable.
+      if (!screenshotUrl) {
+        if (req.file.buffer.length > 650000) {
+          return res.status(400).json({
+            error:"Payment screenshot could not be uploaded. Please choose a smaller screenshot and try again."
+          });
         }
-        screenshotUrl="data:"+req.file.mimetype+";base64,"+req.file.buffer.toString("base64");
+        screenshotUrl = "data:" + req.file.mimetype + ";base64," + req.file.buffer.toString("base64");
       }
     }
-    const ref=db.collection("payments").doc();
+
+    const ref = db.collection("payments").doc();
     await ref.set({
-      userId:req.user.uid,userEmail:req.user.email||"",type:"challenge",
-      challengeId,challengeModel:challenge.model,challengeSize:challenge.size,
-      accountSize:Number(challenge.accountSize),courseId:"",courseTitle:"Aura Farming "+challenge.model+" "+challenge.size,
-      method,currency,transactionId,amount,screenshotUrl,screenshotPath,status:"pending",
-      submittedAt:admin.firestore.FieldValue.serverTimestamp(),reviewedAt:null,reviewedBy:null
+      userId:req.user.uid,
+      userEmail:req.user.email || "",
+      type:"challenge",
+      challengeId,
+      challengeModel:challenge.model,
+      challengeSize:challenge.size,
+      accountSize:Number(challenge.accountSize),
+      courseId:"",
+      courseTitle:"Aura Farming " + challenge.model + " " + challenge.size,
+      method,
+      currency,
+      transactionId,
+      amount,
+      screenshotUrl,
+      screenshotPath,
+      status:"pending",
+      submittedAt:admin.firestore.FieldValue.serverTimestamp(),
+      reviewedAt:null,
+      reviewedBy:null
     });
-    res.status(201).json({id:ref.id,status:"pending",message:"Challenge payment submitted for verification"});
+
+    res.status(201).json({
+      id:ref.id,
+      status:"pending",
+      message:"Challenge payment submitted for verification"
+    });
   } catch(e) {
-    res.status(500).json({error:"Could not submit challenge payment",detail:e.message});
+    console.error("CHALLENGE_PAYMENT_ERROR", e);
+    res.status(500).json({
+      error:"Could not submit challenge payment",
+      detail:e?.message || "Unknown server error"
+    });
   }
 });
 
