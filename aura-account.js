@@ -49,9 +49,7 @@
 
   // Keep terminal history isolated by trading-account ID. When a user gets a
   // brand-new challenge, the new terminal session has a new accountId, so the
-  // first time that account is seen becomes the cutoff for displayed trades.
-  // This prevents positions from the previous challenge from appearing on the
-  // new account while preserving the new account's history across refreshes.
+  // first session time for that account becomes the cutoff for displayed trades.
   function terminalAccountContext(){
     try{
       const token=sessionStorage.getItem('auraTerminalSession')||'';
@@ -65,7 +63,8 @@
       const key='auraAccountFirstSeen:'+accountId;
       let firstSeen=Number(localStorage.getItem(key)||0);
       if(!Number.isFinite(firstSeen)||firstSeen<=0){
-        firstSeen=Date.now();
+        const issuedAt=Number(payload.iat||0)*1000;
+        firstSeen=issuedAt>0?issuedAt:Date.now();
         localStorage.setItem(key,String(firstSeen));
       }
       return {accountId,firstSeen};
