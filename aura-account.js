@@ -152,6 +152,21 @@
     }
   };
 
+  function addDashboardBuyChallengeLink(){
+    const path=window.location.pathname.replace(/\/+$/,'');
+    if(path!=='/courses' && !path.endsWith('/courses.html'))return;
+    const pageTitle=document.querySelector('.page-title');
+    const eyebrow=pageTitle?.querySelector('.eyebrow');
+    if(!pageTitle||!eyebrow||document.getElementById('dashboardBuyChallenge'))return;
+    const link=document.createElement('a');
+    link.id='dashboardBuyChallenge';
+    link.href='challenge.html';
+    link.textContent='Buy Challenge';
+    link.style.cssText='display:inline-block;margin:0 0 16px;color:#d6b35a;text-decoration:none;font-size:22px;font-weight:900;letter-spacing:.02em;cursor:pointer;';
+    link.setAttribute('aria-label','Buy Challenge');
+    pageTitle.insertBefore(link,eyebrow);
+  }
+
   window.auraTerminalAccountContext=terminalAccountContext;
   window.auraTerminalAccountStorageKey=terminalAccountStorageKey;
   window.auraSaveTerminalAccount=saveTerminalAccount;
@@ -160,4 +175,5 @@
   window.auraAccount=auraAccount;
   window.auraMoney=auraMoney;
   syncTerminalAccountNumber();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addDashboardBuyChallengeLink,{once:true});else addDashboardBuyChallengeLink();
 })();
