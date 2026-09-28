@@ -113,20 +113,41 @@ function logout(){
   },{once:true});
 })();
 
-// Add the Buy Challenge shortcut only to the trader dashboard.
+// Dashboard navigation: keep only Home in the top-left and make the
+// dashboard-position Buy Challenge shortcut directly clickable.
 (function(){
-  function addBuyChallenge(){
+  function applyDashboardNavigation(){
     if(!document.querySelector('.dashboard'))return;
-    if(document.getElementById('dashboardBuyChallenge'))return;
+
     const nav=document.querySelector('header.nav nav');
-    if(!nav)return;
-    const link=document.createElement('a');
-    link.id='dashboardBuyChallenge';
-    link.href='challenge.html';
-    link.textContent='Buy Challenge';
-    link.style.cssText='display:inline-block;text-decoration:none;margin-right:14px;';
-    nav.insertBefore(link,nav.firstChild);
+    if(nav){
+      nav.querySelectorAll('.linkbtn').forEach(el=>el.remove());
+      nav.querySelectorAll('a').forEach(link=>{
+        if(link.getAttribute('href')==='challenge.html'||link.id==='dashboardBuyChallenge')link.remove();
+      });
+
+      const home=nav.querySelector('a[href="index.html"]');
+      if(home){
+        home.textContent='Home';
+        home.style.cssText='display:inline-flex;align-items:center;padding:9px 15px;border:1px solid #d6b35a;border-radius:10px;background:linear-gradient(180deg,#2a220f,#171106);color:#f1d98a;font-size:14px;font-weight:800;letter-spacing:.3px;box-shadow:0 0 18px #d6b35a22,inset 0 0 0 1px #f1d98a18;';
+      }
+    }
+
+    const pseudoFix=document.getElementById('auraDashboardNavFix')||document.createElement('style');
+    pseudoFix.id='auraDashboardNavFix';
+    pseudoFix.textContent='.dashboard::before{display:none!important}.dashboard .page-title h1 a{display:inline-block;color:inherit;text-decoration:none}.dashboard .page-title h1 a:hover{color:#f1d98a}';
+    if(!pseudoFix.parentNode)document.head.appendChild(pseudoFix);
+
+    const title=document.querySelector('.page-title h1');
+    if(title && !title.querySelector('a')){
+      title.textContent='';
+      const link=document.createElement('a');
+      link.href='challenge.html';
+      link.textContent='Buy Challenge';
+      title.appendChild(link);
+    }
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addBuyChallenge,{once:true});
-  else addBuyChallenge();
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyDashboardNavigation,{once:true});
+  else applyDashboardNavigation();
 })();
