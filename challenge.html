@@ -111,13 +111,8 @@ function card(x){
       });
     });
     document.querySelectorAll('.buy-now').forEach(btn=>{
-      btn.onclick=()=>{
-        const card=btn.closest('.account-card');
-        const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';
-        localStorage.setItem('auraSelectedChallengeId',btn.dataset.id);
-        localStorage.setItem('auraSelectedCurrency',currency);
-        location.href='checkout-v3.html';
-      };
+      btn.disabled=true;
+      btn.textContent='Checkout Unavailable';
     });
   }catch(e){
     document.getElementById('challengeStatus').textContent=e.message;
