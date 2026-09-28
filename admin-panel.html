@@ -5,11 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin — Aura Farming</title>
 <style>
-html,body{margin:0;width:100%;min-height:100%;background:#000}
+html,body{margin:0;width:100%;min-height:100%;background:#000;color:#f3c95b;font-family:Arial,sans-serif}
 body{min-height:100vh}
+.admin-header{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;box-sizing:border-box;border-bottom:1px solid #2b2412;background:#050505;position:sticky;top:0;z-index:10}
+.brand{font-size:22px;font-weight:700;letter-spacing:.5px;color:#fff}
+.logout{border:1px solid #6b531d;background:#17130a;color:#f3c95b;border-radius:10px;padding:10px 18px;font-size:15px;font-weight:700;cursor:pointer}
+.logout:active{transform:scale(.98)}
 </style>
 </head>
 <body>
+<header class="admin-header">
+  <div class="brand">Aura Farming</div>
+  <button class="logout" id="logoutBtn" type="button">Logout</button>
+</header>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=12"></script>
@@ -21,6 +29,10 @@ ceAuth.onAuthStateChanged(async user=>{
     const r=await fetch('/api/admin/payments',{headers:{Authorization:'Bearer '+token}});
     if(!r.ok) location.replace('admin.html');
   }catch(e){location.replace('admin.html');}
+});
+
+document.getElementById('logoutBtn').addEventListener('click',async()=>{
+  try{await ceAuth.signOut();}finally{location.replace('admin.html');}
 });
 </script>
 </body>
