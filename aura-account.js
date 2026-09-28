@@ -1,10 +1,7 @@
 (function(){
   const AURA_API_BASE='https://aurafirming.in';
   const ACCOUNT_TIMEOUT_MS=8000;
-  const ATTACHED_ACCOUNTS_KEY='auraAttachedAccountsV1';
-  const SELECTED_ACCOUNT_KEY='auraSelectedDashboardAccountV1';
   let accountPromise=null;
-
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
   function decodeTerminalToken(token){
@@ -117,6 +114,9 @@
     });
   }
 
+  // If an API response contains explicit account identifiers, keep only records
+  // belonging to the currently authenticated terminal account. If the server
+  // already scopes the response, records without an account field are preserved.
   function filterByActiveAccount(data){
     const ctx=terminalAccountContext();
     if(!ctx||!data||typeof data!=='object')return data;
@@ -133,239 +133,6 @@
     return out;
   }
 
-  function readAttachedAccounts(){
-    try{
-      const raw=localStorage.getItem(ATTACHED_ACCOUNTS_KEY);
-      const list=raw?JSON.parse(raw):[];
-      return Array.isArray(list)?list.slice(0,5):[];
-    }catch(e){return []}
-  }
-
-  function writeAttachedAccounts(list){
-    try{localStorage.setItem(ATTACHED_ACCOUNTS_KEY,JSON.stringify(list.slice(0,5)));}catch(e){}
-  }
-
-  function accountDisplayName(account,index){
-    return String(account?.name||account?.challenge||('Account '+(index+1))).slice(0,60);
-  }
-
-  function accountSizeNumber(account){
-    const raw=account?.startingBalance??account?.accountSize??account?.size??0;
-    const n=Number(String(raw).replace(/[^0-9.]/g,''));
-    return Number.isFinite(n)?n:0;
-  }
-
-  function readSelectedAccountId(){
-    try{return String(localStorage.getItem(SELECTED_ACCOUNT_KEY)||'').trim();}catch(e){return '';}
-  }
-
-  function writeSelectedAccountId(id){
-    try{localStorage.setItem(SELECTED_ACCOUNT_KEY,String(id||''));}catch(e){}
-  }
-
-  function ensureAttachmentStyles(){
-    if(document.getElementById('auraAttachmentStyles'))return;
-    const style=document.createElement('style');
-    style.id='auraAttachmentStyles';
-    style.textContent=`
-      .aura-attach-wrap{width:100%;max-width:1100px;margin:0 auto 20px;padding:0 5%;box-sizing:border-box}
-      .aura-attach-card{background:#050505;border:1px solid #3a2c13;border-radius:20px;padding:18px;box-shadow:0 15px 40px #0008}
-      .aura-attach-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
-      .aura-attach-head h2{margin:0;color:#f1d98a;font-size:22px}
-      .aura-attach-head p{margin:4px 0 0;color:#9b8552;font-size:12px}
-      .aura-attach-add{background:#d6b35a;color:#080808;border:0;border-radius:10px;padding:10px 13px;font-weight:900;cursor:pointer;white-space:nowrap}
-      .aura-attach-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:10px;align-items:stretch}
-      .aura-attach-slot{background:#000;border:1px solid #302713;border-radius:13px;padding:13px;min-height:108px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s;box-sizing:border-box}
-      .aura-attach-slot:hover{border-color:#6c5422}
-      .aura-attach-slot.selected{border-color:#d6b35a;box-shadow:0 0 0 1px #d6b35a44,0 12px 28px #0009;transform:translateY(-1px)}
-      .aura-attach-slot.empty{border-style:dashed;align-items:center;justify-content:center;text-align:center;color:#7f6d43;cursor:default}
-      .aura-attach-slot.slot-2{grid-column:1 / 4;grid-row:1;min-height:92px}
-      .aura-attach-slot.slot-3{grid-column:1;grid-row:2}
-      .aura-attach-slot.slot-1{grid-column:2;grid-row:2;min-height:130px;border-color:#4a3b1d}
-      .aura-attach-slot.slot-4{grid-column:3;grid-row:2}
-      .aura-attach-slot.slot-5{grid-column:1 / 4;grid-row:3;min-height:92px}
-      .aura-attach-slot.slot-1 .aura-attach-slot-name{font-size:19px}
-      .aura-attach-slot-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
-      .aura-attach-slot-num{color:#9b8552;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.8px}
-      .aura-attach-slot-name{color:#fff;font-weight:900;font-size:15px;margin-top:3px;word-break:break-word}
-      .aura-attach-id{color:#d6b35a;font-size:10px;margin-top:3px;word-break:break-all}
-      .aura-attach-size{color:#9b8552;font-size:11px;margin-top:5px}
-      .aura-attach-selected{color:#68d58a;font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase}
-      .aura-attach-actions{display:flex;gap:7px}
-      .aura-attach-actions button{flex:1;border:1px solid #4a3b1d;background:#090806;color:#f1d98a;border-radius:8px;padding:7px 8px;font-weight:800;font-size:11px;cursor:pointer}
-      .aura-attach-actions .remove{color:#f09aa9;border-color:#4b1e29}
-      .aura-attach-modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;padding:18px;z-index:9999}
-      .aura-attach-modal.hidden{display:none}
-      .aura-attach-dialog{width:min(460px,100%);background:#070707;border:1px solid #4a3b1d;border-radius:18px;padding:20px;box-shadow:0 25px 70px #000}
-      .aura-attach-dialog h3{color:#f1d98a;margin:0 0 7px}
-      .aura-attach-dialog p{color:#9b8552;font-size:12px;line-height:1.45}
-      .aura-attach-dialog label{display:block;color:#f1d98a;font-size:11px;font-weight:900;margin-top:12px}
-      .aura-attach-dialog input{width:100%;box-sizing:border-box;margin-top:6px;background:#000;border:1px solid #302713;border-radius:9px;color:#fff;padding:11px}
-      .aura-attach-dialog-actions{display:flex;gap:8px;margin-top:15px}
-      .aura-attach-dialog-actions button{flex:1;border-radius:9px;padding:10px;border:1px solid #302713;background:#090806;color:#f1d98a;font-weight:900}
-      .aura-attach-dialog-actions .save{background:#d6b35a;color:#080808;border-color:#d6b35a}
-      .aura-selected-label{margin:8px 0 12px;color:#9b8552;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px}
-      @media(max-width:700px){
-        .aura-attach-grid{grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;}
-        .aura-attach-slot.slot-2{grid-column:1 / 3;grid-row:1}
-        .aura-attach-slot.slot-3{grid-column:1;grid-row:2}
-        .aura-attach-slot.slot-1{grid-column:2;grid-row:2}
-        .aura-attach-slot.slot-4{grid-column:1;grid-row:3}
-        .aura-attach-slot.slot-5{grid-column:2;grid-row:3}
-      }
-      @media(max-width:560px){
-        .aura-attach-head{align-items:flex-start;flex-direction:column}
-        .aura-attach-add{width:100%}
-        .aura-attach-grid{display:grid;grid-template-columns:1fr;grid-template-rows:auto}
-        .aura-attach-slot.slot-1,.aura-attach-slot.slot-2,.aura-attach-slot.slot-3,.aura-attach-slot.slot-4,.aura-attach-slot.slot-5{grid-column:1;grid-row:auto;min-height:92px}
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function openAttachDialog(onSave){
-    let modal=document.getElementById('auraAttachModal');
-    if(!modal){
-      modal=document.createElement('div');
-      modal.id='auraAttachModal';
-      modal.className='aura-attach-modal hidden';
-      modal.innerHTML=`<div class="aura-attach-dialog" role="dialog" aria-modal="true">
-        <h3>Attach trading account</h3>
-        <p>Add the account ID shown for the trading account. You can keep up to 5 accounts attached to this dashboard.</p>
-        <label>Account ID<input id="auraAttachAccountId" autocomplete="off" placeholder="AF-ACC-2026-XXXXXXXX"></label>
-        <label>Account name (optional)<input id="auraAttachAccountName" autocomplete="off" placeholder="My 5K Account"></label>
-        <div class="aura-attach-dialog-actions"><button type="button" id="auraAttachCancel">Cancel</button><button type="button" class="save" id="auraAttachSave">Attach Account</button></div>
-      </div>`;
-      document.body.appendChild(modal);
-      modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.add('hidden')});
-      modal.querySelector('#auraAttachCancel').onclick=()=>modal.classList.add('hidden');
-      modal.querySelector('#auraAttachSave').onclick=()=>{
-        const id=modal.querySelector('#auraAttachAccountId').value.trim();
-        const name=modal.querySelector('#auraAttachAccountName').value.trim();
-        if(!id){modal.querySelector('#auraAttachAccountId').focus();return;}
-        onSave({accountId:id,name:name||''});
-        modal.classList.add('hidden');
-      };
-    }
-    modal.querySelector('#auraAttachAccountId').value='';
-    modal.querySelector('#auraAttachAccountName').value='';
-    modal.classList.remove('hidden');
-    setTimeout(()=>modal.querySelector('#auraAttachAccountId')?.focus(),50);
-  }
-
-  function setDashboardDetailVisibility(show){
-    ['terminalCredentials','.overview-grid','.analytics-section'].forEach(sel=>{
-      const el=sel.startsWith('.')?document.querySelector(sel):document.getElementById(sel);
-      if(el)el.style.display=show?'':'none';
-    });
-  }
-
-  function mountDashboardAttachments(currentAccount){
-    if(!document.querySelector('.dashboard'))return;
-    if(document.getElementById('auraAttachedAccounts'))return;
-    ensureAttachmentStyles();
-
-    const section=document.createElement('section');
-    section.id='auraAttachedAccounts';
-    section.className='aura-attach-wrap';
-    section.innerHTML=`<div class="aura-attach-card">
-      <div class="aura-attach-head"><div><h2>Trading Accounts</h2><p>Select one account. Only the selected account's details appear below.</p></div><button class="aura-attach-add" type="button">+ Attach Account</button></div>
-      <div class="aura-attach-grid"></div>
-      <div class="aura-selected-label" id="auraSelectedAccountLabel"></div>
-    </div>`;
-
-    const dashboard=document.querySelector('.dashboard');
-    const title=document.querySelector('.page-title');
-    dashboard.insertBefore(section,title||dashboard.firstElementChild);
-
-    const grid=section.querySelector('.aura-attach-grid');
-    const selectedLabel=section.querySelector('#auraSelectedAccountLabel');
-
-    const buildList=()=>{
-      let list=readAttachedAccounts();
-      if(currentAccount?.id && !list.some(x=>String(x.accountId)===String(currentAccount.id))){
-        list=[{accountId:currentAccount.id,name:currentAccount.challenge||'Current Account',startingBalance:currentAccount.startingBalance,auto:true},...list].slice(0,5);
-        writeAttachedAccounts(list);
-      }
-      if(currentAccount?.id){
-        list=list.map(x=>String(x.accountId)===String(currentAccount.id)?{...x,startingBalance:x.startingBalance??currentAccount.startingBalance,challenge:x.challenge??currentAccount.challenge}:x);
-        writeAttachedAccounts(list);
-      }
-      return list.slice(0,5);
-    };
-
-    const showSelection=()=>{
-      const list=buildList();
-      let selected=readSelectedAccountId();
-      if(!selected||!list.some(x=>String(x.accountId)===selected)){
-        selected=list[0]?.accountId||'';
-        if(selected)writeSelectedAccountId(selected);
-      }
-      const isCurrent=!!currentAccount&&String(currentAccount.id)===String(selected);
-      setDashboardDetailVisibility(isCurrent);
-      if(selectedLabel)selectedLabel.textContent=selected?'Selected: '+(accountDisplayName(list.find(x=>String(x.accountId)===String(selected)),0)):'No account selected';
-      return {list,selected,isCurrent};
-    };
-
-    const render=()=>{
-      const state=showSelection();
-      grid.innerHTML='';
-      const slots=[1,2,3,4,5];
-      for(const slot of slots){
-        const item=state.list[slot-1];
-        const card=document.createElement('div');
-        card.className='aura-attach-slot slot-'+slot+(item?'':' empty')+(item&&String(item.accountId)===String(state.selected)?' selected':'');
-        if(!item){
-          card.innerHTML=`<div><strong>Account slot ${slot}</strong><div style="font-size:11px;margin-top:4px">Empty</div></div>`;
-        }else{
-          const size=accountSizeNumber(item);
-          card.innerHTML=`<div class="aura-attach-slot-top"><div><div class="aura-attach-slot-num">Account ${slot}</div><div class="aura-attach-slot-name"></div><div class="aura-attach-id"></div><div class="aura-attach-size"></div></div><div class="aura-attach-selected" aria-hidden="true"></div></div><div class="aura-attach-actions"><button type="button" class="select">Select</button><button type="button" class="remove">Remove</button></div>`;
-          card.querySelector('.aura-attach-slot-name').textContent=accountDisplayName(item,slot-1);
-          card.querySelector('.aura-attach-id').textContent=item.accountId;
-          card.querySelector('.aura-attach-size').textContent=size?'$'+size.toLocaleString('en-US'):'Account';
-          card.querySelector('.aura-attach-selected').textContent=String(item.accountId)===String(state.selected)?'SELECTED':'';
-          const select=()=>{
-            writeSelectedAccountId(item.accountId);
-            render();
-          };
-          card.onclick=e=>{if(e.target.closest('button'))return;select()};
-          card.querySelector('.select').onclick=e=>{e.stopPropagation();select()};
-          card.querySelector('.remove').onclick=e=>{
-            e.stopPropagation();
-            const next=readAttachedAccounts().filter(x=>String(x.accountId)!==String(item.accountId));
-            writeAttachedAccounts(next);
-            if(String(readSelectedAccountId())===String(item.accountId))writeSelectedAccountId(next[0]?.accountId||'');
-            render();
-          };
-        }
-        grid.appendChild(card);
-      }
-    };
-
-    section.querySelector('.aura-attach-add').onclick=()=>{
-      const list=readAttachedAccounts();
-      if(list.length>=5){alert('Maximum 5 accounts can be attached.');return;}
-      openAttachDialog(item=>{
-        const next=readAttachedAccounts().filter(x=>String(x.accountId)!==String(item.accountId));
-        next.push({accountId:String(item.accountId).trim(),name:String(item.name||'').trim()});
-        writeAttachedAccounts(next.slice(0,5));
-        if(!readSelectedAccountId())writeSelectedAccountId(item.accountId);
-        render();
-      });
-    };
-
-    render();
-
-    // The existing dashboard refreshes the current account every 15 seconds.
-    // Keep non-selected account cards from leaking the previous account's detail panel.
-    const enforceSelection=()=>{
-      const selected=readSelectedAccountId();
-      const currentId=currentAccount?.id?String(currentAccount.id):'';
-      setDashboardDetailVisibility(!!selected&&!!currentId&&selected===currentId);
-    };
-    setInterval(enforceSelection,1000);
-  }
-
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,init){
     const response=await nativeFetch(input,init);
@@ -375,7 +142,11 @@
       const clone=response.clone();
       const data=await clone.json();
       const filtered=filterByActiveAccount(data);
-      return new Response(JSON.stringify(filtered),{status:response.status,statusText:response.statusText,headers:response.headers});
+      return new Response(JSON.stringify(filtered),{
+        status:response.status,
+        statusText:response.statusText,
+        headers:response.headers
+      });
     }catch(e){
       return response;
     }
@@ -388,14 +159,5 @@
   window.auraSyncTerminalAccountNumber=syncTerminalAccountNumber;
   window.auraAccount=auraAccount;
   window.auraMoney=auraMoney;
-
   syncTerminalAccountNumber();
-
-  document.addEventListener('DOMContentLoaded',async()=>{
-    if(!document.querySelector('.dashboard'))return;
-    try{
-      const account=await auraAccount();
-      mountDashboardAttachments(account&&account.__error?null:account);
-    }catch(e){mountDashboardAttachments(null);}
-  });
 })();
