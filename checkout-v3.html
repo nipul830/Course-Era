@@ -7,7 +7,7 @@
 <div class="app-card"><button type="button" class="app-btn" data-app="paytm">Paytm<span>Tap to Pay ₹ amount</span></button><div class="app-upi"><code id="paytmUpi">Loading UPI…</code><button type="button" class="app-copy" data-copy-app="paytm">Copy UPI</button></div></div>
 </div><div class="pay-note">The selected app opens with the account amount and payment message pre-filled. App support can vary by device/browser.</div></div>
 <label>Copy UTR Number</label><div class="utr-row"><input id="transactionId" placeholder="Enter your UTR / transaction ID"><button type="button" class="copy-btn" id="copyUtr">Copy</button></div><label>Payment Screenshot</label><input id="screenshot" type="file" accept="image/*"><button type="button" class="btn primary" id="submit">Submit Payment</button><div class="status" id="status"></div><div class="approval-timer" id="approvalTimer">Payment submitted · admin review timer <strong id="timerValue">15:00</strong></div></div></div><a class="back" href="challenge.html">← Back to challenges</a></main>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=6"></script><script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script><script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=9"></script><script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script><script>
 const API='';let challenge=null,settings=null,upiAmount=0,paymentRef='AF'+Date.now()+Math.random().toString(36).slice(2,8).toUpperCase();
 async function token(){return await ceAuth.currentUser.getIdToken(true)}
 async function api(path,opt={}){
@@ -82,8 +82,12 @@ submitBtn.addEventListener('click',async function(){
     statusEl.textContent=result.message||'Payment submitted successfully. Waiting for admin approval.';
     statusEl.classList.add('success');submitBtn.textContent='Payment Submitted';localStorage.removeItem('auraSelectedChallengeId');localStorage.removeItem('auraSelectedCurrency');localStorage.setItem('auraPaymentPending','1');startApprovalTimer();
   }catch(error){
-    statusEl.textContent=(error && error.message)||'Payment submission failed. Please try again.';
-    statusEl.classList.add('error');submitBtn.disabled=false;submitBtn.textContent='Submit Payment';
+    localStorage.removeItem('auraPaymentPending');
+    const message=(error && error.message)?String(error.message):'Payment submission failed. Please try again.';
+    statusEl.textContent=message;
+    statusEl.classList.add('error');
+    submitBtn.disabled=false;
+    submitBtn.textContent='Submit Payment';
   }
 });
 if(localStorage.getItem('auraPaymentPending')==='1')startApprovalTimer();
