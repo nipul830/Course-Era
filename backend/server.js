@@ -155,7 +155,12 @@ async function requireAdmin(req, res, next) {
       .map(x => x.trim().toLowerCase())
       .filter(Boolean);
 
-    if (req.user?.admin === true || (email && allowed.includes(email))) {
+    // Keep the primary Aura Farming admin usable even if ADMIN_EMAILS was
+    // not added to the server environment yet. Environment-configured admins
+    // still work as before, and Firebase custom admin claims remain supported.
+    const primaryAdminEmail = "lipupoddar@gmail.com";
+
+    if (req.user?.admin === true || (email && (allowed.includes(email) || email === primaryAdminEmail))) {
       return next();
     }
 
