@@ -1,20 +1,19 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login — Aura Farming</title><link rel="stylesheet" href="styles.css"></head><body><div class="auth-wrap"><div class="auth-card"><a class="brand" href="index.html">Aura <span>Farming</span></a><h1>Welcome back</h1><p>Login to continue to your trading account.</p><form id="loginForm"><label>Email<input id="email" type="email" required placeholder="you@example.com"></label><label>Password<input id="password" type="password" required placeholder="••••••••"></label><button class="btn primary full" type="submit">Login</button></form><p class="muted">New here? <a href="signup.html">Create an account</a></p><p id="loginMsg" class="msg"></p></div></div><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script><script>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login — Aura Farming</title><link rel="stylesheet" href="styles.css"></head><body><div class="auth-wrap"><div class="auth-card"><a class="brand" href="index.html">Aura <span>Farming</span></a><h1>Welcome back</h1><p>Login to continue to your trading account.</p><form id="loginForm"><label>Email<input id="email" type="email" required placeholder="you@example.com"></label><label>Password<input id="password" type="password" required placeholder="••••••••"></label><button id="loginBtn" class="btn primary full" type="submit">Login</button></form><p class="muted">New here? <a href="signup.html">Create an account</a></p><p id="loginMsg" class="msg"></p></div></div><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=8"></script><script>
 const loginParams=new URLSearchParams(location.search);
 const nextTarget=loginParams.get("next")||"courses.html";
 async function loginDemo(e){
   e.preventDefault();
   const msg=document.getElementById("loginMsg");
-  const btn=e.submitter;
-  if(btn) btn.disabled=true;
+  const btn=document.getElementById("loginBtn");
+  const email=document.getElementById("email").value.trim();
+  const password=document.getElementById("password").value;
+  btn.disabled=true;
   msg.textContent="Signing in…";
   try{
-    // Ensure a clean Firebase session after a previous logout before signing in again.
-    try{await ceAuth.signOut()}catch(_e){}
     await ceAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    const cred=await ceAuth.signInWithEmailAndPassword(
-      document.getElementById("email").value.trim(),
-      document.getElementById("password").value
-    );
+    const signIn=ceAuth.signInWithEmailAndPassword(email,password);
+    const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000));
+    const cred=await Promise.race([signIn,timeout]);
     localStorage.setItem("ce_user",JSON.stringify({
       uid:cred.user.uid,
       name:cred.user.displayName||cred.user.email.split("@")[0],
@@ -24,7 +23,7 @@ async function loginDemo(e){
   }catch(err){
     const map={"auth/invalid-credential":"Email or password is incorrect.","auth/user-not-found":"No account found with this email.","auth/wrong-password":"Incorrect password.","auth/too-many-requests":"Too many attempts. Please try again later.","auth/operation-not-allowed":"Email/Password login is not enabled in Firebase."};
     msg.textContent=map[err.code]||err.message||"Authentication failed.";
-    if(btn) btn.disabled=false;
+    btn.disabled=false;
   }
 }
 document.getElementById("loginForm").addEventListener("submit",loginDemo);
