@@ -1,105 +1,27 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin Panel — Aura Farming</title><link rel="stylesheet" href="aura.css">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Aura Farming</title>
 <style>
-.admin{max-width:1200px;margin:auto;padding:45px 5% 80px}
-.admin-section{margin-top:28px;background:#050505;border:1px solid #302713;border-radius:18px;padding:20px}
-.admin-section h2{color:#f1d98a;margin:0 0 6px}.admin-section>p{color:#9b8552;font-size:13px}
-.challenge-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0;padding:16px;border:1px solid #302713;border-radius:14px;background:#090806}
-.challenge-form input,.challenge-form select,.rule-row input{width:100%;box-sizing:border-box;background:#000;color:#fff;border:1px solid #302713;border-radius:9px;padding:12px}
-.challenge-form .full{grid-column:1/-1}.catalog-card{border:1px solid #302713;border-radius:14px;padding:14px;margin:12px 0}
-.catalog-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.catalog-grid label{color:#9b8552;font-size:11px;font-weight:800}.catalog-grid input,.catalog-grid select{margin-top:5px}
-.catalog-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}.admin-btn{border:1px solid #302713;border-radius:9px;font-weight:900;cursor:pointer;padding:11px 15px;background:#111;color:#f1d98a}.admin-btn.primary{background:#d6b35a;color:#080808}.admin-btn.danger{background:#260909;color:#ff9b9b}
-.rule-model{border:1px solid #302713;border-radius:14px;margin:12px 0;padding:14px}.rule-model h3{color:#fff;margin:0 0 12px}.rule-row{display:flex;gap:8px;margin:8px 0}.rule-row input{flex:1}.rule-add,.rule-remove,.rules-save{border:1px solid #302713;border-radius:9px;font-weight:900;cursor:pointer}.rule-add{background:#111;color:#f1d98a;padding:9px 13px}.rule-remove{background:#260909;color:#ff9b9b;padding:0 13px}.rules-save{background:#d6b35a;color:#080808;padding:12px 18px;margin-top:8px}
-.payment{background:#050505;border:1px solid #302713;border-radius:16px;padding:18px;margin:12px 0}.row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:center}.muted2{color:#9b8552;font-size:12px}.actions{margin:0}.btn.reject{background:#2a0909;color:#ff9b9b;border-color:#5a1717}.proof{max-width:120px;max-height:90px;border-radius:8px;margin-top:8px}
-@media(max-width:800px){.challenge-form,.catalog-grid{grid-template-columns:1fr}.challenge-form .full{grid-column:auto}.row{grid-template-columns:1fr}.actions{margin-top:8px}}
-</style></head>
-<body><header class="nav"><a class="brand" href="index.html"><span>Aura Farming</span></a></header>
-<main class="admin">
-<p class="eyebrow">AURA FARMING ADMIN</p><h1 style="font-size:48px">Payment Queue</h1><p id="status" class="muted2">Checking admin access…</p>
-
-<section class="admin-section"><h2>Challenge Management</h2><p>Yahin se challenge add karo, price change karo aur discount set karo. Changes live challenge page par apply honge.</p>
-<div class="challenge-form">
-<select id="newModel"><option>1 Step</option><option>2 Step</option><option>Instant</option></select>
-<input id="newSize" placeholder="Account size e.g. $50K">
-<input id="newAccountSize" type="number" min="1" placeholder="Starting balance e.g. 50000">
-<input id="newPrice" type="number" min="0.01" step="0.01" placeholder="Price in USDT">
-<input id="newDiscount" type="number" min="0" max="100" step="0.1" placeholder="Discount % (optional)">
-<input id="newDaily" placeholder="Daily Drawdown e.g. 4%">
-<input id="newTotal" placeholder="Total Drawdown e.g. 8%">
-<input id="newProfit" placeholder="Profit Target e.g. 10%">
-<input id="newPhase1" placeholder="Phase 1 Profit e.g. 8%">
-<input id="newPhase2" placeholder="Phase 2 Profit e.g. 6%">
-<input id="newEvaluation" placeholder="Evaluation e.g. None">
-<div class="full catalog-actions"><button class="admin-btn primary" id="addChallenge" type="button">+ Add Challenge</button><span id="catalogStatus" class="muted2"></span></div>
-</div><div id="catalog"></div></section>
-
-<section class="admin-section" id="rulesSection"><h2 style="margin-bottom:6px">Challenge Rules</h2><p>Manage the rules shown inside purchased accounts. Add or remove numbered rules with the + button.</p><div id="rulesEditor"><div class="rule-model"><h3>1 Step</h3><div class="rule-list" data-model="1 Step"><div class="rule-row"><input value="Daily Drawdown: 4%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Total Drawdown: 8%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Profit Target: 10%"><button type="button" class="rule-remove">×</button></div></div><button type="button" class="rule-add">+ Add Rule</button></div><div class="rule-model"><h3>2 Step</h3><div class="rule-list" data-model="2 Step"><div class="rule-row"><input value="Daily Drawdown: 4%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Total Drawdown: 8%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Phase 1 Profit Target: 8%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Phase 2 Profit Target: 6%"><button type="button" class="rule-remove">×</button></div></div><button type="button" class="rule-add">+ Add Rule</button></div><div class="rule-model"><h3>Instant</h3><div class="rule-list" data-model="Instant"><div class="rule-row"><input value="Daily Drawdown: 3%"><button type="button" class="rule-remove">×</button></div></div><button type="button" class="rule-add">+ Add Rule</button></div></div><button class="rules-save" type="button" id="saveRules">Save Rules</button><span id="rulesStatus" class="muted2" style="margin-left:10px"></span></section>
-<div id="list"></div></main>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=11"></script>
+html,body{margin:0;width:100%;min-height:100%;background:#000}
+body{min-height:100vh}
+</style>
+</head>
+<body>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=12"></script>
 <script>
-const API='';
-
-const RULE_MODELS=['1 Step','2 Step','Instant'];
-let challenges=[];
-let challengeRules={'1 Step':['Daily Drawdown: 4%','Total Drawdown: 8%','Profit Target: 10%'],'2 Step':['Daily Drawdown: 4%','Total Drawdown: 8%','Phase 1 Profit Target: 8%','Phase 2 Profit Target: 6%'],'Instant':['Daily Drawdown: 3%']};
-async function api(path,opt={}){const t=await ceAuth.currentUser.getIdToken(true);const h={...(opt.headers||{}),Authorization:'Bearer '+t};const r=await fetch(API+path,{...opt,headers:h});let d={};try{d=await r.json()}catch(e){}if(!r.ok)throw Error(d.error||'Request failed');return d}
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function finalPrice(x){const p=Number(x.price)||0;const d=Math.min(100,Math.max(0,Number(x.discountPercent)||0));return Math.round(p*(1-d/100)*100)/100}
-function renderCatalog(){document.getElementById('catalog').innerHTML=challenges.map((x,i)=>'<article class="catalog-card"><div class="catalog-grid">'+
-'<label>Model<select data-k="model"><option '+(x.model==='1 Step'?'selected':'')+'>1 Step</option><option '+(x.model==='2 Step'?'selected':'')+'>2 Step</option><option '+(x.model==='Instant'?'selected':'')+'>Instant</option></select></label>'+
-'<label>Account Size<input data-k="size" value="'+esc(x.size)+'"></label>'+
-'<label>Starting Balance<input data-k="accountSize" type="number" value="'+Number(x.accountSize||0)+'"></label>'+
-'<label>Price (USDT)<input data-k="price" type="number" step="0.01" value="'+Number(x.price||0)+'"></label>'+
-'<label>Discount %<input data-k="discountPercent" type="number" min="0" max="100" step="0.1" value="'+Number(x.discountPercent||0)+'"></label>'+
-'<label>Final Price<input value="'+finalPrice(x).toFixed(2)+' USDT" disabled></label>'+
-'</div><div class="catalog-actions"><button class="admin-btn primary save-challenge" data-index="'+i+'">Save Challenge</button><button class="admin-btn danger delete-challenge" data-index="'+i+'">Delete</button></div></article>').join('')||'<p class="muted2">No challenges found.</p>'}
-function collectChallenge(i){const card=document.querySelector('.catalog-card:nth-child('+(i+1)+')');const get=k=>card.querySelector('[data-k="'+k+'"]').value.trim();return {...challenges[i],model:get('model'),size:get('size'),accountSize:Number(get('accountSize')),price:Number(get('price')),discountPercent:Number(get('discountPercent')||0)}}
-async function saveCatalog(next){const st=document.getElementById('catalogStatus');st.textContent='Saving…';try{const d=await api('/api/challenges',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({challenges:next})});challenges=d.challenges||next;renderCatalog();st.textContent='Saved ✓';setTimeout(()=>st.textContent='',1800)}catch(e){st.textContent=e.message;alert(e.message)}}
-document.getElementById('catalog').addEventListener('click',async e=>{const save=e.target.closest('.save-challenge'),del=e.target.closest('.delete-challenge');if(save){const i=Number(save.dataset.index);const next=[...challenges];next[i]=collectChallenge(i);await saveCatalog(next)}if(del){const i=Number(del.dataset.index);if(confirm('Delete this challenge?')){const next=challenges.filter((_,n)=>n!==i);if(!next.length){alert('At least one challenge is required.');return}await saveCatalog(next)}}});
-document.getElementById('addChallenge').onclick=async()=>{const size=document.getElementById('newSize').value.trim(),accountSize=Number(document.getElementById('newAccountSize').value),price=Number(document.getElementById('newPrice').value);if(!size||!accountSize||!price){document.getElementById('catalogStatus').textContent='Model, account size and price are required.';return}const id=(document.getElementById('newModel').value+'-'+size).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+Date.now().toString(36);const x={id,model:document.getElementById('newModel').value,size,accountSize,price,discountPercent:Number(document.getElementById('newDiscount').value||0),dailyDrawdown:document.getElementById('newDaily').value.trim(),totalDrawdown:document.getElementById('newTotal').value.trim(),profitTarget:document.getElementById('newProfit').value.trim(),phase1Profit:document.getElementById('newPhase1').value.trim(),phase2Profit:document.getElementById('newPhase2').value.trim(),evaluation:document.getElementById('newEvaluation').value.trim()};await saveCatalog([...challenges,x])}
-function renderRulesEditor(){document.getElementById('rulesEditor').innerHTML=RULE_MODELS.map(model=>'<div class="rule-model"><h3>'+esc(model)+'</h3><div class="rule-list" data-model="'+esc(model)+'">'+(challengeRules[model]||[]).map((x,i)=>'<div class="rule-row"><input value="'+esc(x)+'" placeholder="Rule '+(i+1)+'"><button type="button" class="rule-remove">×</button></div>').join('')+'</div><button type="button" class="rule-add">+ Add Rule</button></div>').join('')}
-function addChallengeRule(btn){const box=btn.parentElement.querySelector('.rule-list');if(!box)return;const n=box.querySelectorAll('.rule-row').length;box.insertAdjacentHTML('beforeend','<div class="rule-row"><input placeholder="Rule '+(n+1)+'"><button type="button" class="rule-remove">×</button></div>')}
-function saveChallengeRules(){return window.saveChallengeRulesInternal()}
-document.addEventListener('click',e=>{const add=e.target.closest('.rule-add');const remove=e.target.closest('.rule-remove');if(remove){e.preventDefault();remove.parentElement.remove();return}if(add){e.preventDefault();addChallengeRule(add);return}});
-window.saveChallengeRulesInternal=async function(){const st=document.getElementById('rulesStatus');st.textContent='Saving…';try{const user=ceAuth.currentUser;if(!user)throw Error('Admin login expired. Please refresh and login again.');const token=await user.getIdToken(true);const rules={};document.querySelectorAll('#rulesEditor .rule-list').forEach(box=>{rules[box.dataset.model]=Array.from(box.querySelectorAll('input')).map(x=>x.value.trim()).filter(Boolean)});const res=await fetch('/api/challenge-rules',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({rules})});const d=await res.json();if(!res.ok)throw Error(d.error||'Could not save rules');challengeRules=d.rules||rules;renderRulesEditor();st.textContent='Saved ✓';}catch(e){st.textContent=e.message;alert(e.message)}};
-document.getElementById('saveRules').addEventListener('click',()=>window.saveChallengeRulesInternal());
-async function loadRules(){try{const r=await fetch('/api/challenge-rules');const d=await r.json();if(!r.ok)throw Error(d.error||'Could not load challenge rules');challengeRules=d.rules||challengeRules;renderRulesEditor();document.getElementById('rulesStatus').textContent='Loaded ✓'}catch(e){renderRulesEditor();document.getElementById('rulesStatus').textContent=e.message}}
-async function loadCatalog(){const d=await fetch('/api/challenges').then(async r=>{const x=await r.json();if(!r.ok)throw Error(x.error||'Could not load challenges');return x});challenges=d.challenges||[];renderCatalog()}
-async function review(id,statusValue){if(!confirm(statusValue==='approved'?'Approve this payment and activate the simulated account?':'Reject this payment?'))return;try{await api('/api/admin/payments/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:statusValue})});await loadPayments()}catch(e){alert(e.message)}}
-async function breachAccount(uid){if(!confirm('Mark this trading account as BREACHED and revoke both terminal passwords?'))return;try{await api('/api/admin/trading-accounts/'+encodeURIComponent(uid)+'/breach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:'Account breached by admin'})});await loadPayments()}catch(e){alert(e.message)}}
-async function loadPayments(){const d=await api('/api/admin/payments');const list=document.getElementById('list');const ps=d.payments||[];if(!ps.length){list.innerHTML='<p class="muted2">No payments found.</p>';return}list.innerHTML=ps.map(p=>'<article class="payment"><div class="row"><div><b style="color:#f1d98a">'+esc(p.type==='challenge'?'Challenge':'Course')+'</b><div style="color:#fff;margin-top:5px">'+esc(p.challengeModel?p.challengeModel+' '+p.challengeSize:p.courseTitle)+'</div><div class="muted2">'+esc(p.userEmail)+'</div></div><div><b style="color:#fff">$'+Number(p.amount||0).toFixed(2)+'</b><div class="muted2">'+esc(p.method)+' · '+esc(p.transactionId)+'</div></div><div><span class="muted2">Status</span><div style="color:#fff">'+esc(p.status)+'</div>'+(p.screenshotUrl?'<img class="proof" src="'+esc(p.screenshotUrl)+'">':'')+'</div><div class="actions">'+(p.status==='pending'?'<button class="btn primary approve" data-id="'+esc(p.id)+'">Approve</button> <button class="btn reject reject-pay" data-id="'+esc(p.id)+'">Reject</button>':(p.status==='approved'&&p.type==='challenge'&&p.userId?'<button class="btn reject breach" data-id="'+esc(p.userId)+'">Breach & Revoke</button>':'')+'</div></div></article>').join('')}
-document.getElementById('list').addEventListener('click',e=>{const a=e.target.closest('.approve'),r=e.target.closest('.reject-pay'),b=e.target.closest('.breach');if(a)review(a.dataset.id,'approved');if(r)review(r.dataset.id,'rejected');if(b)breachAccount(b.dataset.id)});
-(async function initAdmin(){
-  const statusEl=document.getElementById('status');
+ceAuth.onAuthStateChanged(async user=>{
+  if(!user){location.replace('admin.html');return;}
   try{
-    if(typeof firebase==='undefined') throw new Error('Firebase library failed to load.');
-    if(typeof ceAuth==='undefined') throw new Error('Firebase authentication failed to initialize.');
-    statusEl.textContent='Checking admin access…';
-    let user=ceAuth.currentUser;
-    if(!user){
-      user=await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(new Error('Firebase authentication is taking too long. Please refresh the page.')),8000);
-        const unsub=ceAuth.onAuthStateChanged(u=>{clearTimeout(timer);unsub();resolve(u)});
-      });
-    }
-    if(!user){location.replace('admin.html');return}
-    statusEl.textContent='Verifying admin permission…';
-    await user.getIdToken(true);
-    const results=await Promise.allSettled([loadCatalog(),loadRules(),loadPayments()]);
-    const failed=results.filter(x=>x.status==='rejected');
-    if(failed.length){
-      console.error('Admin sections failed:',failed.map(x=>x.reason));
-      const paymentFailed=results[2].status==='rejected';
-      statusEl.textContent=paymentFailed
-        ? (results[2].reason?.message||'Could not load payment queue.')
-        : 'Admin loaded with some sections unavailable.';
-    }else{
-      statusEl.textContent='Admin payment queue ✓';
-    }
-  }catch(e){
-    console.error('Admin initialization failed:',e);
-    statusEl.textContent=e?.message||'Admin initialization failed.';
-  }
-})();
-</script></body></html>
+    const token=await user.getIdToken(true);
+    const r=await fetch('/api/admin/payments',{headers:{Authorization:'Bearer '+token}});
+    if(!r.ok) location.replace('admin.html');
+  }catch(e){location.replace('admin.html');}
+});
+</script>
+</body>
+</html>
