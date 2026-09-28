@@ -56,7 +56,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="firebase-config.js?v=6"></script>
+<script src="firebase-config.js?v=7"></script>
 <script>
 const API='';
 async function loadChallenges(){
@@ -116,7 +116,7 @@ function card(x){
         const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';
         localStorage.setItem('auraSelectedChallengeId',btn.dataset.id);
         localStorage.setItem('auraSelectedCurrency',currency);
-        location.href='checkout-v2.html';
+        location.href='checkout-v2.html?v=20260928';
       };
     });
   }catch(e){
