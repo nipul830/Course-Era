@@ -6,9 +6,6 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,19 +13,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Fix revoked terminal credential reuse
-        run: |
-          node scripts/fix-terminal-credentials.mjs
-          if git diff --quiet -- backend/server.js; then
-            echo "Terminal credential fix already present"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add backend/server.js
-            git commit -m "Fix revoked terminal credential reuse"
-            git push
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
