@@ -116,7 +116,7 @@ function card(x){
         const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';
         localStorage.setItem('auraSelectedChallengeId',btn.dataset.id);
         localStorage.setItem('auraSelectedCurrency',currency);
-        location.href='checkout.html';
+        location.href='checkout-v2.html';
       };
     });
   }catch(e){
