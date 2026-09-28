@@ -61,8 +61,8 @@ form.addEventListener('submit',async e=>{
       const data=await response.json().catch(()=>({}));
       throw new Error(data.error||'Could not verify admin access.');
     }
-    msg.className='success';msg.textContent='Admin login successful.';
-    setTimeout(()=>location.reload(),300);
+    msg.className='success';msg.textContent='Admin login successful. Opening admin panel…';
+    setTimeout(()=>location.replace('admin-panel.html'),250);
   }catch(err){
     msg.className='error';
     msg.textContent=err.code==='auth/invalid-credential'?'Email or password is incorrect.':(err.message||'Login failed.');
@@ -76,7 +76,8 @@ ceAuth.onAuthStateChanged(async user=>{
     const r=await fetch('/api/admin/payments',{headers:{Authorization:'Bearer '+token}});
     if(r.ok){
       msg.className='success';
-      msg.textContent='Admin already logged in.';
+      msg.textContent='Admin already logged in. Opening admin panel…';
+      setTimeout(()=>location.replace('admin-panel.html'),250);
     }
   }catch{}
 });
