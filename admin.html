@@ -76,10 +76,13 @@ document.getElementById('list').addEventListener('click',e=>{const a=e.target.cl
     if(typeof firebase==='undefined') throw new Error('Firebase library failed to load.');
     if(typeof ceAuth==='undefined') throw new Error('Firebase authentication failed to initialize.');
     statusEl.textContent='Checking admin access…';
-    const user=await new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>reject(new Error('Firebase authentication is taking too long. Please refresh the page.')),12000);
-      const unsub=ceAuth.onAuthStateChanged(u=>{clearTimeout(timer);unsub();resolve(u)});
-    });
+    let user=ceAuth.currentUser;
+    if(!user){
+      user=await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error('Firebase authentication is taking too long. Please refresh the page.')),8000);
+        const unsub=ceAuth.onAuthStateChanged(u=>{clearTimeout(timer);unsub();resolve(u)});
+      });
+    }
     if(!user){location.replace('login.html?next=admin.html');return}
     statusEl.textContent='Verifying admin permission…';
     await user.getIdToken(true);
