@@ -19,42 +19,7 @@ jobs:
 
       - name: Fix revoked terminal credential reuse
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('backend/server.js')
-          text = path.read_text()
-
-          old = '''  if (existingId) {
-    const existing = await db.collection("terminalCredentials").doc(existingId).get();
-    if (existing.exists) return { id: existingId, data: existing.data() || {}, created: false };
-  }
-'''
-
-          new = '''  if (existingId) {
-    const existing = await db.collection("terminalCredentials").doc(existingId).get();
-    if (existing.exists) {
-      const existingData = existing.data() || {};
-      if (existingData.status === "active") {
-        return { id: existingId, data: existingData, created: false };
-      }
-      // Never show or reuse a revoked credential on the dashboard.
-      // Keep the old credential for audit history, but detach it from the
-      // active trading account so the transaction below issues a fresh one.
-      await accountRef.update({
-        terminalCredentialId: admin.firestore.FieldValue.delete(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-  }
-'''
-
-          if old not in text:
-              raise SystemExit('Expected terminal credential block not found')
-
-          path.write_text(text.replace(old, new, 1))
-          PY
-
+          node scripts/fix-terminal-credentials.mjs
           if git diff --quiet -- backend/server.js; then
             echo "Terminal credential fix already present"
           else
