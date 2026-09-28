@@ -101,4 +101,7 @@ footer{border-top:1px solid var(--line);padding:25px 6%;color:var(--muted);font-
 .profile-menu-links .profile-language{white-space:nowrap}
 
 /* Dashboard active highlight */
-.dashboard::before{content:'Buy Challenge';display:block;width:max-content;margin:0 auto 28px;padding:10px 24px;border:1px solid var(--accent);border-radius:999px;background:linear-gradient(180deg,#2a220f,#171106);color:var(--accent2);font-size:14px;font-weight:800;letter-spacing:.6px;box-shadow:0 0 20px #d6b35a22,inset 0 0 0 1px #f1d98a18}
+.dashboard::before{content:'Dashboard';display:block;width:max-content;margin:0 auto 28px;padding:10px 24px;border:1px solid var(--accent);border-radius:999px;background:linear-gradient(180deg,#2a220f,#171106);color:var(--accent2);font-size:14px;font-weight:800;letter-spacing:.6px}
+
+/* Buy Challenge label in the blank area above TRADER PORTAL. Non-clickable by design. */
+.page-title::before{content:'Buy Challenge';display:block;width:max-content;margin:0 auto 34px;padding:10px 24px;border:1px solid var(--accent);border-radius:999px;background:linear-gradient(180deg,#2a220f,#171106);color:var(--accent2);font-size:14px;font-weight:800;letter-spacing:.6px}
