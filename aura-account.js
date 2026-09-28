@@ -4,6 +4,50 @@
   let accountPromise=null;
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
+  function decodeTerminalToken(token){
+    try{
+      const parts=String(token||'').split('.');
+      if(parts.length!==3||parts[0]!=='AF1')return null;
+      const raw=parts[1].replace(/-/g,'+').replace(/_/g,'/');
+      const json=decodeURIComponent(escape(atob(raw+'='.repeat((4-raw.length%4)%4))));
+      const payload=JSON.parse(json);
+      const accountId=String(payload.accountId||'').trim();
+      return accountId?payload:null;
+    }catch(e){return null;}
+  }
+
+  function terminalAccountContext(){
+    const token=sessionStorage.getItem('auraTerminalSession')||'';
+    const payload=decodeTerminalToken(token);
+    if(!payload)return null;
+    const accountId=String(payload.accountId||'').trim();
+    if(!accountId)return null;
+    return {accountId,payload};
+  }
+
+  function terminalAccountStorageKey(accountId){
+    return 'auraTerminalAccount:'+String(accountId||'').trim();
+  }
+
+  function saveTerminalAccount(account){
+    try{
+      const ctx=terminalAccountContext();
+      const accountId=String(account?.accountId||account?.id||ctx?.accountId||'').trim();
+      if(!accountId||!account)return;
+      sessionStorage.setItem('auraTerminalAccount',JSON.stringify(account));
+      localStorage.setItem(terminalAccountStorageKey(accountId),JSON.stringify(account));
+    }catch(e){}
+  }
+
+  function getSavedTerminalAccount(){
+    try{
+      const ctx=terminalAccountContext();
+      if(!ctx)return null;
+      const raw=localStorage.getItem(terminalAccountStorageKey(ctx.accountId));
+      return raw?JSON.parse(raw):null;
+    }catch(e){return null;}
+  }
+
   async function auraAccount(){
     if(typeof ceAuth==='undefined'||!ceAuth.currentUser)return null;
     if(accountPromise)return accountPromise;
@@ -47,70 +91,14 @@
     });
   }
 
-  // Keep terminal history isolated by trading-account ID. When a user gets a
-  // brand-new challenge, the new terminal session has a new accountId, so the
-  // first session time for that account becomes the cutoff for displayed trades.
-  function terminalAccountContext(){
-    try{
-      const token=sessionStorage.getItem('auraTerminalSession')||'';
-      const parts=token.split('.');
-      if(parts.length!==3||parts[0]!=='AF1')return null;
-      const raw=parts[1].replace(/-/g,'+').replace(/_/g,'/');
-      const json=decodeURIComponent(escape(atob(raw+'='.repeat((4-raw.length%4)%4))));
-      const payload=JSON.parse(json);
-      const accountId=String(payload.accountId||'').trim();
-      if(!accountId)return null;
-      const key='auraAccountFirstSeen:'+accountId;
-      let firstSeen=Number(localStorage.getItem(key)||0);
-      if(!Number.isFinite(firstSeen)||firstSeen<=0){
-        const issuedAt=Number(payload.iat||0)*1000;
-        firstSeen=issuedAt>0?issuedAt:Date.now();
-        localStorage.setItem(key,String(firstSeen));
-      }
-      return {accountId,firstSeen};
-    }catch(e){return null;}
-  }
-
-  function filterPositionHistory(data){
-    if(!data||typeof data!=='object')return data;
-    const ctx=terminalAccountContext();
-    if(!ctx)return data;
-    const cutoff=ctx.firstSeen;
-    const tradeTime=p=>{
-      const value=p?.openedAt||p?.createdAt||p?.closedAt;
-      const t=Date.parse(value||'');
-      return Number.isFinite(t)?t:0;
-    };
-    const keep=p=>{
-      const t=tradeTime(p);
-      return t===0||t>=cutoff;
-    };
-    const out={...data};
-    if(Array.isArray(data.open))out.open=data.open.filter(keep);
-    if(Array.isArray(data.closed))out.closed=data.closed.filter(keep);
-    if(Array.isArray(data.positions))out.positions=data.positions.filter(keep);
-    return out;
-  }
-
-  const nativeFetch=window.fetch.bind(window);
-  window.fetch=async function(input,init){
-    const response=await nativeFetch(input,init);
-    try{
-      const url=typeof input==='string'?input:(input?.url||'');
-      if(!url.includes('/api/trading/history')&&!url.includes('/api/trading/positions'))return response;
-      const clone=response.clone();
-      const data=await clone.json();
-      const filtered=filterPositionHistory(data);
-      return new Response(JSON.stringify(filtered),{
-        status:response.status,
-        statusText:response.statusText,
-        headers:response.headers
-      });
-    }catch(e){
-      return response;
-    }
-  };
-
+  // Terminal history is already returned by the server for the authenticated
+  // trading account. Do not apply a client-side first-seen/time cutoff: that
+  // incorrectly hides an older account's history when the user logs back in.
+  // The active terminal session/accountId is the source of identity.
+  window.auraTerminalAccountContext=terminalAccountContext;
+  window.auraTerminalAccountStorageKey=terminalAccountStorageKey;
+  window.auraSaveTerminalAccount=saveTerminalAccount;
+  window.auraGetSavedTerminalAccount=getSavedTerminalAccount;
   window.auraAccount=auraAccount;
   window.auraMoney=auraMoney;
 })();
