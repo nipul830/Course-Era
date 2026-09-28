@@ -1,8 +1,85 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin — Aura Farming</title>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Login — Aura Farming</title>
 <link rel="stylesheet" href="aura.css">
+<style>
+.admin-login{min-height:100vh;display:grid;place-items:center;padding:24px}
+.admin-card{width:min(420px,100%);background:#050505;border:1px solid #302713;border-radius:18px;padding:28px;box-sizing:border-box}
+.admin-card h1{color:#f1d98a;margin:0 0 8px}.admin-card p{color:#9b8552;font-size:13px}
+.admin-card label{display:block;color:#9b8552;font-size:12px;font-weight:800;margin:16px 0 7px}
+.admin-card input{width:100%;box-sizing:border-box;background:#000;color:#fff;border:1px solid #302713;border-radius:9px;padding:13px}
+.admin-btn{width:100%;margin-top:18px;border:1px solid #302713;border-radius:9px;font-weight:900;cursor:pointer;padding:13px;background:#d6b35a;color:#080808}
+#adminMsg{min-height:20px;margin-top:14px}.error{color:#ff9b9b!important}.success{color:#9be7b0!important}
+</style>
 </head>
-<body></body>
+<body>
+<main class="admin-login">
+<section class="admin-card">
+<div class="eyebrow">AURA FARMING ADMIN</div>
+<h1>Admin Login</h1>
+<p>Sign in with your authorized admin account.</p>
+<form id="adminLoginForm">
+<label>Email</label>
+<input id="adminEmail" type="email" autocomplete="username" required placeholder="Admin email">
+<label>Password</label>
+<input id="adminPassword" type="password" autocomplete="current-password" required placeholder="Password">
+<button id="adminLoginBtn" class="admin-btn" type="submit">Login</button>
+</form>
+<p id="adminMsg"></p>
+</section>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="firebase-config.js?v=10"></script>
+<script>
+const form=document.getElementById('adminLoginForm');
+const msg=document.getElementById('adminMsg');
+const btn=document.getElementById('adminLoginBtn');
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  msg.className='';msg.textContent='Signing in…';btn.disabled=true;
+  try{
+    await ceAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    const cred=await ceAuth.signInWithEmailAndPassword(
+      document.getElementById('adminEmail').value.trim(),
+      document.getElementById('adminPassword').value
+    );
+    const token=await cred.user.getIdToken(true);
+    const response=await fetch('/api/admin/payments',{headers:{Authorization:'Bearer '+token}});
+    if(response.status===403){
+      await ceAuth.signOut();
+      throw new Error('Admin access required.');
+    }
+    if(response.status===401){
+      await ceAuth.signOut();
+      throw new Error('Admin authentication failed. Please login again.');
+    }
+    if(!response.ok){
+      const data=await response.json().catch(()=>({}));
+      throw new Error(data.error||'Could not verify admin access.');
+    }
+    msg.className='success';msg.textContent='Admin login successful.';
+    setTimeout(()=>location.reload(),300);
+  }catch(err){
+    msg.className='error';
+    msg.textContent=err.code==='auth/invalid-credential'?'Email or password is incorrect.':(err.message||'Login failed.');
+    btn.disabled=false;
+  }
+});
+ceAuth.onAuthStateChanged(async user=>{
+  if(!user)return;
+  try{
+    const token=await user.getIdToken(true);
+    const r=await fetch('/api/admin/payments',{headers:{Authorization:'Bearer '+token}});
+    if(r.ok){
+      msg.className='success';
+      msg.textContent='Admin already logged in.';
+    }
+  }catch{}
+});
+</script>
+</body>
 </html>
