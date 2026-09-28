@@ -112,3 +112,21 @@ function logout(){
     renderPurchasedAccounts(list);
   },{once:true});
 })();
+
+// Add the Buy Challenge shortcut only to the trader dashboard.
+(function(){
+  function addBuyChallenge(){
+    if(!document.querySelector('.dashboard'))return;
+    if(document.getElementById('dashboardBuyChallenge'))return;
+    const nav=document.querySelector('header.nav nav');
+    if(!nav)return;
+    const link=document.createElement('a');
+    link.id='dashboardBuyChallenge';
+    link.href='challenge.html';
+    link.textContent='Buy Challenge';
+    link.style.cssText='display:inline-block;text-decoration:none;margin-right:14px;';
+    nav.insertBefore(link,nav.firstChild);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addBuyChallenge,{once:true});
+  else addBuyChallenge();
+})();
