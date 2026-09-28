@@ -36,7 +36,7 @@
 
 <section class="admin-section" id="rulesSection"><h2 style="margin-bottom:6px">Challenge Rules</h2><p>Manage the rules shown inside purchased accounts. Add or remove numbered rules with the + button.</p><div id="rulesEditor"><div class="rule-model"><h3>1 Step</h3><div class="rule-list" data-model="1 Step"><div class="rule-row"><input value="Daily Drawdown: 4%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Total Drawdown: 8%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Profit Target: 10%"><button type="button" class="rule-remove">×</button></div></div><button type="button" class="rule-add">+ Add Rule</button></div><div class="rule-model"><h3>2 Step</h3><div class="rule-list" data-model="2 Step"><div class="rule-row"><input value="Daily Drawdown: 4%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Total Drawdown: 8%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Phase 1 Profit Target: 8%"><button type="button" class="rule-remove">×</button></div><div class="rule-row"><input value="Phase 2 Profit Target: 6%"><button type="button" class="rule-remove">×</button></div></div><button type="button" class="rule-add">+ Add Rule</button></div><div class="rule-model"><h3>Instant</h3><div class="rule-list" data-model="Instant"><div class="rule-row"><input value="Daily Drawdown: 3%"><button type="button" class="rule-remove">×</button></div></div><button type="button" class="rule-add">+ Add Rule</button></div></div><button class="rules-save" type="button" id="saveRules">Save Rules</button><span id="rulesStatus" class="muted2" style="margin-left:10px"></span></section>
 <div id="list"></div></main>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=7"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=8"></script>
 <script>
 const API='';
 
@@ -83,10 +83,17 @@ document.getElementById('list').addEventListener('click',e=>{const a=e.target.cl
     if(!user){location.replace('login.html?next=admin.html');return}
     statusEl.textContent='Verifying admin permission…';
     await user.getIdToken(true);
-    await loadCatalog();
-    await loadRules();
-    await loadPayments();
-    statusEl.textContent='Admin payment queue ✓';
+    const results=await Promise.allSettled([loadCatalog(),loadRules(),loadPayments()]);
+    const failed=results.filter(x=>x.status==='rejected');
+    if(failed.length){
+      console.error('Admin sections failed:',failed.map(x=>x.reason));
+      const paymentFailed=results[2].status==='rejected';
+      statusEl.textContent=paymentFailed
+        ? (results[2].reason?.message||'Could not load payment queue.')
+        : 'Admin loaded with some sections unavailable.';
+    }else{
+      statusEl.textContent='Admin payment queue ✓';
+    }
   }catch(e){
     console.error('Admin initialization failed:',e);
     statusEl.textContent=e?.message||'Admin initialization failed.';
