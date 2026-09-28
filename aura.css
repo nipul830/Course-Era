@@ -78,7 +78,7 @@ footer{border-top:1px solid var(--line);padding:25px 6%;color:var(--muted);font-
 .profile-logout{width:100%;margin-top:10px;padding:10px;border:1px solid #302713;border-radius:9px;background:#090806;color:#f1d98a;font-weight:700;cursor:pointer}
 @media(max-width:760px){
  .profile-menu{right:4%;top:66px;width:230px}
- .auth-nav .profile-nav{width:42px;height:42px}.profile-nav-avatar{width:42px;height:42px}
+.auth-nav .profile-nav{width:42px;height:42px}.profile-nav-avatar{width:42px;height:42px}
  .menu-toggle{top:74px}
 }
 .profile-menu-links{margin-top:8px}
@@ -99,3 +99,6 @@ footer{border-top:1px solid var(--line);padding:25px 6%;color:var(--muted);font-
 .profile-menu-links a,.profile-menu-links .profile-language{display:flex!important;width:100%;box-sizing:border-box;min-height:48px;align-items:center;justify-content:space-between;padding:0 10px;margin:0;border-bottom:1px solid #211b10}
 .profile-menu-links a{white-space:nowrap}
 .profile-menu-links .profile-language{white-space:nowrap}
+
+/* Dashboard active highlight */
+.dashboard::before{content:'Dashboard';display:block;width:max-content;margin:0 auto 28px;padding:10px 24px;border:1px solid var(--accent);border-radius:999px;background:linear-gradient(180deg,#2a220f,#171106);color:var(--accent2);font-size:14px;font-weight:800;letter-spacing:.6px;box-shadow:0 0 20px #d6b35a22,inset 0 0 0 1px #f1d98a18}
