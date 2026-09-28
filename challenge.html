@@ -9,7 +9,7 @@
 .challenge-page{max-width:1200px;margin:0 auto;padding:42px 5% 80px}
 .challenge-head{text-align:center;margin-bottom:34px}.challenge-head h1{font-size:44px;color:var(--text);margin:8px 0}.challenge-head p{color:var(--muted);max-width:680px;margin:auto;line-height:1.7}
 .challenge-tabs{display:flex;justify-content:center;gap:10px;margin:25px 0 34px;flex-wrap:wrap}.challenge-tab{border:1px solid var(--line);background:#050505;color:var(--muted);border-radius:12px;padding:13px 24px;font-weight:800;cursor:pointer}.challenge-tab.active{background:var(--accent);color:#080808;border-color:var(--accent)}
-.challenge-panel{display:none}.challenge-panel.active{display:block}.account-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.account-card{background:#060606;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 10px 30px #0008}.account-card h2{color:#fff;margin:0 0 6px;font-size:28px}.account-type{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.12em}.account-rule{margin:18px 0;color:var(--muted);line-height:1.8;font-size:14px}.account-rule b{color:#fff}.buy-now{width:100%;border:0;border-radius:12px;background:var(--accent);color:#080808;padding:14px;font-size:16px;font-weight:900;cursor:pointer}.price{font-size:22px;color:#fff;font-weight:900;margin:8px 0 4px}.currency-row{display:flex;gap:8px;margin:10px 0 12px}.currency-btn{flex:1;border:1px solid var(--line);border-radius:10px;background:#090909;color:var(--muted);padding:9px;font-weight:800;cursor:pointer}.currency-btn.active{background:var(--accent);color:#080808;border-color:var(--accent)}.challenge-status{text-align:center;color:var(--muted);margin:-12px 0 24px;font-size:13px}.buy-now:hover{background:var(--accent2)}.rule-box{margin-top:12px;padding-top:14px;border-top:1px solid var(--line)}
+.challenge-panel{display:none}.challenge-panel.active{display:block}.account-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.account-card{background:#060606;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 10px 30px #0008}.account-card h2{color:#fff;margin:0 0 6px;font-size:28px}.account-type{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.12em}.account-rule{margin:18px 0;color:var(--muted);line-height:1.8;font-size:14px}.account-rule b{color:#fff}.buy-now{width:100%;border:0;border-radius:12px;background:var(--accent);color:#080808;padding:14px;font-size:16px;font-weight:900;cursor:pointer}.price{font-size:22px;color:#fff;font-weight:900;margin:8px 0 4px}.price-discount{display:inline-flex;align-items:baseline;gap:7px;flex-wrap:wrap}.price-old{text-decoration:line-through;opacity:.5;font-size:15px;font-weight:800}.price-new{font-size:22px;font-weight:900}.price-off{display:block;width:100%;font-size:12px;color:#f1d98a;font-weight:900}.currency-row{display:flex;gap:8px;margin:10px 0 12px}.currency-btn{flex:1;border:1px solid var(--line);border-radius:10px;background:#090909;color:var(--muted);padding:9px;font-weight:800;cursor:pointer}.currency-btn.active{background:var(--accent);color:#080808;border-color:var(--accent)}.challenge-status{text-align:center;color:var(--muted);margin:-12px 0 24px;font-size:13px}.buy-now:hover{background:var(--accent2)}.rule-box{margin-top:12px;padding-top:14px;border-top:1px solid var(--line)}
 @media(max-width:800px){.challenge-page{padding:30px 4% 60px}.challenge-head h1{font-size:34px}.account-grid{grid-template-columns:1fr}.challenge-tabs{display:grid;grid-template-columns:repeat(3,1fr)}.challenge-tab{padding:12px 6px;font-size:13px}}
 </style>
 </head>
@@ -50,10 +50,29 @@ function extraRuleHtml(rule){
   if(match)return '<div><b>'+escapeHtml(match[1].trim())+':</b> '+escapeHtml(match[2].trim())+'</div>';
   return '<div>'+escapeHtml(text)+'</div>';
 }
+function renderPrice(priceEl,currency){
+  const originalUsdt=Number(priceEl.dataset.originalUsdt||0);
+  const finalUsdt=Number(priceEl.dataset.usdt||0);
+  const originalInr=Number(priceEl.dataset.originalInr||0);
+  const finalInr=Number(priceEl.dataset.inr||0);
+  const discount=Number(priceEl.dataset.discount||0);
+  if(discount>0){
+    if(currency==='USDT'){
+      priceEl.innerHTML='<span class="price-discount"><span class="price-old">'+originalUsdt.toFixed(2)+' USDT</span><span class="price-new">'+finalUsdt.toFixed(2)+' USDT</span><small class="price-off">'+discount+'% OFF</small></span>';
+    }else{
+      priceEl.innerHTML='<span class="price-discount"><span class="price-old">₹'+originalInr.toLocaleString('en-IN')+'</span><span class="price-new">₹'+finalInr.toLocaleString('en-IN')+'</span><small class="price-off">'+discount+'% OFF</small></span>';
+    }
+  }else{
+    priceEl.textContent=currency==='USDT'?finalUsdt.toFixed(2)+' USDT':'₹'+originalInr.toLocaleString('en-IN');
+  }
+}
 function card(x){
   const discount=Math.min(100,Math.max(0,Number(x.discountPercent)||0));
-  const finalPrice=Math.round(Number(x.price)*(1-discount/100)*100)/100;
-  const inr=Math.round(finalPrice*98);const rules=[];
+  const originalUsdt=Number(x.price)||0;
+  const finalPrice=Math.round(originalUsdt*(1-discount/100)*100)/100;
+  const originalInr=Math.round(originalUsdt*98);
+  const inr=Math.round(finalPrice*98);
+  const rules=[];
   if(x.dailyDrawdown)rules.push('<div><b>Daily Drawdown:</b> '+x.dailyDrawdown+'</div>');
   if(x.totalDrawdown)rules.push('<div><b>Total Drawdown:</b> '+x.totalDrawdown+'</div>');
   if(x.profitTarget)rules.push('<div><b>Profit Target:</b> '+x.profitTarget+'</div>');
@@ -62,9 +81,8 @@ function card(x){
   if(x.evaluation)rules.push('<div><b>Evaluation:</b> '+x.evaluation+'</div>');
   const extra=Array.isArray(challengeRules[x.model])?challengeRules[x.model]:[];
   extra.forEach(rule=>{const html=extraRuleHtml(rule);if(html)rules.push(html)});
-  const oldPrice=Number(x.price).toFixed(2);
-  const priceHtml=discount>0?'<span style="text-decoration:line-through;opacity:.5;font-size:15px">'+oldPrice+' USDT</span> '+inr.toLocaleString('en-IN')+' INR<small style="display:block;font-size:12px;color:#f1d98a">'+discount+'% OFF</small>':'₹'+inr.toLocaleString('en-IN');
-  return '<article class="account-card">'+'<div class="account-type">'+String(x.model||'').toUpperCase()+'</div>'+'<h2>'+String(x.size||'')+'</h2>'+'<div class="price" data-inr="'+inr+'" data-usdt="'+finalPrice.toFixed(2)+'">'+priceHtml+'</div>'+'<div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div>'+'<div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize||0).toLocaleString('en-US')+'</b></div></div>'+'<button class="buy-now" type="button" data-id="'+x.id+'">Buy Now</button>'+'</article>';
+  const priceHtml=discount>0?'<span class="price-discount"><span class="price-old">₹'+originalInr.toLocaleString('en-IN')+'</span><span class="price-new">₹'+inr.toLocaleString('en-IN')+'</span><small class="price-off">'+discount+'% OFF</small></span>':'₹'+originalInr.toLocaleString('en-IN');
+  return '<article class="account-card">'+'<div class="account-type">'+String(x.model||'').toUpperCase()+'</div>'+'<h2>'+String(x.size||'')+'</h2>'+'<div class="price" data-original-usdt="'+originalUsdt.toFixed(2)+'" data-usdt="'+finalPrice.toFixed(2)+'" data-original-inr="'+originalInr+'" data-inr="'+inr+'" data-discount="'+discount+'">'+priceHtml+'</div>'+'<div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div>'+'<div class="account-rule">'+rules.join('')+'<div class="rule-box">Starting simulated balance: <b>$'+Number(x.accountSize||0).toLocaleString('en-US')+'</b></div></div>'+'<button class="buy-now" type="button" data-id="'+x.id+'">Buy Now</button>'+'</article>';
 }
 (async function(){
   try{
@@ -73,7 +91,7 @@ function card(x){
     ['one','two','instant'].forEach(model=>{const key=model==='one'?'1 Step':model==='two'?'2 Step':'Instant';document.getElementById(model+'Grid').innerHTML=items.filter(x=>x.model===key).map(card).join('')});
     document.getElementById('challengeStatus').textContent='Choose an account to continue to checkout.';
     document.querySelectorAll('.account-card').forEach(card=>{
-      card.querySelectorAll('.currency-btn').forEach(b=>{b.onclick=()=>{card.querySelectorAll('.currency-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');const price=card.querySelector('.price');price.textContent=b.dataset.currency==='USDT'?price.dataset.usdt+' USDT':'₹'+Number(price.dataset.inr).toLocaleString('en-IN')}});
+      card.querySelectorAll('.currency-btn').forEach(b=>{b.onclick=()=>{card.querySelectorAll('.currency-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderPrice(card.querySelector('.price'),b.dataset.currency)}});
       const buy=card.querySelector('.buy-now');
       buy.onclick=()=>{const id=buy.dataset.id;const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';localStorage.setItem('auraSelectedChallengeId',id);localStorage.setItem('auraSelectedCurrency',currency);location.href='checkout-v3.html?challengeId='+encodeURIComponent(id)+'&currency='+encodeURIComponent(currency)};
     });
