@@ -49,15 +49,7 @@ async function sendPasswordResetEmail({ to, code }) {
       from,
       to: [to],
       subject: "Aura Farming password reset code",
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
-          <h2>Aura Farming</h2>
-          <p>Use this verification code to reset your password:</p>
-          <div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:18px 0">${code}</div>
-          <p>This code expires in 10 minutes.</p>
-          <p>If you did not request a password reset, you can ignore this email.</p>
-        </div>
-      `
+      html: '<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto"><h2>Aura Farming</h2><p>Use this verification code to reset your password:</p><div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:18px 0">' + code + '</div><p>This code expires in 10 minutes.</p><p>If you did not request a password reset, you can ignore this email.</p></div>'
     })
   });
 
