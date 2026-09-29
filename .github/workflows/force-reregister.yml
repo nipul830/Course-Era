@@ -1,0 +1,89 @@
+name: Add Force Re-register Backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add force re-register endpoint
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('backend/server.js')
+          s = p.read_text(encoding='utf-8')
+          marker = 'app.post("/api/trading-account/adjust", requireAuth, async (req, res) => {'
+          if '/api/admin/users/:uid/force-reregister' in s:
+              print('Endpoint already present')
+              raise SystemExit(0)
+          if marker not in s:
+              raise SystemExit('Backend insertion point not found')
+          endpoint = r'''
+
+app.post("/api/admin/users/:uid/force-reregister", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    initFirebase();
+    const uid = String(req.params.uid || "").trim();
+    if (!uid) return res.status(400).json({ error: "User UID is required" });
+    if (uid === req.user.uid) return res.status(400).json({ error: "You cannot force re-register your own admin account" });
+
+    const userRecord = await admin.auth().getUser(uid);
+    const oldEmail = String(userRecord.email || "").trim().toLowerCase();
+    const replacementEmail = "reregister-" + uid + "-" + Date.now() + "@aurafirming.invalid";
+    const replacementPassword = crypto.randomBytes(48).toString("base64url");
+
+    // Revoke sessions, replace the credentials, and disable the old Firebase account.
+    // The original email becomes available again, while the old password can no longer work.
+    await admin.auth().revokeRefreshTokens(uid);
+    await admin.auth().updateUser(uid, {
+      email: replacementEmail,
+      password: replacementPassword,
+      disabled: true
+    });
+
+    try {
+      const accountRef = db.collection("users").doc(uid).collection("trading").doc("account");
+      const accountSnap = await accountRef.get();
+      if (accountSnap.exists) {
+        await accountRef.set({
+          status: "disabled",
+          disabledReason: "Admin forced re-registration",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        await revokeTerminalCredentials(accountSnap.data() || {}, "Admin forced re-registration");
+      }
+    } catch (accountError) {
+      console.warn("FORCE_REREGISTER_ACCOUNT_UPDATE", accountError?.message || accountError);
+    }
+
+    res.json({
+      message: "Account reset successfully. The old password is invalid and the user must register again.",
+      email: oldEmail
+    });
+  } catch (e) {
+    console.error("FORCE_REREGISTER_ERROR", e);
+    res.status(500).json({ error: "Could not force user re-registration", detail: e?.message || "Unknown error" });
+  }
+});
+'''
+          s = s.replace(marker, endpoint + '\n' + marker, 1)
+          p.write_text(s, encoding='utf-8')
+          print('Endpoint inserted')
+      - name: Validate backend syntax
+        run: node --check backend/server.js
+      - name: Commit backend patch
+        run: |
+          if git diff --quiet -- backend/server.js; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/server.js
+          git commit -m 'Add force re-registration admin endpoint'
+          git push
