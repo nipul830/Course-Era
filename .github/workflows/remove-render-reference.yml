@@ -1,0 +1,41 @@
+name: Remove legacy Render reference
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/remove-render-reference.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove Render API reference
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.js')
+          s = p.read_text()
+          old = "const API_BASE='https://course-era.onrender.com';"
+          new = "const API_BASE='';"
+          if old not in s:
+              raise SystemExit('Expected Render API reference not found; no change made.')
+          p.write_text(s.replace(old, new, 1))
+          PY
+
+      - name: Commit app.js and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git rm .github/workflows/remove-render-reference.yml
+          git commit -m "Remove legacy Render API reference"
+          git push origin main
