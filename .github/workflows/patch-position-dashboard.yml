@@ -13,39 +13,109 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Patch legacy trading account list
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('backend/server.js')
+          s=p.read_text(encoding='utf-8')
+          old='''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const base = db.collection("users").doc(req.user.uid);
+    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();
+    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+    if (!accounts.length) {
+      const current = await base.collection("trading").doc("account").get();
+      if (current.exists) return res.json({ accounts:[{ id:current.id, ...(current.data() || {}) }] });
+    }
+    return res.json({ accounts });
+  } catch (e) {
+    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
+  }
+});'''
+          new='''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const base = db.collection("users").doc(req.user.uid);
+    const [accountsSnap, legacySnap, currentSnap] = await Promise.all([
+      base.collection("tradingAccounts").orderBy("createdAt", "desc").get(),
+      base.collection("challengeAccounts").orderBy("createdAt", "desc").get(),
+      base.collection("trading").doc("account").get()
+    ]);
+    const byId=new Map();
+    const add=a=>{const id=String(a.accountId||a.id||'').trim();if(id&&!byId.has(id))byId.set(id,{id,...a,accountId:id});};
+    accountsSnap.docs.forEach(d=>add({id:d.id,...(d.data()||{})}));
+    legacySnap.docs.forEach(d=>{const x=d.data()||{};const size=Number(x.accountSize||x.startingBalance||x.size||0);add({id:d.id,accountId:String(x.accountId||d.id),startingBalance:size,balance:Number(x.balance??size),equity:Number(x.equity??x.balance??size),pnl:Number(x.pnl||0),currency:x.currency||'USD',challenge:x.challenge||((x.model||'')+(x.size?' '+x.size:'')),challengeId:x.challengeId,status:x.status||'active',terminalCredentialId:x.terminalCredentialId,createdAt:x.createdAt,updatedAt:x.updatedAt});});
+    if(currentSnap.exists)add({id:currentSnap.id,...(currentSnap.data()||{})});
+    const accounts=Array.from(byId.values()).sort((a,b)=>{const at=a.createdAt?.toMillis?a.createdAt.toMillis():(a.createdAt?new Date(a.createdAt).getTime():0);const bt=b.createdAt?.toMillis?b.createdAt.toMillis():(b.createdAt?new Date(b.createdAt).getTime():0);return bt-at;});
+    return res.json({accounts});
+  } catch(e) { return res.status(500).json({error:"Could not load trading accounts",detail:e.message}); }
+});'''
+          if old in s:s=s.replace(old,new,1);p.write_text(s,encoding='utf-8') if old in s else None
+          elif new not in s:raise SystemExit('Trading account endpoint not found')
+      - name: Patch legacy account selection
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('backend/server.js');s=p.read_text(encoding='utf-8')
+          old='''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const accountId = String(req.body?.accountId || "").trim();
+    if (!accountId) return res.status(400).json({ error:"accountId is required" });
+    const userRef = db.collection("users").doc(req.user.uid);
+    const selectedRef = userRef.collection("tradingAccounts").doc(accountId);
+    const selectedSnap = await selectedRef.get();
+    if (!selectedSnap.exists) return res.status(404).json({ error:"Trading account not found" });
+    const selected = selectedSnap.data() || {};
+    if (selected.status && selected.status !== "active") return res.status(403).json({ error:"Trading account is not active" });
+    await userRef.collection("trading").doc("account").set(selected, { merge:false });
+    return res.json({ account:{ id:accountId, ...selected } });
+  } catch (e) {
+    return res.status(500).json({ error:"Could not select trading account", detail:e.message });
+  }
+});'''
+          new='''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const accountId=String(req.body?.accountId||"").trim();
+    if(!accountId)return res.status(400).json({error:"accountId is required"});
+    const userRef=db.collection("users").doc(req.user.uid);
+    const selectedRef=userRef.collection("tradingAccounts").doc(accountId);
+    let selectedSnap=await selectedRef.get();
+    if(!selectedSnap.exists){
+      const legacySnap=await userRef.collection("challengeAccounts").doc(accountId).get();
+      if(!legacySnap.exists)return res.status(404).json({error:"Trading account not found"});
+      const x=legacySnap.data()||{};const size=Number(x.accountSize||x.startingBalance||x.size||0);
+      await selectedRef.set({accountId,startingBalance:size,balance:Number(x.balance??size),equity:Number(x.equity??x.balance??size),pnl:Number(x.pnl||0),currency:x.currency||"USD",challenge:x.challenge||((x.model||"")+(x.size?" "+x.size:"")),challengeId:x.challengeId,status:x.status||"active",terminalCredentialId:x.terminalCredentialId,createdAt:x.createdAt,updatedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
+      selectedSnap=await selectedRef.get();
+    }
+    const selected=selectedSnap.data()||{};
+    if(selected.status&&selected.status!=="active")return res.status(403).json({error:"Trading account is not active"});
+    await userRef.collection("trading").doc("account").set(selected,{merge:false});
+    return res.json({account:{id:accountId,...selected}});
+  }catch(e){return res.status(500).json({error:"Could not select trading account",detail:e.message});}
+});'''
+          if old in s:s=s.replace(old,new,1);p.write_text(s,encoding='utf-8') if old in s else None
+          elif new not in s:raise SystemExit('Trading account select endpoint not found')
       - name: Patch only Position dashboard colors and tab spacing
         shell: python
         run: |
           from pathlib import Path
-          p = Path('position.html')
-          s = p.read_text(encoding='utf-8')
-          old = '.account-top{background:#c99a00;color:#111;border-radius:0 0 20px 20px;margin:-22px -16px 16px;padding:0 0 7px;box-shadow:0 4px 14px #0002;overflow:hidden}'
-          new = '.account-top{background:#050505;color:#fff;border-radius:0 0 20px 20px;margin:-22px -16px 16px;padding:0 0 7px;box-shadow:0 4px 14px #0008;overflow:hidden;border:1px solid #242424}'
-          replacements = {
-            old: new,
-            '.account-summary .balance-main{font-size:18px;font-weight:900;color:#111}': '.account-summary .balance-main{font-size:18px;font-weight:900;color:#fff}',
-            '.account-toggle{justify-self:end;width:34px;height:34px;border:0;border-radius:10px;background:rgba(0,0,0,.04);color:#111;font-size:22px;line-height:1;display:grid;place-items:center}': '.account-toggle{justify-self:end;width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;font-size:22px;line-height:1;display:grid;place-items:center}',
-            '.account-detail .detail-label{display:block;color:#604b00;font-size:10px;font-weight:600;margin-bottom:3px}': '.account-detail .detail-label{display:block;color:#aaa;font-size:10px;font-weight:600;margin-bottom:3px}',
-            '.account-detail .detail-value{display:block;color:#111;font-size:15px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}': '.account-detail .detail-value{display:block;color:#f5f5f5;font-size:15px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-            '.account-expanded-logout{grid-column:3;justify-self:end;border:0;background:rgba(0,0,0,.06);color:#111;border-radius:16px;padding:4px 9px;font-size:9px;font-weight:800}': '.account-expanded-logout{grid-column:3;justify-self:end;border:1px solid #333;background:#151515;color:#fff;border-radius:16px;padding:4px 9px;font-size:9px;font-weight:800}',
-            '.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;': '.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;'
+          p=Path('position.html');s=p.read_text(encoding='utf-8')
+          replacements={
+            '.account-top{background:#c99a00;color:#111;border-radius:0 0 20px 20px;margin:-22px -16px 16px;padding:0 0 7px;box-shadow:0 4px 14px #0002;overflow:hidden}':'.account-top{background:#050505;color:#fff;border-radius:0 0 20px 20px;margin:-22px -16px 16px;padding:0 0 7px;box-shadow:0 4px 14px #0008;overflow:hidden;border:1px solid #242424}',
+            '.account-summary .balance-main{font-size:18px;font-weight:900;color:#111}':'.account-summary .balance-main{font-size:18px;font-weight:900;color:#fff}',
+            '.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;':'.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;'
           }
-          changed = False
-          for a,b in replacements.items():
-            if a in s:
-              s = s.replace(a,b,1)
-              changed = True
-          if changed:
-            p.write_text(s,encoding='utf-8')
-          else:
-            print('Position dashboard already patched or source changed; no modification made.')
+          for a,b in replacements.items():s=s.replace(a,b,1)
+          p.write_text(s,encoding='utf-8')
       - name: Commit patch
         run: |
-          if git diff --quiet -- position.html; then exit 0; fi
+          if git diff --quiet -- position.html backend/server.js; then exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add position.html
-          git commit -m 'Increase Position tab spacing'
+          git add position.html backend/server.js
+          git commit -m 'Fix dashboard legacy account visibility'
           git push
-
-# one-time trigger
