@@ -37,3 +37,22 @@ jobs:
             export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
             pm2 restart course-era-api --update-env
             pm2 save
+
+      - name: Verify VPS email configuration
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key_path: ${{ runner.temp }}/vps_key
+          script_stop: true
+          script: |
+            set -e
+            KEY=$(pm2 jlist | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s).find(x=>x.name==="course-era-api");process.stdout.write(String(p?.pm2_env?.env?.RESEND_API_KEY||""));}catch{}})')
+            if [ -z "$KEY" ]; then
+              echo "RESEND_API_KEY_STATUS=MISSING_FROM_PM2_ENV"
+              exit 0
+            fi
+            echo "RESEND_API_KEY_STATUS=PRESENT"
+            DOMAIN_RESULT=$(curl -fsS -H "Authorization: Bearer $KEY" https://api.resend.com/domains)
+            node -e 'const d=JSON.parse(process.argv[1]); const x=(d.data||[]).find(v=>v.name==="aurafirming.in"); console.log("RESEND_DOMAIN_STATUS="+(x?.status||"NOT_FOUND")); console.log("RESEND_DOMAIN_SENDING="+(x?.capabilities?.sending||"UNKNOWN"));' "$DOMAIN_RESULT"
