@@ -31,7 +31,7 @@ function generateResetCode() {
 }
 
 function passwordResetFromEmail() {
-  return String(process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM || "Aura Farming <noreply@aurafirming.in>").trim();
+  return String(process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM || "Aura Farming <onboarding@resend.dev>").trim();
 }
 
 async function sendPasswordResetEmail({ to, code }) {
