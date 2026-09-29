@@ -1,0 +1,126 @@
+name: Patch terminal account switcher
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-terminal-account-switcher.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch files
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          server = Path('backend/server.js')
+          s = server.read_text()
+          marker = 'app.post("/api/trading-account/select", requireAuth, async (req, res) => {'
+          if 'app.post("/api/trading-account/switch-terminal"' not in s:
+              route = r'''app.post("/api/trading-account/switch-terminal", requireAuth, async (req, res) => {
+                try {
+                  initFirebase();
+                  const accountId = String(req.body?.accountId || "").trim();
+                  const mode = String(req.body?.mode || "trader").toLowerCase() === "investor" ? "investor" : "trader";
+                  if (!accountId) return res.status(400).json({ error:"accountId is required" });
+                  const accountRef = db.collection("users").doc(req.user.uid).collection("tradingAccounts").doc(accountId);
+                  const accountSnap = await accountRef.get();
+                  if (!accountSnap.exists) return res.status(404).json({ error:"Trading account not found" });
+                  const account = accountSnap.data() || {};
+                  if (account.status && account.status !== "active") return res.status(403).json({ error:"Trading account is not active" });
+                  const credentialId = String(account.terminalCredentialId || "").trim();
+                  if (!credentialId) return res.status(404).json({ error:"Terminal credentials not found for this account" });
+                  const credentialSnap = await db.collection("terminalCredentials").doc(credentialId).get();
+                  if (!credentialSnap.exists) return res.status(404).json({ error:"Terminal credentials not found for this account" });
+                  const credential = credentialSnap.data() || {};
+                  if (credential.status !== "active" || String(credential.userId) !== String(req.user.uid) || String(credential.accountId) !== accountId) {
+                    return res.status(403).json({ error:"Terminal credentials are not active for this account" });
+                  }
+                  const sessionToken = createTerminalSessionToken({ userId:req.user.uid, accountId, credentialId, role:mode });
+                  await db.collection("users").doc(req.user.uid).collection("trading").doc("account").set(account, { merge:false });
+                  return res.json({ sessionToken, account:{ id:accountId, ...account } });
+                } catch (e) {
+                  return res.status(500).json({ error:"Could not switch terminal account", detail:e.message });
+                }
+              });
+
+              '''
+              if marker not in s: raise SystemExit('server marker not found')
+              server.write_text(s.replace(marker, route + marker, 1))
+
+          aura = Path('aura-account.js')
+          a = aura.read_text()
+          if 'auraTerminalAccountSwitcher' not in a:
+              anchor = '  window.auraTerminalAccountContext=terminalAccountContext;'
+              block = r'''  async function terminalSwitchAccount(accountId){
+    const id=String(accountId||'').trim(); if(!id)return;
+    try{
+      if(typeof ceAuth==='undefined'||!ceAuth.currentUser)throw new Error('Login required');
+      const token=await ceAuth.currentUser.getIdToken(false);
+      const mode=(typeof terminalRole!=='undefined'&&terminalRole==='investor')?'investor':'trader';
+      const res=await fetch(AURA_API_BASE+'/api/trading-account/switch-terminal',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({accountId:id,mode})});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok||!data.sessionToken)throw new Error(data.error||'Could not switch account');
+      sessionStorage.setItem('auraTerminalSession',data.sessionToken);
+      sessionStorage.removeItem('auraTerminalAccount');
+      window.location.reload();
+    }catch(e){console.warn('Terminal account switch failed:',e);}
+  }
+
+  async function renderTerminalAccountSwitcher(){
+    const root=document.querySelector('.mobile-terminal .m-top');
+    if(!root||document.getElementById('auraTerminalAccountSwitcher'))return;
+    const label=root.querySelector('.account-label'); if(!label)return;
+    const role=label.querySelector('#terminalRoleBadge'); if(role)role.style.display='none';
+    label.textContent='Account Switch';
+    label.id='auraTerminalAccountSwitchButton';
+    label.style.cssText='display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#182332;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:none;position:relative;';
+    const chev=document.createElement('span'); chev.textContent='▾'; chev.style.cssText='font-size:15px;color:#667585;line-height:1;'; label.appendChild(chev);
+    const menu=document.createElement('div'); menu.id='auraTerminalAccountSwitcher';
+    menu.style.cssText='display:none;position:absolute;left:28px;right:28px;top:43px;background:#fff;border:1px solid #dce2e7;border-radius:16px;box-shadow:0 12px 30px #0002;z-index:120;overflow:hidden;';
+    const head=document.createElement('div'); head.textContent='TRADING ACCOUNTS'; head.style.cssText='padding:10px 14px 7px;color:#8a96a2;font-size:10px;font-weight:900;letter-spacing:.08em;border-bottom:1px solid #eef1f4;'; menu.appendChild(head);
+    const list=document.createElement('div'); list.style.cssText='max-height:330px;overflow-y:auto;-webkit-overflow-scrolling:touch;'; menu.appendChild(list); root.style.position='relative'; root.appendChild(menu);
+    label.addEventListener('click',async(e)=>{
+      e.stopPropagation();
+      if(menu.style.display==='block'){menu.style.display='none';return;}
+      list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px;font-weight:700">Loading accounts…</div>'; menu.style.display='block';
+      try{
+        const user=ceAuth?.currentUser; if(!user)throw new Error('Login required');
+        const token=await user.getIdToken(false);
+        const res=await fetch(AURA_API_BASE+'/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+        const data=await res.json().catch(()=>({})); if(!res.ok)throw new Error(data.error||'Could not load accounts');
+        const accounts=Array.isArray(data.accounts)?data.accounts:[], current=terminalAccountContext()?.accountId||''; list.innerHTML='';
+        if(!accounts.length){list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px">No purchased accounts found</div>';return;}
+        accounts.forEach((a,i)=>{
+          const id=String(a.accountId||a.id||'').trim(); if(!id)return;
+          const challenge=String(a.challenge||a.name||'Account '+(i+1)); const size=Number(a.startingBalance??a.accountSize??a.size??0); const sizeText=size?'$'+size.toLocaleString('en-US'):'Account';
+          const item=document.createElement('button'); item.type='button'; item.style.cssText='display:block;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:#fff;text-align:left;color:#17212b;cursor:pointer;'; if(id===current)item.style.background='#fff8e8';
+          const top=document.createElement('strong'); top.textContent=id; top.style.cssText='display:block;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+          const sub=document.createElement('span'); sub.textContent=challenge+' · '+sizeText; sub.style.cssText='display:block;margin-top:4px;color:#7c8995;font-size:11px;font-weight:800;'; item.append(top,sub); item.addEventListener('click',()=>terminalSwitchAccount(id)); list.appendChild(item);
+        });
+      }catch(err){list.innerHTML='<div style="padding:16px;color:#e6004d;font-size:12px;font-weight:700">Unable to load accounts</div>'; console.warn('Terminal account switcher:',err);}
+    });
+    document.addEventListener('click',(e)=>{if(menu.style.display==='block'&&!menu.contains(e.target)&&e.target!==label)menu.style.display='none';});
+  }
+
+  window.auraTerminalAccountSwitcher=renderTerminalAccountSwitcher;
+
+'''
+              if anchor not in a: raise SystemExit('aura anchor not found')
+              a = a.replace(anchor, block + anchor, 1)
+              start = "  syncTerminalAccountNumber();\n"
+              a = a.replace(start, start + "  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderTerminalAccountSwitcher,{once:true});else renderTerminalAccountSwitcher();\n", 1)
+              aura.write_text(a)
+
+          Path('.github/workflows/patch-terminal-account-switcher.yml').unlink()
+          PY
+      - name: Commit patched files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js aura-account.js .github/workflows/patch-terminal-account-switcher.yml
+          git commit -m "Add terminal account switcher" || exit 0
+          git push
