@@ -2212,7 +2212,7 @@ app.post("/api/auth/password-reset/request", async (req, res) => {
   try {
     initFirebase();
     const email = String(req.body?.email || "").trim().toLowerCase();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: "Please enter a valid email address" });
     }
 
@@ -2269,7 +2269,7 @@ app.post("/api/auth/password-reset/confirm", async (req, res) => {
     const password = String(req.body?.password || "");
     const confirmPassword = String(req.body?.confirmPassword || "");
 
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return res.status(400).json({ error: "Please enter a valid email address" });
+    if (!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Please enter a valid email address" });
     if (!/^\\d{6}$/.test(code)) return res.status(400).json({ error: "Enter the 6-digit verification code" });
     if (password.length < 8) return res.status(400).json({ error: "New password must be at least 8 characters" });
     if (password !== confirmPassword) return res.status(400).json({ error: "Passwords do not match" });
