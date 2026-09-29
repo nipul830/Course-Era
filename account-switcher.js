@@ -2,6 +2,7 @@
   'use strict';
   const API='https://aurafirming.in';
   const KEY='auraSelectedDashboardAccountV2';
+  let started=false;
 
   function injectStyle(){
     if(document.getElementById('auraAccountSwitcherStyle'))return;
@@ -94,16 +95,26 @@
     });
   }
 
-  async function init(){
-    if(!document.querySelector('.dashboard'))return;
+  async function initForUser(user){
+    if(!user||started)return;
+    started=true;
     injectStyle();
-    const user=typeof ceAuth!=='undefined'?ceAuth.currentUser:null;
-    if(!user)return;
     try{render(await getAccounts(user))}
     catch(e){
       console.warn('Account switcher unavailable',e);
       render([]);
     }
+  }
+
+  function init(){
+    if(!document.querySelector('.dashboard'))return;
+    injectStyle();
+    if(typeof ceAuth==='undefined'||!ceAuth){
+      setTimeout(init,300);
+      return;
+    }
+    if(ceAuth.currentUser)initForUser(ceAuth.currentUser);
+    ceAuth.onAuthStateChanged(user=>initForUser(user));
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
