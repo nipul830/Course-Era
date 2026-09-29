@@ -1,0 +1,61 @@
+name: Install account switcher
+
+on:
+  push:
+    branches: [account-switcher]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch dashboard and backend
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Load the switcher on the trader dashboard.
+          p = Path('courses.html')
+          s = p.read_text()
+          tag = '<script src="account-switcher.js?v=2"></script>'
+          marker = '<script src="firebase-config.js?v=7"></script>'
+          if tag not in s:
+              if marker not in s:
+                  raise SystemExit('courses.html marker not found')
+              s = s.replace(marker, marker + tag, 1)
+              p.write_text(s)
+
+          # Add per-user account list/select APIs without replacing the existing
+          # single-account trading API used by the rest of the terminal.
+          p = Path('backend/server.js')
+          s = p.read_text()
+          marker = 'app.get("/api/trading-account", requireAuth, async (req, res) => {'
+          route = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {\n  try {\n    initFirebase();\n    const base = db.collection("users").doc(req.user.uid);\n    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();\n    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));\n    if (!accounts.length) {\n      const current = await base.collection("trading").doc("account").get();\n      if (current.exists) return res.json({ accounts:[{ id:current.id, ...(current.data() || {}) }] });\n    }\n    return res.json({ accounts });\n  } catch (e) {\n    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });\n  }\n});\n\napp.post("/api/trading-account/select", requireAuth, async (req, res) => {\n  try {\n    initFirebase();\n    const accountId = String(req.body?.accountId || "").trim();\n    if (!accountId) return res.status(400).json({ error:"accountId is required" });\n    const userRef = db.collection("users").doc(req.user.uid);\n    const selectedRef = userRef.collection("tradingAccounts").doc(accountId);\n    const selectedSnap = await selectedRef.get();\n    if (!selectedSnap.exists) return res.status(404).json({ error:"Trading account not found" });\n    const selected = selectedSnap.data() || {};\n    if (selected.status && selected.status !== "active") return res.status(403).json({ error:"Trading account is not active" });\n    await userRef.collection("trading").doc("account").set(selected, { merge:false });\n    return res.json({ account:{ id:accountId, ...selected } });\n  } catch (e) {\n    return res.status(500).json({ error:"Could not select trading account", detail:e.message });\n  }\n});\n\n'''
+          if marker not in s:
+              raise SystemExit('server trading-account marker not found')
+          if '/api/trading-accounts' not in s:
+              s = s.replace(marker, route + marker, 1)
+
+          # Mirror newly approved challenge accounts into a stable per-account
+          # collection so future purchases do not overwrite the previous one.
+          needle = '''      await db.collection("users").doc(payment.userId).collection("challengeAccounts").doc(accountId).set({\n        accountId, paymentId:req.params.id, challengeId:challenge.id, model:challenge.model, size:challenge.size,\n        accountSize:Number(challenge.accountSize), status:"active",\n        terminalCredentialId:credentialBundle.id,\n        createdAt:admin.firestore.FieldValue.serverTimestamp()\n      });'''
+          mirror = needle + '''\n      await db.collection("users").doc(payment.userId).collection("tradingAccounts").doc(accountId).set({\n        accountId, startingBalance:Number(challenge.accountSize), balance:Number(challenge.accountSize),\n        equity:Number(challenge.accountSize), pnl:0, currency:"USD",\n        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,\n        sourcePaymentId:req.params.id, status:"active", terminalCredentialId:credentialBundle.id,\n        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()\n      });'''
+          if needle not in s:
+              raise SystemExit('challenge account marker not found')
+          if 'collection("tradingAccounts").doc(accountId).set' not in s:
+              s = s.replace(needle, mirror, 1)
+          p.write_text(s)
+          PY
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add courses.html backend/server.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Connect dashboard account switcher'
+            git push
+          fi
