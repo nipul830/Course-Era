@@ -30,6 +30,7 @@ jobs:
             cd /root/Course-Era
             git fetch origin main
             git reset --hard origin/main
+            node backend/ensure-password-reset.mjs
             cd backend
             npm install
             pm2 restart course-era-api --update-env
