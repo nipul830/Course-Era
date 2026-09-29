@@ -24,7 +24,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key_path: ${{ runner.temp }}/vps_key
-          script_stop: true
           script: |
             set -e
             cd /root/Course-Era
@@ -34,6 +33,23 @@ jobs:
             node --check backend/server.js
             cd backend
             npm install
+
+            RESEND_API_KEY_VALUE=""
+            for env_file in /root/Course-Era/backend/.env /root/Course-Era/.env /root/.env; do
+              if [ -f "$env_file" ]; then
+                candidate=$(grep -E '^RESEND_API_KEY=' "$env_file" | tail -n 1 | cut -d= -f2- | tr -d '\r')
+                candidate="${candidate#\"}"; candidate="${candidate%\"}"
+                candidate="${candidate#\'}"; candidate="${candidate%\'}"
+                if [ -n "$candidate" ]; then
+                  RESEND_API_KEY_VALUE="$candidate"
+                  break
+                fi
+              fi
+            done
+
+            if [ -n "$RESEND_API_KEY_VALUE" ]; then
+              export RESEND_API_KEY="$RESEND_API_KEY_VALUE"
+            fi
             export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
             pm2 restart course-era-api --update-env
             pm2 save
@@ -45,7 +61,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key_path: ${{ runner.temp }}/vps_key
-          script_stop: true
           script: |
             set -e
             KEY=$(pm2 jlist | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s).find(x=>x.name==="course-era-api");process.stdout.write(String(p?.pm2_env?.env?.RESEND_API_KEY||""));}catch{}})')
