@@ -13,11 +13,11 @@
       .aura-account-switcher-card{background:#050505;border:1px solid #3a2c13;border-radius:16px;padding:10px 12px;box-shadow:0 10px 28px #0005}
       .aura-account-switcher-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;color:#f1d98a;font-size:11px;font-weight:900;letter-spacing:.7px;text-transform:uppercase}
       .aura-account-switcher-title small{color:#7f6d43;font-size:9px;font-weight:700;text-transform:none;letter-spacing:0}
-      .aura-account-switcher-list{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+      .aura-account-switcher-list{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:0 0 2px}
       .aura-account-switcher-list::-webkit-scrollbar{display:none}
-      .aura-account-switcher-item{flex:0 0 auto;min-width:118px;padding:9px 11px;border:1px solid #302713;border-radius:11px;background:#090806;color:#9b8552;text-align:left;cursor:pointer}
+      .aura-account-switcher-item{box-sizing:border-box;flex:0 0 100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;min-width:0;padding:9px 11px;border:1px solid #302713;border-radius:11px;background:#090806;color:#9b8552;text-align:left;cursor:pointer;touch-action:pan-x}
       .aura-account-switcher-item strong{display:block;color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .aura-account-switcher-item span{display:block;margin-top:3px;color:#9b8552;font-size:10px;font-weight:800}
+      .aura-account-switcher-item span{display:block;margin-top:3px;color:#9b8552;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .aura-account-switcher-item.selected{border-color:#d6b35a;background:#171106;box-shadow:inset 0 0 0 1px #d6b35a33}
       .aura-account-switcher-item.selected strong{color:#f1d98a}
       .aura-account-switcher-empty{padding:9px 11px;border:1px dashed #302713;border-radius:11px;color:#7f6d43;font-size:10px;white-space:nowrap}
@@ -92,6 +92,10 @@
       b.querySelector('span').textContent=name+' · '+accountSize(a);
       b.addEventListener('click',()=>selectAccount(a));
       list.appendChild(b);
+    });
+    requestAnimationFrame(()=>{
+      const index=accounts.findIndex(a=>accountId(a)===selected);
+      if(index>0){const item=list.children[index];if(item)list.scrollLeft=item.offsetLeft}
     });
   }
 
