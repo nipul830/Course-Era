@@ -36,9 +36,7 @@ jobs:
                   const credentialSnap = await db.collection("terminalCredentials").doc(credentialId).get();
                   if (!credentialSnap.exists) return res.status(404).json({ error:"Terminal credentials not found for this account" });
                   const credential = credentialSnap.data() || {};
-                  if (credential.status !== "active" || String(credential.userId) !== String(req.user.uid) || String(credential.accountId) !== accountId) {
-                    return res.status(403).json({ error:"Terminal credentials are not active for this account" });
-                  }
+                  if (credential.status !== "active" || String(credential.userId) !== String(req.user.uid) || String(credential.accountId) !== accountId) return res.status(403).json({ error:"Terminal credentials are not active for this account" });
                   const sessionToken = createTerminalSessionToken({ userId:req.user.uid, accountId, credentialId, role:mode });
                   await db.collection("users").doc(req.user.uid).collection("trading").doc("account").set(account, { merge:false });
                   return res.json({ sessionToken, account:{ id:accountId, ...account } });
@@ -124,3 +122,5 @@ jobs:
           git add backend/server.js aura-account.js .github/workflows/patch-terminal-account-switcher.yml
           git commit -m "Add terminal account switcher" || exit 0
           git push
+
+# trigger patch
