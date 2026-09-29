@@ -1489,6 +1489,13 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
         terminalCredentialId:credentialBundle.id,
         createdAt:admin.firestore.FieldValue.serverTimestamp()
       });
+      await db.collection("users").doc(payment.userId).collection("tradingAccounts").doc(accountId).set({
+        accountId, startingBalance:Number(challenge.accountSize), balance:Number(challenge.accountSize),
+        equity:Number(challenge.accountSize), pnl:0, currency:"USD",
+        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active", terminalCredentialId:credentialBundle.id,
+        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
+      });
       await ref.update({
         accountId,
         terminalCredentialId:credentialBundle.id,
@@ -1529,6 +1536,40 @@ app.post("/api/admin/trading-accounts/:uid/breach", requireAuth, requireAdmin, a
     res.json({ message:"Trading account breached and terminal credentials revoked" });
   } catch(e) {
     res.status(500).json({ error:"Could not breach trading account", detail:e.message });
+  }
+});
+
+app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const base = db.collection("users").doc(req.user.uid);
+    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();
+    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+    if (!accounts.length) {
+      const current = await base.collection("trading").doc("account").get();
+      if (current.exists) return res.json({ accounts:[{ id:current.id, ...(current.data() || {}) }] });
+    }
+    return res.json({ accounts });
+  } catch (e) {
+    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
+  }
+});
+
+app.post("/api/trading-account/select", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const accountId = String(req.body?.accountId || "").trim();
+    if (!accountId) return res.status(400).json({ error:"accountId is required" });
+    const userRef = db.collection("users").doc(req.user.uid);
+    const selectedRef = userRef.collection("tradingAccounts").doc(accountId);
+    const selectedSnap = await selectedRef.get();
+    if (!selectedSnap.exists) return res.status(404).json({ error:"Trading account not found" });
+    const selected = selectedSnap.data() || {};
+    if (selected.status && selected.status !== "active") return res.status(403).json({ error:"Trading account is not active" });
+    await userRef.collection("trading").doc("account").set(selected, { merge:false });
+    return res.json({ account:{ id:accountId, ...selected } });
+  } catch (e) {
+    return res.status(500).json({ error:"Could not select trading account", detail:e.message });
   }
 });
 
