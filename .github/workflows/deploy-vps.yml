@@ -34,5 +34,6 @@ jobs:
             node --check backend/server.js
             cd backend
             npm install
+            export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
             pm2 restart course-era-api --update-env
             pm2 save
