@@ -17,49 +17,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch account list and selection APIs
+      - name: Patch legacy account API
         shell: python
         run: |
           from pathlib import Path
+          p = Path('backend/server.js')
+          s = p.read_text()
 
-          path = Path('backend/server.js')
-          text = path.read_text()
-
-          old_list = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+          old = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
   try {
     initFirebase();
     const base = db.collection("users").doc(req.user.uid);
-
-    // Keep every purchased account visible. Older purchases may exist only in
-    // the legacy `trading/account` document, while newer purchases are stored
-    // in `tradingAccounts/{accountId}`. Merge both sources and de-duplicate by
-    // accountId so a new purchase never hides an older account.
-    const [accountsSnap, currentSnap] = await Promise.all([
-      base.collection("tradingAccounts").orderBy("createdAt", "desc").get(),
-      base.collection("trading").doc("account").get()
-    ]);
-
-    const accounts = accountsSnap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
-    if (currentSnap.exists) {
-      const current = { id:currentSnap.id, ...(currentSnap.data() || {}) };
-      const currentAccountId = String(current.accountId || current.id || "");
-      const alreadyListed = accounts.some(account => String(account.accountId || account.id || "") === currentAccountId);
-      if (!alreadyListed && currentAccountId) accounts.push(current);
+    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();
+    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+    if (!accounts.length) {
+      const current = await base.collection("trading").doc("account").get();
+      if (current.exists) return res.json({ accounts:[{ id:current.id, ...(current.data() || {}) }] });
     }
-
-    accounts.sort((a, b) => {
-      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return bTime - aTime;
-    });
-
     return res.json({ accounts });
   } catch (e) {
     return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
   }
 });'''
 
-          new_list = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+          new = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
   try {
     initFirebase();
     const base = db.collection("users").doc(req.user.uid);
@@ -70,23 +51,21 @@ jobs:
     ]);
 
     const byId = new Map();
-    const add = (account) => {
-      const id = String(account.accountId || account.id || "").trim();
-      if (id && !byId.has(id)) byId.set(id, { id, ...account, accountId:id });
+    const add = (a) => {
+      const id = String(a.accountId || a.id || "").trim();
+      if (id && !byId.has(id)) byId.set(id, { id, ...a, accountId:id });
     };
 
     accountsSnap.docs.forEach(d => add({ id:d.id, ...(d.data() || {}) }));
-
-    // Older purchases were saved in challengeAccounts before the dashboard
-    // switcher started mirroring them into tradingAccounts. Include them too.
     legacySnap.docs.forEach(d => {
       const x = d.data() || {};
+      const size = Number(x.accountSize || x.startingBalance || x.size || 0);
       add({
         id:d.id,
         accountId:String(x.accountId || d.id),
-        startingBalance:Number(x.accountSize || x.startingBalance || x.size || 0),
-        balance:Number(x.balance ?? x.accountSize ?? x.startingBalance ?? x.size ?? 0),
-        equity:Number(x.equity ?? x.balance ?? x.accountSize ?? x.startingBalance ?? x.size ?? 0),
+        startingBalance:size,
+        balance:Number(x.balance ?? size),
+        equity:Number(x.equity ?? x.balance ?? size),
         pnl:Number(x.pnl || 0),
         currency:x.currency || "USD",
         challenge:x.challenge || ((x.model || "") + (x.size ? " " + x.size : "")),
@@ -97,28 +76,25 @@ jobs:
         updatedAt:x.updatedAt
       });
     });
-
     if (currentSnap.exists) add({ id:currentSnap.id, ...(currentSnap.data() || {}) });
 
-    const accounts = Array.from(byId.values()).sort((a, b) => {
-      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return bTime - aTime;
+    const accounts = Array.from(byId.values()).sort((a,b) => {
+      const at = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const bt = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return bt - at;
     });
-
     return res.json({ accounts });
   } catch (e) {
     return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
   }
 });'''
 
-          if old_list not in text:
-              if new_list not in text:
-                  raise SystemExit('Account list endpoint pattern not found; no changes made.')
-          else:
-              text = text.replace(old_list, new_list, 1)
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit('Legacy account list target not found')
 
-          old_select = '''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
+          old2 = '''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
   try {
     initFirebase();
     const accountId = String(req.body?.accountId || "").trim();
@@ -136,7 +112,7 @@ jobs:
   }
 });'''
 
-          new_select = '''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
+          new2 = '''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
   try {
     initFirebase();
     const accountId = String(req.body?.accountId || "").trim();
@@ -145,25 +121,25 @@ jobs:
     const selectedRef = userRef.collection("tradingAccounts").doc(accountId);
     let selectedSnap = await selectedRef.get();
 
-    // Backfill an older purchase on first selection so the existing terminal
-    // can use the same tradingAccounts structure from that point onward.
     if (!selectedSnap.exists) {
-      const legacyRef = userRef.collection("challengeAccounts").doc(accountId);
-      const legacySnap = await legacyRef.get();
+      const legacySnap = await userRef.collection("challengeAccounts").doc(accountId).get();
       if (!legacySnap.exists) return res.status(404).json({ error:"Trading account not found" });
       const x = legacySnap.data() || {};
-      const migrated = {
+      const size = Number(x.accountSize || x.startingBalance || x.size || 0);
+      await selectedRef.set({
         accountId,
-        startingBalance:Number(x.accountSize || x.startingBalance || x.size || 0),
-        balance:Number(x.balance ?? x.accountSize ?? x.startingBalance ?? x.size ?? 0),
-        equity:Number(x.equity ?? x.balance ?? x.accountSize ?? x.startingBalance ?? x.size ?? 0),
-        pnl:Number(x.pnl || 0), currency:x.currency || "USD",
+        startingBalance:size,
+        balance:Number(x.balance ?? size),
+        equity:Number(x.equity ?? x.balance ?? size),
+        pnl:Number(x.pnl || 0),
+        currency:x.currency || "USD",
         challenge:x.challenge || ((x.model || "") + (x.size ? " " + x.size : "")),
-        challengeId:x.challengeId, status:x.status || "active",
+        challengeId:x.challengeId,
+        status:x.status || "active",
         terminalCredentialId:x.terminalCredentialId,
-        createdAt:x.createdAt, updatedAt:admin.firestore.FieldValue.serverTimestamp()
-      };
-      await selectedRef.set(migrated, { merge:true });
+        createdAt:x.createdAt,
+        updatedAt:admin.firestore.FieldValue.serverTimestamp()
+      }, { merge:true });
       selectedSnap = await selectedRef.get();
     }
 
@@ -176,22 +152,22 @@ jobs:
   }
 });'''
 
-          if old_select in text:
-              text = text.replace(old_select, new_select, 1)
-          elif new_select not in text:
-              raise SystemExit('Account select endpoint pattern not found; no changes made.')
+          if old2 in s:
+              s = s.replace(old2, new2, 1)
+          elif new2 not in s:
+              raise SystemExit('Legacy account select target not found')
 
-          path.write_text(text)
-          print('Legacy account list/select patch prepared.')
+          p.write_text(s)
+          print('Legacy account support patched successfully.')
 
-      - name: Commit patch
+      - name: Commit and push server fix
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add backend/server.js
           if git diff --cached --quiet; then
-            echo "No changes needed."
+            echo "No server changes needed."
             exit 0
           fi
-          git commit -m "Include legacy challenge accounts in dashboard switcher"
+          git commit -m "Fix dashboard legacy account visibility"
           git push origin HEAD:main
