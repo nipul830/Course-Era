@@ -1,0 +1,97 @@
+name: Fix trading account list
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-trading-account-list.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch account list endpoint
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('backend/server.js')
+          text = path.read_text()
+
+          old = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const base = db.collection("users").doc(req.user.uid);
+    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();
+    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+    if (!accounts.length) {
+      const current = await base.collection("trading").doc("account").get();
+      if (current.exists) return res.json({ accounts:[{ id:current.id, ...(current.data() || {}) }] });
+    }
+    return res.json({ accounts });
+  } catch (e) {
+    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
+  }
+});'''
+
+          new = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const base = db.collection("users").doc(req.user.uid);
+
+    // Keep every purchased account visible. Older purchases may exist only in
+    // the legacy `trading/account` document, while newer purchases are stored
+    // in `tradingAccounts/{accountId}`. Merge both sources and de-duplicate by
+    // accountId so a new purchase never hides an older account.
+    const [accountsSnap, currentSnap] = await Promise.all([
+      base.collection("tradingAccounts").orderBy("createdAt", "desc").get(),
+      base.collection("trading").doc("account").get()
+    ]);
+
+    const accounts = accountsSnap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+    if (currentSnap.exists) {
+      const current = { id:currentSnap.id, ...(currentSnap.data() || {}) };
+      const currentAccountId = String(current.accountId || current.id || "");
+      const alreadyListed = accounts.some(account => String(account.accountId || account.id || "") === currentAccountId);
+      if (!alreadyListed && currentAccountId) accounts.push(current);
+    }
+
+    accounts.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return bTime - aTime;
+    });
+
+    return res.json({ accounts });
+  } catch (e) {
+    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
+  }
+});'''
+
+          if old not in text:
+              if new in text:
+                  print('Account list fix already applied.')
+              else:
+                  raise SystemExit('Target trading account endpoint not found; no changes made.')
+          else:
+              path.write_text(text.replace(old, new, 1))
+              print('Trading account list endpoint patched.')
+
+      - name: Commit and push patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js
+          if git diff --cached --quiet; then
+            echo "No server.js changes to commit."
+            exit 0
+          fi
+          git commit -m "Fix dashboard account switcher to retain all accounts"
+          git push origin HEAD:main
