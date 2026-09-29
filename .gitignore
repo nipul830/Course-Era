@@ -2,3 +2,4 @@ node_modules/
 android/
 .DS_Store
 *.log
+# dashboard-account-fix-trigger
