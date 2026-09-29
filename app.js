@@ -1,4 +1,4 @@
-const API_BASE='https://course-era.onrender.com';
+const API_BASE='';
 let courses=JSON.parse(localStorage.getItem('ce_courses')||'null')||[{id:'trading-foundation',title:'Trading Foundation',price:4999,desc:'Market structure, risk management, chart reading and trading psychology.',icon:'📈'},{id:'price-action',title:'Price Action Mastery',price:6999,desc:'Structured price-action concepts, setups and trade planning.',icon:'🕯️'},{id:'indicator-pro',title:'Indicator Pro',price:2999,desc:'Understand indicators, confirmation and practical chart workflows.',icon:'⚡'}];
 
 function goToCourses(e){
