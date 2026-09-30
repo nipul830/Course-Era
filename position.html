@@ -184,8 +184,12 @@ function renderPositionData(data){
   renderCurrentTab();
 }
 async function loadPositions(){
+  // Render cached selected-account state immediately, then reconcile with server.
+  const cacheKey='auraPositionCache:'+terminalAccountId();
+  try{const cached=JSON.parse(sessionStorage.getItem(cacheKey)||'null');if(cached?.data)renderPositionData(cached.data);}catch{}
   await loadActiveAccountMeta();
   const data=filterHistoryForSelectedAccount(await positionApi('/api/trading/history'));
+  try{sessionStorage.setItem(cacheKey,JSON.stringify({data,at:Date.now()}));}catch{}
   renderPositionData(data);
 }
 if(!terminalSessionToken){location.replace('terminal.html');}

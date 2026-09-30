@@ -208,6 +208,8 @@ function showTerminal(role){
   const badge=document.getElementById('terminalRoleBadge');
   if(badge)badge.textContent=terminalRole==='investor'?'Investor':'Trading';
   syncSymbolButton();
+  // Paint cached account state immediately; reconcile in background.
+  try{const cached=JSON.parse(sessionStorage.getItem('auraTerminalAccount')||'null');if(cached)renderTerminalAccount(cached);}catch{}
   mountChart('tvMobile',currentSymbol);
   refreshMarket();
   refreshTerminalAccount();
@@ -924,9 +926,12 @@ function ensureLightweightCharts(){
 
 async function loadChartCandles(symbol,interval){
   if(chartDataRequest)return chartDataRequest;
+  const cacheKey='auraCandleCache:'+symbol+':'+interval;
+  try{const cached=JSON.parse(sessionStorage.getItem(cacheKey)||'null');if(Array.isArray(cached?.candles)&&cached.candles.length&&candleSeries){candleSeries.setData(cached.candles);lightweightChart?.timeScale().fitContent();}}catch{}
   chartDataRequest=(async()=>{
     try{
       const data=await terminalApi('/api/market/candles?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(interval));
+      try{sessionStorage.setItem(cacheKey,JSON.stringify({candles:data.candles||[],quote:data.quote||null,at:Date.now()}));}catch{}
       const candles=(data.candles||[]).map(x=>({
         time:Number(x.time),
         open:Number(x.open),
