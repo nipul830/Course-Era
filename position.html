@@ -56,6 +56,7 @@ async function closeAllOpenTrades(){
       await new Promise(r=>setTimeout(r,150));
       if(!document.querySelector('.position-card .close-position:not(:disabled)'))break;
     }
+    await loadPositions().catch(()=>{});
   }finally{closeAllRunning=false;if(btn)btn.disabled=false;}
 }
 let livePositions=[];
@@ -190,6 +191,6 @@ else{loadPositions().catch(e=>{
   if(/revoked|expired|not active|Terminal login required/i.test(e.message||'')){sessionStorage.removeItem('auraTerminalSession');sessionStorage.removeItem('auraTerminalRole');location.replace('terminal.html');return}
   document.getElementById('positions').innerHTML='<div class="empty">'+e.message+'</div>';
 });}
-setInterval(()=>{if(terminalSessionToken)loadPositions().catch(()=>{});},30000);
+setInterval(()=>{if(terminalSessionToken&&!closeAllRunning)loadPositions().catch(()=>{});},500);window.addEventListener('focus',()=>{if(terminalSessionToken&&!closeAllRunning)loadPositions().catch(()=>{});});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&terminalSessionToken&&!closeAllRunning)loadPositions().catch(()=>{});});
 const positionAccountToggle=document.getElementById('positionAccountToggle'); if(positionAccountToggle)positionAccountToggle.addEventListener('click',()=>{const panel=document.getElementById('positionAccountPanel');const open=panel.classList.toggle('expanded');positionAccountToggle.setAttribute('aria-expanded',String(open));}); const positionLogout=document.getElementById('positionExpandedLogout'); if(positionLogout)positionLogout.addEventListener('click',()=>{sessionStorage.removeItem('auraTerminalSession');sessionStorage.removeItem('auraTerminalRole');location.href='terminal.html';});
 setInterval(refreshLivePnl,3000);</script></body></html>
