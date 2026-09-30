@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { getMongoDb } from "./mongodb.js";
+import { getMongoDb, closeMongoDb } from "./mongodb.js";
 
 const path = new URL("./server.js", import.meta.url);
 let s = readFileSync(path, "utf8");
@@ -103,3 +103,6 @@ if (!verify.includes(mongoImport)) throw new Error("MongoDB import was not attac
 if (!verify.includes('mongo.collection("challenges").find({}).toArray()')) throw new Error("MongoDB challenge catalog GET was not attached");
 if (!verify.includes('const mongo = await getMongoDb();')) throw new Error("MongoDB challenge routes were not attached");
 console.log("MongoDB challenge routes ready; catalog documents=" + await collection.countDocuments());
+
+// Close the MongoDB client so this one-time preparation script can exit cleanly.
+await closeMongoDb();
