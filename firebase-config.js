@@ -13,6 +13,68 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const ceAuth = firebase.auth();
 ceAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
+// Dashboard account fallback: newer purchased accounts are stored in
+// /api/trading-accounts. Keep the existing dashboard API as the primary path,
+// but recover automatically if the legacy selected-account document is missing.
+(function(){
+  if(!/\/courses(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
+  const started=Date.now();
+  const timer=setInterval(()=>{
+    if(typeof window.auraAccount!=='function'){
+      if(Date.now()-started>6000)clearInterval(timer);
+      return;
+    }
+    if(window.__auraDashboardAccountFallback)return;
+    window.__auraDashboardAccountFallback=true;
+    const originalAuraAccount=window.auraAccount;
+    window.auraAccount=async function(){
+      let primary=null;
+      try{primary=await originalAuraAccount();}catch(e){primary={__error:String(e?.message||e||'Account unavailable')}}
+      if(primary && !primary.__error)return primary;
+
+      try{
+        const user=ceAuth?.currentUser;
+        if(!user)return primary;
+        const token=await user.getIdToken(true);
+        const res=await fetch('/api/trading-accounts',{
+          headers:{Authorization:'Bearer '+token},
+          cache:'no-store'
+        });
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok)throw new Error(data.error||'Account unavailable');
+        const accounts=Array.isArray(data.accounts)?data.accounts:[];
+        const account=accounts.find(a=>String(a?.status||'').toLowerCase()==='active')||accounts[0];
+        if(!account)throw new Error('No active trading account found');
+        const startingBalance=Number(account.startingBalance??account.accountSize??account.size??0)||0;
+        const balance=Number(account.balance??startingBalance)||0;
+        const equity=Number(account.equity??balance)||balance;
+        const pnl=Number(account.pnl??(balance-startingBalance))||0;
+        return {
+          id:account.accountId||account.id||'account',
+          accountId:account.accountId||account.id||'account',
+          startingBalance,
+          balance,
+          equity,
+          pnl,
+          currency:account.currency||'USD',
+          challenge:account.challenge||account.name||'Funded Account',
+          challengeId:account.challengeId||'',
+          sourcePaymentId:account.sourcePaymentId||'',
+          status:account.status||'active',
+          dailyDrawdownPct:Number(account.dailyDrawdownPct||0),
+          maxDrawdownPct:Number(account.maxDrawdownPct||0),
+          dailyDrawdownLimit:Number(account.dailyDrawdownLimit||4),
+          maxDrawdownLimit:Number(account.maxDrawdownLimit||8)
+        };
+      }catch(e){
+        console.warn('Dashboard account fallback failed:',e?.message||e);
+        return primary||{__error:String(e?.message||'Account unavailable')};
+      }
+    };
+    clearInterval(timer);
+  },50);
+})();
+
 // Challenge page navigation: keep the same highlighted Home control used by
 // the dashboard, while removing any challenge-page menu/logout controls.
 (function(){
