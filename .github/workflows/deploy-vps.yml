@@ -30,6 +30,7 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             node backend/ensure-password-reset.mjs
+            node backend/fix-selected-account-trades.mjs
             node --check backend/server.js
             cd backend
             npm install
