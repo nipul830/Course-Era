@@ -31,6 +31,76 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "===== PATCH ADMIN PAYMENT QUEUE ====="
+            python3 - <<'PY'
+            from pathlib import Path
+            import re
+
+            path = Path('/root/Course-Era/backend/server.js')
+            source = path.read_text()
+            pattern = r'app\.get\("/api/admin/payments", requireAuth, requireAdmin, async \(req, res\) => \{.*?\n\}\);\n\napp\.patch\("/api/admin/payments/:id"'
+            replacement = '''app.get("/api/admin/payments", requireAuth, requireAdmin, async (req, res) => {
+              try {
+                initFirebase();
+
+                let snap;
+                try {
+                  snap = await db.collection("payments").orderBy("submittedAt", "desc").get();
+                } catch (orderError) {
+                  // Keep the admin queue working if the submittedAt ordering index/data
+                  // is unavailable. Firestore documents are sorted safely in memory below.
+                  console.warn("ADMIN_PAYMENT_ORDER_FALLBACK", orderError?.message || orderError);
+                  snap = await db.collection("payments").get();
+                }
+
+                const toMillis = value => {
+                  try {
+                    if (value && typeof value.toMillis === "function") return value.toMillis();
+                    if (value instanceof Date) return value.getTime();
+                    const parsed = Date.parse(String(value || ""));
+                    return Number.isFinite(parsed) ? parsed : 0;
+                  } catch {
+                    return 0;
+                  }
+                };
+
+                const payments = [];
+                for (const d of snap.docs) {
+                  const p = { id: d.id, ...d.data() };
+                  if (p.screenshotPath && bucket) {
+                    try {
+                      const [url] = await bucket.file(p.screenshotPath).getSignedUrl({
+                        action: "read",
+                        expires: Date.now() + 60 * 60 * 1000
+                      });
+                      p.screenshotUrl = url;
+                    } catch (urlError) {
+                      console.warn("ADMIN_PAYMENT_SCREENSHOT_URL_FAILED", d.id, urlError?.message || urlError);
+                    }
+                  }
+                  payments.push(p);
+                }
+
+                payments.sort((a, b) => toMillis(b.submittedAt) - toMillis(a.submittedAt));
+                res.json({ payments });
+              } catch (e) {
+                console.error("ADMIN_PAYMENT_QUEUE_ERROR", e);
+                res.status(500).json({
+                  error: "Could not load payment queue",
+                  detail: e?.message || "Unknown server error"
+                });
+              }
+            });
+
+            app.patch("/api/admin/payments/:id"'''
+
+            updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+            if count != 1:
+                raise SystemExit("ADMIN_PAYMENT_QUEUE_PATCH_NOT_APPLIED")
+            path.write_text(updated)
+            print("ADMIN_PAYMENT_QUEUE_PATCH=OK")
+            PY
+
             echo "===== PREPARE PASSWORD RESET ====="
             node backend/ensure-password-reset.mjs
             cd backend
