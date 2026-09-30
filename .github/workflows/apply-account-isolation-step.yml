@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   patch:
-    if: "!contains(github.event.head_commit.message, 'Fix account-specific trading data isolation')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +19,7 @@ jobs:
           p=Path('backend/server.js')
           s=p.read_text()
 
+          changes=0
           old='''    const accountRef = db.collection("users").doc(token.uid).collection("trading").doc("account");
     const accountSnap = await accountRef.get();
     const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
@@ -29,8 +29,8 @@ jobs:
     const accountSnap = await accountRef.get();
     const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
     if (!accountSnap.exists || account.accountId !== String(token.accountId) || account.status !== "active") {'''
-          if old not in s: raise SystemExit('terminal auth account block not found')
-          s=s.replace(old,new,1)
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
 
           old='''    const accountRef = db.collection("users").doc(String(credential.userId)).collection("trading").doc("account");
     const accountSnap = await accountRef.get();
@@ -40,8 +40,8 @@ jobs:
     const accountSnap = await accountRef.get();
     const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
     if (!accountSnap.exists || account.accountId !== credential.accountId || account.status !== "active") {'''
-          if old not in s: raise SystemExit('terminal login account block not found')
-          s=s.replace(old,new,1)
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
 
           old='''async function loadTradingAccount(uid) {
   initFirebase();
@@ -66,10 +66,12 @@ jobs:
   if (!snap.exists) throw new Error("Trading account not found");
   return { ref, data:snap.data() || {} };
 }'''
-          if old not in s: raise SystemExit('loadTradingAccount block not found')
-          s=s.replace(old,new,1)
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
 
-          s=s.replace('loadTradingAccount(req.terminal.uid)', 'loadTradingAccount(req.terminal.uid, req.terminal.accountId)')
+          if 'loadTradingAccount(req.terminal.uid)' in s:
+            s=s.replace('loadTradingAccount(req.terminal.uid)', 'loadTradingAccount(req.terminal.uid, req.terminal.accountId)')
+            changes+=1
 
           old='''    await positionRef.set({
       symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
@@ -82,10 +84,14 @@ jobs:
       stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
       status:"open", openedAt:now, updatedAt:now
     });'''
-          if old not in s: raise SystemExit('order position block not found')
-          s=s.replace(old,new,1)
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
 
+          if changes == 0:
+            print('Account isolation already applied; nothing to commit.')
+            raise SystemExit(0)
           p.write_text(s)
+          print('Applied account isolation changes:', changes)
           PY
           node --check backend/server.js
           git config user.name "github-actions[bot]"
