@@ -25,6 +25,51 @@ body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-w
 <script src="aura-account.js"></script>
 <script>
 let terminalSessionToken=sessionStorage.getItem('auraTerminalSession')||'';
+let activeAccountMeta=null;
+let activeAccountMetaLoadedAt=0;
+function terminalAccountId(){try{return String(window.auraTerminalAccountContext?.()?.accountId||'').trim()}catch(e){return ''}}
+function firestoreTimeMs(value){
+  if(!value)return 0;
+  if(typeof value==='number')return value>100000000000?value:value*1000;
+  if(typeof value==='string'){const n=Date.parse(value);return Number.isFinite(n)?n:0}
+  if(typeof value==='object'&&Number.isFinite(Number(value._seconds)))return Number(value._seconds)*1000+Math.floor(Number(value._nanoseconds||0)/1000000);
+  return 0;
+}
+async function loadActiveAccountMeta(){
+  const now=Date.now();
+  if(activeAccountMeta&&now-activeAccountMetaLoadedAt<300000)return activeAccountMeta;
+  try{
+    const user=window.ceAuth?.currentUser;
+    const id=terminalAccountId();
+    if(!user||!id)return null;
+    const token=await user.getIdToken(false);
+    const res=await fetch('https://aurafirming.in/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.error||'Could not load account metadata');
+    const accounts=Array.isArray(data.accounts)?data.accounts:[];
+    const found=accounts.find(a=>String(a.accountId||a.id||'').trim()===id);
+    activeAccountMeta=found||null;
+    activeAccountMetaLoadedAt=now;
+    return activeAccountMeta;
+  }catch(e){return activeAccountMeta||null}
+}
+function filterHistoryForSelectedAccount(data){
+  const id=terminalAccountId();
+  const createdAt=firestoreTimeMs(activeAccountMeta?.createdAt);
+  const filterItems=items=>(Array.isArray(items)?items:[]).filter(p=>{
+    const positionAccountId=String(p.accountId||p.tradingAccountId||p.account?.accountId||'').trim();
+    if(positionAccountId)return positionAccountId===id;
+    // Legacy positions created before the multi-account switcher had no accountId.
+    // Keep them with the account that existed when the trade was created; this
+    // prevents an older account's history appearing on a newly purchased account.
+    if(createdAt){
+      const tradeTime=firestoreTimeMs(p.openedAt)||firestoreTimeMs(p.createdAt)||firestoreTimeMs(p.closedAt);
+      if(tradeTime)return tradeTime>=createdAt;
+    }
+    return true;
+  });
+  return {...data,open:filterItems(data.open||data.positions||[]),closed:filterItems(data.closed||[]),pending:filterItems(data.pending||[])};
+}
 async function positionApi(path,opt={}){
   if(!terminalSessionToken)throw new Error('Terminal login required');
   const headers=opt.headers||{};headers.Authorization='Bearer '+terminalSessionToken;
@@ -103,18 +148,10 @@ function renderCards(items){
     try{
       const id=String(btn.dataset.id);
       const data=await positionApi('/api/trading/positions/'+encodeURIComponent(id)+'/close',{method:'POST'});
-      // Remove the trade from Open immediately; history/account reconciliation
-      // continues in the background so the close button never waits on it.
       const closed=tabData.open.find(x=>String(x.id)===id);
       tabData.open=(tabData.open||[]).filter(x=>String(x.id)!==id);
       if(closed){
-        tabData.closed=[{
-          ...closed,
-          status:'closed',
-          closePrice:Number(data.closePrice||closed.currentPrice||closed.entryPrice||0),
-          realizedPnl:Number(data.realizedPnl||0),
-          closedAt:new Date().toISOString()
-        },...(tabData.closed||[])];
+        tabData.closed=[{...closed,status:'closed',closePrice:Number(data.closePrice||closed.currentPrice||closed.entryPrice||0),realizedPnl:Number(data.realizedPnl||0),closedAt:new Date().toISOString()},...(tabData.closed||[])];
       }
       if(data.account){
         liveBalance=Number(data.account.balance||liveBalance);
@@ -147,7 +184,8 @@ function renderPositionData(data){
   renderCurrentTab();
 }
 async function loadPositions(){
-  const data=await positionApi('/api/trading/history');
+  await loadActiveAccountMeta();
+  const data=filterHistoryForSelectedAccount(await positionApi('/api/trading/history'));
   renderPositionData(data);
 }
 if(!terminalSessionToken){location.replace('terminal.html');}
