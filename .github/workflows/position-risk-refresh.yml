@@ -19,26 +19,22 @@ jobs:
           from pathlib import Path
           p = Path('position.html')
           s = p.read_text()
-          marker = '/* AURA_POSITION_RISK_REFRESH_V1 */'
-          if marker in s:
-              print('Position risk patch already applied')
-              raise SystemExit(0)
+          changed = False
 
-          css = '''\n<style id="aura-position-risk-style">\n.account-detail .detail-value.risk-safe{color:#16a34a!important}.account-detail .detail-value.risk-medium{color:#eab308!important}.account-detail .detail-value.risk-high{color:#dc2626!important}.account-detail .detail-value.risk-safe-margin{color:#16a34a!important}.account-detail .detail-value.risk-medium-margin{color:#eab308!important}.account-detail .detail-value.risk-high-margin{color:#dc2626!important}\n</style>\n'''
-
-          js = r'''\n<script>\n/* AURA_POSITION_RISK_REFRESH_V1 */\n(function(){\n  const RISK='detailPositionRisk';\n  const LEVEL='detailPositionMarginLevel';\n  let loading=false;\n  function paintRisk(){\n    const risk=document.getElementById(RISK);\n    const level=document.getElementById(LEVEL);\n    if(!risk)return;\n    const v=(risk.textContent||'').trim().toLowerCase();\n    risk.classList.remove('risk-safe','risk-medium','risk-high');\n    if(v==='high')risk.classList.add('risk-high');\n    else if(v==='medium')risk.classList.add('risk-medium');\n    else risk.classList.add('risk-safe');\n    if(level){\n      level.classList.remove('risk-safe-margin','risk-medium-margin','risk-high-margin');\n      if(v==='high')level.classList.add('risk-high-margin');\n      else if(v==='medium')level.classList.add('risk-medium-margin');\n      else level.classList.add('risk-safe-margin');\n    }\n  }\n  async function refreshPosition(){\n    if(loading)return;\n    loading=true;\n    try{\n      if(typeof loadPositions==='function')await loadPositions();\n      if(typeof refreshLivePnl==='function')await refreshLivePnl();\n      if(typeof paintLivePositions==='function')paintLivePositions();\n    }catch(e){}\n    finally{loading=false;paintRisk();}\n  }\n  setInterval(refreshPosition,3000);\n  setInterval(paintRisk,500);\n  document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshPosition()});\n  setTimeout(refreshPosition,800);\n})();\n</script>\n'''
-
-          if '</style></head>' in s:
-              s = s.replace('</style></head>', '</style>' + css + '</head>', 1)
-          elif '</head>' in s:
-              s = s.replace('</head>', css + '</head>', 1)
+          # Keep existing risk-color patch and only change the refresh interval.
+          old = 'setInterval(refreshPosition,3000);'
+          new = 'setInterval(refreshPosition,50);'
+          if old in s:
+              s = s.replace(old, new, 1)
+              changed = True
+              print('Position auto refresh changed to 50ms')
+          elif new in s:
+              print('Position auto refresh already 50ms')
           else:
-              raise SystemExit('position.html head not found')
-          if '</body>' not in s:
-              raise SystemExit('position.html body not found')
-          s = s.replace('</body>', js + '</body>', 1)
+              raise SystemExit('Position refresh interval not found')
+
           p.write_text(s)
-          print('Patched position.html')
+          print('Changed:', changed)
           PY
 
       - name: Commit patch
@@ -49,6 +45,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Add risk colors and position auto refresh"
+            git commit -m "Set position auto refresh to 50ms"
             git push
           fi
