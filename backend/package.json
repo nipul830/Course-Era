@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node prepare-mongo.js && node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
