@@ -1,6 +1,7 @@
 import { MongoClient } from "mongodb";
 import "dotenv/config";
 
+// Course-Era MongoDB connection used by staged Firestore migrations.
 const uri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/courseera";
 const client = new MongoClient(uri);
 let database = null;
