@@ -386,10 +386,11 @@ async function requireTerminalAuth(req, res, next) {
       terminalAuthCache.delete(cacheKey);
       return res.status(401).json({ error: "Terminal credentials revoked" });
     }
-    const accountRef = db.collection("users").doc(token.uid).collection("trading").doc("account");
+    const accountBase = db.collection("users").doc(token.uid);
+    const accountRef = accountBase.collection("tradingAccounts").doc(String(token.accountId));
     const accountSnap = await accountRef.get();
     const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
-    if (!accountSnap.exists || account.status !== "active") {
+    if (!accountSnap.exists || account.accountId !== String(token.accountId) || account.status !== "active") {
       terminalAuthCache.delete(cacheKey);
       await revokeTerminalCredentials(account, account.status === "breached" ? (account.breachReason || "Account breached") : "Account inactive");
       return res.status(403).json({ error: account.status === "breached" ? "Account breached. Terminal credentials revoked." : "Trading account is not active", status: account.status || "inactive" });
@@ -459,7 +460,7 @@ app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
     const credential = snap.data() || {};
     if (credential.status !== "active") return res.status(403).json({ error: "Terminal credentials are revoked" });
 
-    const accountRef = db.collection("users").doc(String(credential.userId)).collection("trading").doc("account");
+    const accountRef = db.collection("users").doc(String(credential.userId)).collection("tradingAccounts").doc(String(credential.accountId));
     const accountSnap = await accountRef.get();
     const account = accountSnap.exists ? (accountSnap.data() || {}) : {};
     if (!accountSnap.exists || account.accountId !== credential.accountId || account.status !== "active") {
@@ -1823,9 +1824,18 @@ function tradePnl(position, price) {
   return Number.isFinite(pnl) ? pnl : 0;
 }
 
-async function loadTradingAccount(uid) {
+async function loadTradingAccount(uid, accountId = "") {
   initFirebase();
-  const ref = db.collection("users").doc(uid).collection("trading").doc("account");
+  const userRef = db.collection("users").doc(uid);
+  const id = String(accountId || "").trim();
+  if (id) {
+    const accountRef = userRef.collection("tradingAccounts").doc(id);
+    const snap = await accountRef.get();
+    if (snap.exists && String(snap.data()?.accountId || snap.id) === id) {
+      return { ref:accountRef, data:snap.data() || {} };
+    }
+  }
+  const ref = userRef.collection("trading").doc("account");
   const snap = await ref.get();
   if (!snap.exists) throw new Error("Trading account not found");
   return { ref, data:snap.data() || {} };
@@ -1953,7 +1963,7 @@ app.get("/api/market/quotes", requireTerminalAuth, async (req,res) => {
 
 app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
   try {
-    const {ref,data}=await loadTradingAccount(req.terminal.uid);
+    const {ref,data}=await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
     const baseAccount={
       id:data.accountId || "account",
       balance:Number(data.balance ?? data.startingBalance ?? 0),
@@ -2009,13 +2019,14 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     if (side==="SELL" && ((stopLoss!==null&&stopLoss<=entryPrice) || (takeProfit!==null&&takeProfit>=entryPrice))) return res.status(400).json({error:"SELL SL must be above entry and TP below entry"});
     // Reuse the account snapshot already loaded by terminal auth.
     // This removes an extra Firestore read from every market order.
-    const ref=req.terminal.accountRef || (await loadTradingAccount(req.terminal.uid)).ref;
-    const data=req.terminal.account || (await loadTradingAccount(req.terminal.uid)).data;
+    const ref=req.terminal.accountRef || (await loadTradingAccount(req.terminal.uid, req.terminal.accountId)).ref;
+    const data=req.terminal.account || (await loadTradingAccount(req.terminal.uid, req.terminal.accountId)).data;
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
     const positionRef=ref.collection("positions").doc();
     const now=admin.firestore.FieldValue.serverTimestamp();
     await positionRef.set({
+      accountId:String(req.terminal.accountId),
       symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
       stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
       status:"open", openedAt:now, updatedAt:now
@@ -2050,7 +2061,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
 app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
-    const {ref,data}=await loadTradingAccount(req.terminal.uid);
+    const {ref,data}=await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
     if(!snap.exists) return res.status(404).json({error:"Position not found"});
@@ -2095,7 +2106,7 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
 });
 app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
   try {
-    const {ref,data}=await loadTradingAccount(req.terminal.uid);
+    const {ref,data}=await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
     const snap=await ref.collection("positions").get();
     const all=snap.docs.map(d=>{ const p={id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}; const toIso=v=>v?.toDate?.()?.toISOString?.() || (v?._seconds?new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString():null); p.openedAt=toIso(p.openedAt); p.closedAt=toIso(p.closedAt); p.createdAt=toIso(p.createdAt); p.updatedAt=toIso(p.updatedAt); return p; });
     const open=all.filter(p=>p.status==="open");
@@ -2122,7 +2133,7 @@ app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
 app.patch("/api/trading/positions/:id", requireTerminalAuth, async (req,res) => {
   try {
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to close trades."});
-    const {ref}=await loadTradingAccount(req.terminal.uid);
+    const {ref}=await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
     const positionRef=ref.collection("positions").doc(req.params.id);
     const snap=await positionRef.get();
     if(!snap.exists) return res.status(404).json({error:"Position not found"});
