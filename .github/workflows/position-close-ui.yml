@@ -1,0 +1,77 @@
+name: Position Close Controls
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch position close controls
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('position.html')
+          s = p.read_text()
+          changed = False
+
+          # Add a compact Close All control to the Open trades header.
+          old = '<div class="tabs"><button class="tab active" data-tab="open">Open</button><button class="tab" data-tab="closed">Closed</button></div><div class="sub" id="tabSub">Open trades</div><div id="positions"></div>'
+          new = '<div class="tabs"><button class="tab active" data-tab="open">Open</button><button class="tab" data-tab="closed">Closed</button></div><div class="sub-row"><div class="sub" id="tabSub">Open trades</div><button class="close-all" id="closeAllTrades" type="button">Close All</button></div><div id="positions"></div>'
+          if old in s:
+              s = s.replace(old, new, 1)
+              changed = True
+          elif 'id="closeAllTrades"' not in s:
+              raise SystemExit('Open trades header markup not found')
+
+          # Style the Open trades header and move the existing per-trade close control
+          # onto the trade header line as a compact X button.
+          css_anchor = '.sub{color:#7b8793;font-size:13px;margin-bottom:18px}'
+          css_add = '.sub-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px}.sub-row .sub{margin-bottom:0}.close-all{border:1px solid #e0e5e9;background:#fff;color:#182332;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer}.close-all:disabled{opacity:.5}.position-card{position:relative}.position-card .pos-head{padding-right:38px}.position-card .close-position{position:absolute;top:8px;right:8px;margin:0;width:30px;height:30px;border-radius:50%;padding:0;background:#fff;color:#e6004d;border:1px solid #e0e5e9;font-size:0;font-weight:900;line-height:1}.position-card .close-position::before{content:"×";font-size:22px}.position-card .close-position:disabled{opacity:.5}.position-card .close-position + .open-chart{margin-top:14px}'
+          if css_anchor in s and '.close-all{' not in s:
+              s = s.replace(css_anchor, css_anchor + css_add, 1)
+              changed = True
+
+          # Mobile sizing for the header X; keep Open Chart full-width below the card data.
+          mobile_anchor = '.position-card .close-position{width:calc(50% - 3px);display:inline-block;margin-left:3px}'
+          mobile_new = '.position-card .close-position{position:absolute;top:7px;right:7px;width:28px;height:28px;margin:0;border-radius:50%;display:grid;place-items:center}.position-card .open-chart{width:100%;display:block;margin:7px 0 0}'
+          if mobile_anchor in s:
+              s = s.replace(mobile_anchor, mobile_new, 1)
+              changed = True
+
+          # Add Close All behavior by repeatedly invoking the existing, already-tested
+          # individual close handler. No backend/order logic is changed.
+          marker = 'let livePositions=[];'
+          js = '''let closeAllRunning=false;\nasync function closeAllOpenTrades(){\n  if(closeAllRunning)return;\n  const btn=document.getElementById('closeAllTrades');\n  if(currentTab!=='open'||!livePositions.length){return;}\n  closeAllRunning=true;if(btn)btn.disabled=true;\n  try{\n    while(document.querySelector('.position-card .close-position:not(:disabled)')){\n      const b=document.querySelector('.position-card .close-position:not(:disabled)');\n      b.click();\n      await new Promise(r=>setTimeout(r,150));\n      if(!document.querySelector('.position-card .close-position:not(:disabled)'))break;\n    }\n  }finally{closeAllRunning=false;if(btn)btn.disabled=false;}\n}\n'''
+          if 'async function closeAllOpenTrades' not in s and marker in s:
+              s = s.replace(marker, js + marker, 1)
+              changed = True
+
+          # Bind the new control after the DOM is available.
+          bind_marker = 'let liveQuoteRequest=false;'
+          bind_js = "let liveQuoteRequest=false;\ndocument.getElementById('closeAllTrades')?.addEventListener('click',closeAllOpenTrades);"
+          if 'addEventListener(\'click\',closeAllOpenTrades)' not in s and bind_marker in s:
+              s = s.replace(bind_marker, bind_js, 1)
+              changed = True
+
+          p.write_text(s)
+          print('Changed:', changed)
+          PY
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add position.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add close all and compact trade close controls"
+            git push
+          fi
