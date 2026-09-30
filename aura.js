@@ -41,80 +41,9 @@ function logout(){
   else applyAccountLayout();
 })();
 
-// Purchased accounts are loaded automatically; manual attachment is disabled.
-(function(){
-  const API='https://aurafirming.in';
-  async function loadPurchasedAccounts(user){
-    try{
-      const token=await user.getIdToken(false);
-      const headers={Authorization:'Bearer '+token,Accept:'application/json'};
-      for(const path of ['/api/trading-accounts','/api/my-trading-accounts','/api/purchased-accounts']){
-        try{
-          const r=await fetch(API+path,{headers,cache:'no-store'});
-          if(!r.ok)continue;
-          const d=await r.json();
-          const list=Array.isArray(d)?d:(Array.isArray(d.accounts)?d.accounts:(Array.isArray(d.data)?d.data:[]));
-          if(list.length)return list.slice(0,5);
-        }catch(e){}
-      }
-      const current=await window.auraAccount?.();
-      return current&&!current.__error&&current.id?[current]:[];
-    }catch(e){return []}
-  }
-
-  function renderPurchasedAccounts(list){
-    const section=document.getElementById('auraAttachedAccounts');
-    if(!section)return;
-    const grid=section.querySelector('.aura-attach-grid');
-    const label=section.querySelector('#auraSelectedAccountLabel');
-    if(!grid)return;
-
-    section.querySelector('.aura-attach-add')?.remove();
-    section.querySelector('.aura-attach-head p')?.remove();
-    grid.innerHTML='';
-
-    const accounts=list.slice(0,5);
-    const key='auraSelectedDashboardAccountV1';
-    let selected=localStorage.getItem(key)||String(accounts[0]?.id||accounts[0]?.accountId||'');
-    if(selected)localStorage.setItem(key,selected);
-
-    accounts.forEach((account,index)=>{
-      const id=String(account.id||account.accountId||'');
-      const card=document.createElement('div');
-      card.className='aura-attach-slot slot-'+(index+1)+(id===selected?' selected':'');
-      const name=String(account.name||account.challenge||('Account '+(index+1)));
-      const size=Number(account.startingBalance??account.accountSize??account.size??0);
-      card.innerHTML='<div class="aura-attach-slot-top"><div><div class="aura-attach-slot-num">Account '+(index+1)+'</div><div class="aura-attach-slot-name"></div><div class="aura-attach-id"></div><div class="aura-attach-size"></div></div><div class="aura-attach-selected"></div></div>';
-      card.querySelector('.aura-attach-slot-name').textContent=name;
-      card.querySelector('.aura-attach-id').textContent=id;
-      card.querySelector('.aura-attach-size').textContent=size?'$'+size.toLocaleString('en-US'):'Account';
-      card.querySelector('.aura-attach-selected').textContent=id===selected?'SELECTED':'';
-      card.onclick=()=>{localStorage.setItem(key,id);location.reload()};
-      grid.appendChild(card);
-    });
-
-    for(let index=accounts.length;index<5;index++){
-      const card=document.createElement('div');
-      card.className='aura-attach-slot slot-'+(index+1)+' empty';
-      card.innerHTML='<div><strong>Account '+(index+1)+'</strong><div style="font-size:11px;margin-top:4px">Not purchased</div></div>';
-      grid.appendChild(card);
-    }
-    if(label){
-      const current=accounts.find(a=>String(a.id||a.accountId||'')===selected);
-      label.textContent=current?'Selected account: '+String(current.challenge||current.name||selected):'';
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded',async()=>{
-    const user=typeof ceAuth!=='undefined'?ceAuth.currentUser:null;
-    if(!user)return;
-    const list=await loadPurchasedAccounts(user);
-    renderPurchasedAccounts(list);
-  },{once:true});
-})();
-
-// Dashboard navigation: keep only Home in the top-left and make the
-// dashboard-position Buy Challenge shortcut directly clickable.
+// Dashboard navigation: keep only Home in the top-left. Account switching is
+// handled by account-switcher.js so there is only one source of truth for the
+// selected purchased account.
 (function(){
   function applyDashboardNavigation(){
     if(!document.querySelector('.dashboard'))return;
@@ -139,9 +68,7 @@ function logout(){
     if(!pseudoFix.parentNode)document.head.appendChild(pseudoFix);
 
     const title=document.querySelector('.page-title h1');
-    if(title){
-      title.textContent='Dashboard';
-    }
+    if(title)title.textContent='Dashboard';
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyDashboardNavigation,{once:true});
