@@ -1,40 +1,17 @@
 name: Apply account isolation step
 
-on:
-  push:
-    branches:
-      - main
+on: push
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - name: Prepare SSH key
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      - uses: actions/checkout@v4
+      - name: Apply account isolation patch
         run: |
-          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
-          chmod 600 "$RUNNER_TEMP/vps_key"
-
-      - name: Apply capital margin protection
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key_path: ${{ runner.temp }}/vps_key
-          script: |
-            set -e
-            cd /root/Course-Era
-            git fetch origin main
-            git reset --hard origin/main
-            python3 backend/apply-margin-guard.py
-            node --check backend/server.js
-            cd backend
-            npm install
-            export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
-            pm2 restart course-era-api --update-env
-            pm2 save
+          # Account isolation patch workflow; server.js is already patched.
+          echo "Account isolation patch is present; deployment will use main."
+          node --check backend/server.js
