@@ -1,0 +1,35 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const serverPath = new URL('./server.js', import.meta.url);
+let server = readFileSync(serverPath, 'utf8');
+
+const patches = [
+  ['const now=Date.now(), out={}, freshForMs=200;', 'const now=Date.now(), out={}, freshForMs=1000;'],
+  ['    const quotes=await getMarketQuotes([symbol]);\n    const quote=quotes[symbol];\n    if (!quote?.price) return res.status(502).json({error:"No live market price available"});', '    let quote=quoteCache.get(symbol);\n    if (!quote?.price || Date.now()-Number(quote.fetchedAt||0)>1500) {\n      const quotes=await getMarketQuotes([symbol]);\n      quote=quotes[symbol];\n    }\n    if (!quote?.price) return res.status(502).json({error:"No live market price available"});'],
+  ['    await positionRef.set({\n      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,', '    await positionRef.set({\n      accountId:String(data.accountId||""),\n      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,'],
+  ['    const symbols=[...new Set(open.map(p=>p.symbol).filter(Boolean))];\n    if(symbols.length){\n      try {\n        const quotes=await getMarketQuotes(symbols);\n        for(const p of open) p.currentPrice=Number(quotes[p.symbol]?.price||p.currentPrice||p.entryPrice||0);\n      } catch(e) {}\n    }', '    const selectedAccountId=String(data.accountId||"").trim();\n    const accountCreatedAt=(()=>{const v=data.createdAt;return v?.toMillis?.() || (v?._seconds ? Number(v._seconds)*1000 : 0);})();\n    const accountScoped=all.filter(p=>{\n      const pid=String(p.accountId||p.tradingAccountId||p.account?.accountId||"").trim();\n      if(pid) return !selectedAccountId || pid===selectedAccountId;\n      const tradeTime=Date.parse(p.openedAt||p.createdAt||p.closedAt||"")||0;\n      return !accountCreatedAt || !tradeTime || tradeTime>=accountCreatedAt;\n    });\n    const scopedOpen=accountScoped.filter(p=>p.status==="open");\n    const scopedPending=accountScoped.filter(p=>p.status==="pending");\n    const scopedClosed=accountScoped.filter(p=>p.status==="closed").sort((a,b)=>(Date.parse(b.closedAt||"")||0)-(Date.parse(a.closedAt||"")||0));\n    for(const p of scopedOpen){const cached=quoteCache.get(p.symbol);p.currentPrice=Number(cached?.price||p.currentPrice||p.entryPrice||0);}'],
+  ['      open,pending,closed\n    });', '      open:scopedOpen,pending:scopedPending,closed:scopedClosed\n    });']
+];
+
+for (const [from,to] of patches) {
+  if (server.includes(to)) continue;
+  if (!server.includes(from)) continue;
+  server = server.replace(from,to);
+}
+
+writeFileSync(serverPath,server);
+
+const terminalPath = new URL('../terminal.html', import.meta.url);
+let terminal = readFileSync(terminalPath,'utf8');
+const terminalFrom='    await refreshTerminalAccount();\n    \n  }catch(e){';
+if(terminal.includes(terminalFrom)) terminal=terminal.replace(terminalFrom,'    refreshTerminalAccount();\n    \n  }catch(e){');
+writeFileSync(terminalPath,terminal);
+
+const positionPath = new URL('../position.html', import.meta.url);
+let position = readFileSync(positionPath,'utf8');
+const positionFrom=`  await loadActiveAccountMeta();\n  const data=filterHistoryForSelectedAccount(await positionApi('/api/trading/history'));\n  try{sessionStorage.setItem(cacheKey,JSON.stringify({data,at:Date.now()}));}catch{}\n  renderPositionData(data);`;
+const positionTo=`  const rawData=await positionApi('/api/trading/history');\n  const data=filterHistoryForSelectedAccount(rawData);\n  try{sessionStorage.setItem(cacheKey,JSON.stringify({data,at:Date.now()}));}catch{}\n  renderPositionData(data);\n  loadActiveAccountMeta().then(()=>{\n    const filtered=filterHistoryForSelectedAccount(rawData);\n    try{sessionStorage.setItem(cacheKey,JSON.stringify({data:filtered,at:Date.now()}));}catch{}\n    renderPositionData(filtered);\n  }).catch(()=>{});`;
+if(position.includes(positionFrom)) position=position.replace(positionFrom,positionTo);
+writeFileSync(positionPath,position);
+
+console.log('TERMINAL_POSITION_PERFORMANCE_PATCH=OK');
