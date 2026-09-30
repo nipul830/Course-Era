@@ -38,3 +38,4 @@ jobs:
           git add position.html
           git diff --cached --quiet || git commit -m 'Fix closed tab persistence on refresh'
           git push
+# retrigger
