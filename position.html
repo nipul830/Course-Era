@@ -160,7 +160,7 @@ function renderCards(items){
       renderCurrentTab();
       loadPositions().catch(()=>{});
     }
-    catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}
+    catch(e){btn.disabled=false;btn.textContent='Close Trade';if(String(e&&e.message||'').toLowerCase().includes('already closed')){tabData.open=(tabData.open||[]).filter(x=>String(x.id)!==String(btn.dataset.id));livePositions=tabData.open;renderCurrentTab();loadPositions().catch(()=>{});return;}alert(e.message)}
   }));
 }
 function renderCurrentTab(){
