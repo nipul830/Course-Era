@@ -30,70 +30,10 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Capital-based margin enforcement: crypto 1:10, gold 1:50, forex 1:100.
-            python3 - <<'PY'
-            from pathlib import Path
-            p = Path("backend/server.js")
-            s = p.read_text()
-            if "const marginLeverage = kind =>" not in s:
-                marker = '    const positionRef=ref.collection("positions").doc();'
-                if marker not in s:
-                    raise SystemExit("Trading order marker not found")
-                guard = '''    // Capital-based margin enforcement: crypto 1:10, gold 1:50, forex 1:100.
-                const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
-                const orderSpec = MARKET_SYMBOLS[symbol];
-                const orderLeverage = marginLeverage(orderSpec?.kind);
-                let orderMargin = 0;
-                let usedMargin = 0;
-                if (orderLeverage) {
-                  const existingSnap = await ref.collection("positions").where("status","==","open").get();
-                  const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);
-                  const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);
-                  const marginFor = (position, quote) => {
-                    const spec = MARKET_SYMBOLS[position.symbol];
-                    const leverage = marginLeverage(spec?.kind);
-                    const lotSize = Number(position.lot || 0);
-                    const price = Number(quote?.price || position.currentPrice || position.entryPrice || 0);
-                    if (!spec || !leverage || !lotSize || !price) return 0;
-                    const notional = spec.kind === "forex-jpy" ? Math.abs(lotSize * spec.contractSize) : Math.abs(price * lotSize * spec.contractSize);
-                    return notional / leverage;
-                  };
-                  for (const doc of existingSnap.docs) usedMargin += marginFor(doc.data() || {}, marginQuotes[doc.data()?.symbol]);
-                  orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);
-                  const balanceNow = Number(data.balance ?? data.startingBalance ?? 0);
-                  const openPnlNow = Number(data.openPnl ?? 0);
-                  const equityNow = Number(data.equity ?? (balanceNow + openPnlNow));
-                  const freeMargin = equityNow - usedMargin;
-                  if (orderMargin > freeMargin + 0.01) {
-                    return res.status(400).json({ error:"Insufficient free margin", requiredMargin:Number(orderMargin.toFixed(2)), usedMargin:Number(usedMargin.toFixed(2)), freeMargin:Number(freeMargin.toFixed(2)), leverage:orderLeverage });
-                  }
-                }
-
-'''
-                s = s.replace(marker, guard + marker, 1)
-                old = '''      accountId:String(req.terminal.accountId),
-      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
-      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
-      status:"open", openedAt:now, updatedAt:now'''
-                new = '''      accountId:String(req.terminal.accountId),
-      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
-      leverage:orderLeverage || null,
-      marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
-      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
-      status:"open", openedAt:now, updatedAt:now'''
-                if old not in s:
-                    raise SystemExit("Position write anchor not found")
-                s = s.replace(old, new, 1)
-                p.write_text(s)
-                print("CAPITAL_MARGIN_PATCHED")
-            else:
-                print("CAPITAL_MARGIN_ALREADY_PRESENT")
-            PY
-            node --check backend/server.js
-
             node backend/ensure-password-reset.mjs
             cd backend
             npm install
+            node --check prepare-mongo.js
             node prepare-mongo.js
             node --check server.js
 
@@ -116,6 +56,15 @@ jobs:
             export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
             pm2 restart course-era-api --update-env
             pm2 save
+
+            sleep 2
+            echo "===== API HEALTH ====="
+            curl -fsS --max-time 10 http://127.0.0.1:3000/health
+            echo
+            echo "===== CHALLENGE API ====="
+            RESULT=$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/challenges)
+            echo "$RESULT"
+            node -e 'const d=JSON.parse(process.argv[1]); if(!Array.isArray(d.challenges)||!d.challenges.length) process.exit(1); console.log("MONGODB_CHALLENGE_API_OK="+d.challenges.length);' "$RESULT"
 
       - name: Verify VPS email configuration
         uses: appleboy/ssh-action@v1.2.2
