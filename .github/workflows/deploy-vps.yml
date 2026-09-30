@@ -32,6 +32,62 @@ jobs:
             node backend/ensure-password-reset.mjs
             node backend/fix-selected-account-trades.mjs
             node --check backend/server.js
+
+            # Fast navigation cache: serve the already-loaded terminal/position
+            # shell immediately while the browser refreshes it in background.
+            cat > sw.js <<'SWEOF'
+            const CACHE='aura-speed-v1';
+            const CORE=['/terminal.html','/position.html','/aura.css','/aura-account.js','/firebase-config.js'];
+            function accountKey(request){
+              try{
+                const h=request.headers.get('Authorization')||'';
+                const token=h.startsWith('Bearer ')?h.slice(7):'';
+                const p=token.split('.')[1];
+                if(!p)return '';
+                const raw=p.replace(/-/g,'+').replace(/_/g,'/');
+                const json=atob(raw+'='.repeat((4-raw.length%4)%4));
+                const payload=JSON.parse(json);
+                return String(payload.accountId||'');
+              }catch{return '';}
+            }
+            self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting())));
+            self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+            self.addEventListener('fetch',event=>{
+              const request=event.request;
+              if(request.method!=='GET')return;
+              const url=new URL(request.url);
+              if(url.origin!==self.location.origin)return;
+              const isNavigation=request.mode==='navigate';
+              const isCore=CORE.includes(url.pathname);
+              const isHistory=url.pathname==='/api/trading/history';
+              if(!isNavigation&&!isCore&&!isHistory)return;
+              event.respondWith(caches.open(CACHE).then(async cache=>{
+                let key=request;
+                if(isNavigation)key='/'+(url.pathname.split('/').pop()||'terminal.html');
+                if(isHistory){
+                  const aid=accountKey(request);
+                  if(aid)key=new Request(url.origin+url.pathname+'?__aura_account='+encodeURIComponent(aid));
+                }
+                const cached=await cache.match(key);
+                const fresh=fetch(request).then(response=>{
+                  if(response.ok)cache.put(key,response.clone());
+                  return response;
+                }).catch(()=>null);
+                return cached||await fresh||new Response('Offline',{status:503});
+              }));
+            });
+            SWEOF
+
+            python3 - <<'PY'
+            from pathlib import Path
+            reg="<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}));}</script>"
+            for name in ('terminal.html','position.html'):
+                p=Path(name)
+                text=p.read_text()
+                if '/sw.js' not in text:
+                    p.write_text(text.replace('</body>',reg+'</body>',1))
+            PY
+
             cd backend
             npm install
 
