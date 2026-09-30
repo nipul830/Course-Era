@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign Up — Course Era</title><link rel="stylesheet" href="styles.css"></head><body><div class="auth-wrap"><div class="auth-card"><a class="brand" href="index.html">Course<span>Era</span></a><h1>Create account</h1><p>Save your purchases and access courses anytime.</p><form id="signupForm"><label>Full name<input id="name" required placeholder="Your name"></label><label>Email<input id="email" type="email" required placeholder="you@example.com"></label><label>Password<input id="password" type="password" minlength="6" required placeholder="Minimum 6 characters"></label><button id="signupBtn" class="btn primary full" type="submit">Create Account</button></form><p class="muted">Already registered? <a href="login.html">Login</a></p><p id="signupMsg" class="msg"></p></div></div><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="firebase-config.js?v=10"></script><script>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign Up — Course Era</title><link rel="stylesheet" href="styles.css"></head><body><div class="auth-wrap"><div class="auth-card"><a class="brand" href="index.html">Course<span>Era</span></a><h1>Create account</h1><p>Save your purchases and access courses anytime.</p><form id="signupForm"><label>Full name<input id="name" required placeholder="Your name"></label><label>Email<input id="email" type="email" required placeholder="you@example.com"></label><label>Password<input id="password" type="password" minlength="6" required placeholder="Minimum 6 characters"></label><button id="signupBtn" class="btn primary full" type="submit">Create Account</button></form><p class="muted">Already registered? <a href="login.html">Login</a></p><p id="signupMsg" class="msg"></p></div></div><script src="firebase-config.js?v=mongo1"></script><script>
 async function signupDemo(e){
   e.preventDefault();
   const msg=document.getElementById('signupMsg');
@@ -9,22 +9,16 @@ async function signupDemo(e){
   btn.disabled=true;
   msg.textContent='Creating account…';
   try{
+    window.__ceSignupName=name;
     const create=ceAuth.createUserWithEmailAndPassword(email,password);
     const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('Signup timed out. Please check your connection and try again.')),15000));
     const cred=await Promise.race([create,timeout]);
-    await cred.user.updateProfile({displayName:name});
     localStorage.setItem('ce_user',JSON.stringify({uid:cred.user.uid,name:name,email:cred.user.email}));
     msg.textContent='Account created. Redirecting…';
     const next=new URLSearchParams(location.search).get('next');
     location.replace(next==='courses'?'courses.html':(next||'courses.html'));
   }catch(err){
-    const map={
-      'auth/email-already-in-use':'This email is already registered. Please login.',
-      'auth/invalid-email':'Please enter a valid email address.',
-      'auth/weak-password':'Password must be at least 6 characters.',
-      'auth/network-request-failed':'Network error. Check your internet connection and try again.',
-      'auth/operation-not-allowed':'Email/Password signup is not enabled in Firebase.'
-    };
+    const map={'auth/email-already-in-use':'This email is already registered. Please login.','auth/invalid-email':'Please enter a valid email address.','auth/weak-password':'Password must be at least 6 characters.','auth/network-request-failed':'Network error. Check your internet connection and try again.'};
     msg.textContent=map[err.code]||err.message||'Signup failed. Please try again.';
     btn.disabled=false;
   }
