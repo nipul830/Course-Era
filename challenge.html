@@ -82,8 +82,9 @@ function card(x){
   const extra=Array.isArray(challengeRules[x.model])?challengeRules[x.model]:[];
   extra.forEach(rule=>{const p=parseExtraRule(rule);if(p.label)addRuleRow(rules,p.label,p.value)});
   if(x.evaluation)addRuleRow(rules,'Evaluation',x.evaluation);
-  return '<article class="account-card"><div class="account-type">'+escapeHtml(String(x.model||'').toUpperCase())+'</div><h2>'+escapeHtml(x.size||'')+'</h2><div class="price" data-original-usdt="'+originalUsdt.toFixed(2)+'" data-usdt="'+finalPrice.toFixed(2)+'" data-original-inr="'+originalInr+'" data-inr="'+inr+'" data-discount="'+discount+'">'+(discount>0?'<span class="price-discount"><span class="price-old">₹'+originalInr.toLocaleString('en-IN')+'</span><span class="price-new">₹'+inr.toLocaleString('en-IN')+'</span><small class="price-off">'+discount+'% OFF</small></span>':'₹'+originalInr.toLocaleString('en-IN'))+'</div><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule"><button type="button" class="rule-toggle" aria-expanded="false">View Rules <span class="rule-arrow" aria-hidden="true">↓</span></button><div class="rule-list">'+rules.join('')+'</div><div class="rule-start">Starting simulated balance: <b>$'+Number(x.accountSize||0).toLocaleString('en-US')+'</b></div></div><button class="buy-now" type="button" data-id="'+escapeHtml(x.id)+'">Buy Now</button></article>';
+  return '<article class="account-card"><div class="account-type">'+escapeHtml(String(x.model||'').toUpperCase())+'</div><h2>'+escapeHtml(x.size||'')+'</h2><div class="price" data-original-usdt="'+originalUsdt.toFixed(2)+'" data-usdt="'+finalPrice.toFixed(2)+'" data-original-inr="'+originalInr+'" data-inr="'+inr+'" data-discount="'+discount+'">'+(discount>0?'<span class="price-discount"><span class="price-old">₹'+originalInr.toLocaleString('en-IN')+'</span><span class="price-new">₹'+inr.toLocaleString('en-IN')+'</span><small class="price-off">'+discount+'% OFF</small></span>':'₹'+inr.toLocaleString('en-IN'))+'</div><div class="currency-row"><button type="button" class="currency-btn active" data-currency="INR">INR</button><button type="button" class="currency-btn" data-currency="USDT">USDT</button></div><div class="account-rule"><button type="button" class="rule-toggle" aria-expanded="false">View Rules <span class="rule-arrow" aria-hidden="true">↓</span></button><div class="rule-list">'+rules.join('')+'</div><div class="rule-start">Starting simulated balance: <b>$'+Number(x.accountSize||0).toLocaleString('en-US')+'</b></div></div><button class="buy-now" type="button" data-id="'+escapeHtml(x.id)+'">Buy Now</button></article>';
 }
+function checkoutPath(currency){return currency==='USDT'?'checkout-v3.html':'checkout.html'}
 (async function(){
   try{
     const items=await loadChallenges();
@@ -95,7 +96,13 @@ function card(x){
       ruleToggle.onclick=()=>{const open=card.classList.toggle('rules-open');ruleToggle.setAttribute('aria-expanded',String(open))};
       card.querySelectorAll('.currency-btn').forEach(b=>{b.onclick=()=>{card.querySelectorAll('.currency-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderPrice(card.querySelector('.price'),b.dataset.currency)}});
       const buy=card.querySelector('.buy-now');
-      buy.onclick=()=>{const id=buy.dataset.id;const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';localStorage.setItem('auraSelectedChallengeId',id);localStorage.setItem('auraSelectedCurrency',currency);location.href='checkout-v3.html?challengeId='+encodeURIComponent(id)+'&currency='+encodeURIComponent(currency)};
+      buy.onclick=()=>{
+        const id=buy.dataset.id;
+        const currency=card.querySelector('.currency-btn.active')?.dataset.currency||'INR';
+        localStorage.setItem('auraSelectedChallengeId',id);
+        localStorage.setItem('auraSelectedCurrency',currency);
+        location.href=checkoutPath(currency)+'?challengeId='+encodeURIComponent(id)+'&currency='+encodeURIComponent(currency);
+      };
     });
     const savedTab=localStorage.getItem(challengeTabKey);
     activateChallengeTab(['one','two','instant'].includes(savedTab)?savedTab:'one',false);
