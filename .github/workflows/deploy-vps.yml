@@ -94,6 +94,8 @@ jobs:
             node backend/ensure-password-reset.mjs
             cd backend
             npm install
+            node prepare-mongo.js
+            node --check server.js
 
             RESEND_API_KEY_VALUE=""
             for env_file in /root/Course-Era/backend/.env /root/Course-Era/.env /root/.env; do
