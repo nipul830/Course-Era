@@ -17,7 +17,7 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
           chmod 600 "$RUNNER_TEMP/vps_key"
 
-      - name: Deploy to VPS
+      - name: Deploy MongoDB backend to VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -31,180 +31,57 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            echo "===== PATCH ADMIN PAYMENT QUEUE ====="
-            python3 - <<'PY'
-            from pathlib import Path
-            import re
-
-            path = Path('/root/Course-Era/backend/server.js')
-            source = path.read_text()
-            pattern = r'app\.get\("/api/admin/payments", requireAuth, requireAdmin, async \(req, res\) => \{.*?\n\}\);\n\napp\.patch\("/api/admin/payments/:id"'
-            replacement = '''app.get("/api/admin/payments", requireAuth, requireAdmin, async (req, res) => {
-              try {
-                initFirebase();
-
-                let snap;
-                try {
-                  snap = await db.collection("payments").orderBy("submittedAt", "desc").get();
-                } catch (orderError) {
-                  // Keep the admin queue working if the submittedAt ordering index/data
-                  // is unavailable. Firestore documents are sorted safely in memory below.
-                  console.warn("ADMIN_PAYMENT_ORDER_FALLBACK", orderError?.message || orderError);
-                  snap = await db.collection("payments").get();
-                }
-
-                const toMillis = value => {
-                  try {
-                    if (value && typeof value.toMillis === "function") return value.toMillis();
-                    if (value instanceof Date) return value.getTime();
-                    const parsed = Date.parse(String(value || ""));
-                    return Number.isFinite(parsed) ? parsed : 0;
-                  } catch {
-                    return 0;
-                  }
-                };
-
-                const payments = [];
-                for (const d of snap.docs) {
-                  const p = { id: d.id, ...d.data() };
-                  if (p.screenshotPath && bucket) {
-                    try {
-                      const [url] = await bucket.file(p.screenshotPath).getSignedUrl({
-                        action: "read",
-                        expires: Date.now() + 60 * 60 * 1000
-                      });
-                      p.screenshotUrl = url;
-                    } catch (urlError) {
-                      console.warn("ADMIN_PAYMENT_SCREENSHOT_URL_FAILED", d.id, urlError?.message || urlError);
-                    }
-                  }
-                  payments.push(p);
-                }
-
-                payments.sort((a, b) => toMillis(b.submittedAt) - toMillis(a.submittedAt));
-                res.json({ payments });
-              } catch (e) {
-                console.error("ADMIN_PAYMENT_QUEUE_ERROR", e);
-                res.status(500).json({
-                  error: "Could not load payment queue",
-                  detail: e?.message || "Unknown server error"
-                });
-              }
-            });
-
-            app.patch("/api/admin/payments/:id"'''
-
-            updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
-            if count != 1:
-                raise SystemExit("ADMIN_PAYMENT_QUEUE_PATCH_NOT_APPLIED")
-            path.write_text(updated)
-            print("ADMIN_PAYMENT_QUEUE_PATCH=OK")
-            PY
-
-            echo "===== PREPARE PASSWORD RESET ====="
-            node backend/ensure-password-reset.mjs
-            cd backend
-
             echo "===== INSTALL BACKEND ====="
+            cd backend
             npm install
 
-            echo "===== PREPARE MONGODB ====="
+            echo "===== APPLY MONGODB RUNTIME MIGRATION ====="
+            node --check prepare-all-mongo.mjs
+            node prepare-all-mongo.mjs
+            node --check server.js
+
+            echo "===== PREPARE MONGODB CATALOG ====="
             node --check prepare-mongo.js
             node prepare-mongo.js
             node --check server.js
 
-            # Firebase Admin SDK must verify browser Firebase ID tokens against
-            # the same Firebase project. Force the VPS to use the secure service
-            # account file and do not allow an older PM2 FIREBASE_SERVICE_ACCOUNT_JSON
-            # value to override it.
-            export FIREBASE_PROJECT_ID='courseera-22425'
-            export GOOGLE_CLOUD_PROJECT='courseera-22425'
-            export GOOGLE_APPLICATION_CREDENTIALS='/etc/secrets/firebase-service-account.json'
-            export FIREBASE_SERVICE_ACCOUNT_JSON=''
-            export ADMIN_EMAILS='lipupoddar@gmail.com'
+            echo "===== PREPARE PASSWORD RESET ====="
+            node ensure-password-reset.mjs
+            node --check server.js
 
-            echo "===== VERIFY FIREBASE ADMIN AUTH ====="
-            if [ ! -s "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-              echo "FIREBASE_ADMIN_AUTH=SERVICE_ACCOUNT_FILE_MISSING"
-              exit 1
+            if [ -f /root/Course-Era/backend/.env ]; then
+              set -a
+              . /root/Course-Era/backend/.env
+              set +a
             fi
-            GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS" FIREBASE_SERVICE_ACCOUNT_JSON='' node --input-type=module <<'NODE'
-            import admin from 'firebase-admin';
-            const projectId = process.env.FIREBASE_PROJECT_ID;
-            admin.initializeApp({
-              credential: admin.credential.applicationDefault(),
-              projectId
-            });
-            try {
-              const user = await admin.auth().getUserByEmail('lipupoddar@gmail.com');
-              console.log('FIREBASE_ADMIN_AUTH=OK');
-              console.log('FIREBASE_PROJECT_ID=' + projectId);
-              console.log('ADMIN_UID_PRESENT=' + Boolean(user.uid));
-            } catch (e) {
-              console.error('FIREBASE_ADMIN_AUTH=FAILED');
-              console.error(e?.code || 'unknown_error');
-              console.error(e?.message || 'Firebase Admin authentication check failed');
-              process.exit(1);
-            } finally {
-              await admin.app().delete();
-            }
-            NODE
+            export MONGO_URI="${MONGO_URI:-mongodb://127.0.0.1:27017/courseera}"
+            export MONGO_DB_NAME="${MONGO_DB_NAME:-courseera}"
+            export ADMIN_EMAIL="${ADMIN_EMAIL:-lipupoddar@gmail.com}"
 
-            RESEND_API_KEY_VALUE=""
-            for env_file in /root/Course-Era/backend/.env /root/Course-Era/.env /root/.env; do
-              if [ -f "$env_file" ]; then
-                candidate=$(grep -E '^RESEND_API_KEY=' "$env_file" | tail -n 1 | cut -d= -f2- | tr -d '\r')
-                candidate="${candidate#\"}"; candidate="${candidate%\"}"
-                candidate="${candidate#\'}"; candidate="${candidate%\'}"
-                if [ -n "$candidate" ]; then
-                  RESEND_API_KEY_VALUE="$candidate"
-                  break
-                fi
-              fi
-            done
-
-            if [ -n "$RESEND_API_KEY_VALUE" ]; then
-              export RESEND_API_KEY="$RESEND_API_KEY_VALUE"
+            echo "===== MONGODB ADMIN ====="
+            if [ -n "${ADMIN_PASSWORD:-}" ]; then
+              node ensure-admin-mongo.mjs
+            else
+              echo "MONGO_ADMIN_BOOTSTRAP=SKIPPED (set ADMIN_PASSWORD in backend/.env to create/update the admin password)"
             fi
-            export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
 
             echo "===== PM2 RESTART ====="
-            rm -f /tmp/course-era-pm2-restart.log
-            nohup sh -c 'pm2 restart course-era-api --update-env' >/tmp/course-era-pm2-restart.log 2>&1 </dev/null &
-            PM2_RESTART_PID=$!
-            echo "PM2_RESTART_PID=$PM2_RESTART_PID"
+            pm2 restart course-era-api --update-env
             sleep 5
 
-            echo "===== API HEALTH ====="
-            HEALTH_OK=0
-            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-              if curl -fsS --max-time 5 http://127.0.0.1:3000/health; then
-                HEALTH_OK=1
-                echo
-                break
-              fi
-              echo "Health check $i/15 failed; waiting..."
-              sleep 2
-            done
+            echo "===== HEALTH ====="
+            curl -fsS --max-time 10 http://127.0.0.1:3000/health
+            echo
 
-            if [ "$HEALTH_OK" -ne 1 ]; then
-              echo "===== PM2 DIAGNOSTICS ====="
-              pm2 status || true
-              pm2 describe course-era-api || true
-              pm2 logs course-era-api --lines 80 --nostream || true
-              cat /tmp/course-era-pm2-restart.log 2>/dev/null || true
-              exit 1
-            fi
-
-            echo "===== PM2 RESTART LOG ====="
-            cat /tmp/course-era-pm2-restart.log 2>/dev/null || true
-            pm2 status || true
-            pm2 save
-
-            echo "===== CHALLENGE API ====="
+            echo "===== MONGODB CHALLENGE API ====="
             RESULT=$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/challenges)
             echo "$RESULT"
             node -e 'const d=JSON.parse(process.argv[1]); if(!Array.isArray(d.challenges)||!d.challenges.length) process.exit(1); console.log("MONGODB_CHALLENGE_API_OK="+d.challenges.length);' "$RESULT"
+
+            echo "===== AUTH API SMOKE CHECK ====="
+            curl -fsS --max-time 10 http://127.0.0.1:3000/api/config
+            echo
+            pm2 save
 
       - name: Verify VPS email configuration
         uses: appleboy/ssh-action@v1.2.2
@@ -222,5 +99,3 @@ jobs:
               exit 0
             fi
             echo "RESEND_API_KEY_STATUS=PRESENT"
-            DOMAIN_RESULT=$(curl -fsS --max-time 15 -H "Authorization: Bearer $KEY" https://api.resend.com/domains)
-            node -e 'const d=JSON.parse(process.argv[1]); const x=(d.data||[]).find(v=>v.name==="aurafirming.in"); console.log("RESEND_DOMAIN_STATUS="+(x?.status||"NOT_FOUND")); console.log("RESEND_DOMAIN_SENDING="+(x?.capabilities?.sending||"UNKNOWN"));' "$DOMAIN_RESULT"
