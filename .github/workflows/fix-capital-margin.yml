@@ -96,3 +96,5 @@ jobs:
           git add backend/server.js
           git commit -m "Enforce capital based trading margin"
           git push origin main
+
+# Triggered intentionally from main so the capital guard reaches the VPS.
