@@ -2,6 +2,9 @@ name: Margin risk patch runner
 
 on:
   push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -9,105 +12,96 @@ permissions:
 jobs:
   patch:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - uses: actions/checkout@v4
-      - name: Patch margin and risk metrics
+        with:
+          fetch-depth: 0
+
+      - name: Enforce capital based order margin
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
-          server_path = Path('backend/server.js')
-          position_path = Path('position.html')
-          server = server_path.read_text()
-          position = position_path.read_text()
+          p = Path("backend/server.js")
+          s = p.read_text()
 
-          old = '''    res.json({
-      account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),challenge:data.challenge||data.accountType||data.plan||""},
-      open,pending,closed
-    });'''
-          new = '''    const leverageForKind = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
-    const accountBalance = Number(data.balance??data.startingBalance??0);
-    const accountEquity = Number(data.equity??accountBalance);
-    let usedMargin = 0;
-    for (const p of open) {
-      const spec = MARKET_SYMBOLS[p.symbol];
-      const leverage = leverageForKind(spec?.kind);
-      const px = Number(p.currentPrice||p.entryPrice||0);
-      const lot = Number(p.lot||0);
-      if (!spec || !leverage || !px || !lot) { p.leverage = leverage || null; p.marginUsed = 0; continue; }
-      const notional = spec.kind === "forex-jpy" ? Math.abs(lot * spec.contractSize) : Math.abs(px * lot * spec.contractSize);
-      p.leverage = leverage;
-      p.marginUsed = Number((notional / leverage).toFixed(2));
-      usedMargin += p.marginUsed;
-    }
-    usedMargin = Number(usedMargin.toFixed(2));
-    const freeMargin = Number((accountEquity - usedMargin).toFixed(2));
-    const marginLevel = usedMargin > 0 ? Number(((accountEquity / usedMargin) * 100).toFixed(2)) : null;
-    const riskFactor = usedMargin <= 0 ? "Safe" : marginLevel >= 200 ? "Safe" : marginLevel >= 100 ? "Medium" : "High";
-    res.json({
-      account:{id:data.accountId||"account",balance:accountBalance,equity:accountEquity,challenge:data.challenge||data.accountType||data.plan||"",leverage:open.length ? leverageForKind(MARKET_SYMBOLS[open[0].symbol]?.kind) : null,margin:usedMargin,freeMargin,marginLevel,riskFactor},
-      open,pending,closed
-    });'''
-          if old not in server:
-              raise SystemExit('server anchor not found')
-          server = server.replace(old, new, 1)
+          if "const marginLeverage = kind =>" in s:
+              print("Capital margin guard already installed")
+              raise SystemExit(0)
 
-          old_detail = '<div class="account-detail"><span class="detail-label">Margin</span><span class="detail-value" id="detailPositionMargin">—</span></div>'
-          new_detail = old_detail + '<div class="account-detail"><span class="detail-label">Leverage</span><span class="detail-value" id="detailPositionLeverage">—</span></div>'
-          if old_detail not in position:
-              raise SystemExit('position detail anchor not found')
-          position = position.replace(old_detail, new_detail, 1)
+          marker = '    const positionRef=ref.collection("positions").doc();'
+          if marker not in s:
+              raise SystemExit("Trading order marker not found")
 
-          old_metrics = "const eq=liveBalance+initialPnl; const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v}; setp('detailPositionEquity',money(eq)); setp('detailPositionMargin','—'); setp('detailPositionFreeMargin',money(eq)); setp('detailPositionMarginLevel','—'); setp('detailPositionRisk','Safe'); setp('detailPositionStatus','LIVE');"
-          new_metrics = "const eq=liveBalance+initialPnl; const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v}; setp('detailPositionEquity',money(eq)); setp('detailPositionMargin',money(Number(data.account?.margin||0))); setp('detailPositionFreeMargin',money(Number(data.account?.freeMargin??eq))); setp('detailPositionMarginLevel',data.account?.marginLevel==null?'∞':Number(data.account.marginLevel).toFixed(2)+'%'); setp('detailPositionLeverage',data.account?.leverage?('1:'+data.account.leverage):'—'); setp('detailPositionRisk',data.account?.riskFactor||'Safe'); setp('detailPositionStatus','LIVE');"
-          if old_metrics not in position:
-              raise SystemExit('position metrics anchor not found')
-          position = position.replace(old_metrics, new_metrics, 1)
+          guard = '''    // Capital-based margin enforcement: crypto 1:10, gold 1:50, forex 1:100.
+              const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
+              const orderSpec = MARKET_SYMBOLS[symbol];
+              const orderLeverage = marginLeverage(orderSpec?.kind);
+              let orderMargin = 0;
+              let usedMargin = 0;
+              if (orderLeverage) {
+                const existingSnap = await ref.collection("positions").where("status","==","open").get();
+                const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);
+                const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);
+                const marginFor = (position, quote) => {
+                  const spec = MARKET_SYMBOLS[position.symbol];
+                  const leverage = marginLeverage(spec?.kind);
+                  const lotSize = Number(position.lot || 0);
+                  const price = Number(quote?.price || position.currentPrice || position.entryPrice || 0);
+                  if (!spec || !leverage || !lotSize || !price) return 0;
+                  const notional = spec.kind === "forex-jpy"
+                    ? Math.abs(lotSize * spec.contractSize)
+                    : Math.abs(price * lotSize * spec.contractSize);
+                  return notional / leverage;
+                };
+                for (const doc of existingSnap.docs) {
+                  usedMargin += marginFor(doc.data() || {}, marginQuotes[doc.data()?.symbol]);
+                }
+                orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);
+                const balanceNow = Number(data.balance ?? data.startingBalance ?? 0);
+                const openPnlNow = Number(data.openPnl ?? 0);
+                const equityNow = Number(data.equity ?? (balanceNow + openPnlNow));
+                const freeMargin = equityNow - usedMargin;
+                if (orderMargin > freeMargin + 0.01) {
+                  return res.status(400).json({
+                    error:"Insufficient free margin",
+                    requiredMargin:Number(orderMargin.toFixed(2)),
+                    usedMargin:Number(usedMargin.toFixed(2)),
+                    freeMargin:Number(freeMargin.toFixed(2)),
+                    leverage:orderLeverage
+                  });
+                }
+              }
 
-          old_paint = 'function paintLivePositions(){'
-          new_paint = '''function updateLiveMarginMetrics(){
-  const eq = liveBalance + livePositions.reduce((sum,p)=>sum+calcLivePnl(p,Number(p.currentPrice||p.entryPrice||0)),0);
-  let margin = 0;
-  for(const p of livePositions){
-    const lev=Number(p.leverage||0), lot=Number(p.lot||0), px=Number(p.currentPrice||p.entryPrice||0);
-    let spec=null;
-    if(p.symbol==='OANDA:XAUUSD') spec={contractSize:100,kind:'gold'};
-    else if(['FX:EURUSD','FX:GBPUSD','FX:AUDUSD'].includes(p.symbol)) spec={contractSize:100000,kind:'forex'};
-    else if(p.symbol==='FX:USDJPY') spec={contractSize:100000,kind:'forex-jpy'};
-    else if(['BINANCE:BTCUSDT','BINANCE:ETHUSDT','BINANCE:SOLUSDT','BINANCE:XRPUSDT'].includes(p.symbol)) spec={contractSize:1,kind:'crypto'};
-    if(!spec||!lev||!lot||!px) continue;
-    const notional=spec.kind==='forex-jpy'?Math.abs(lot*spec.contractSize):Math.abs(px*lot*spec.contractSize);
-    margin+=notional/lev;
-  }
-  margin=Number(margin.toFixed(2));
-  const free=Number((eq-margin).toFixed(2));
-  const level=margin>0?(eq/margin)*100:null;
-  const risk=margin<=0?'Safe':level>=200?'Safe':level>=100?'Medium':'High';
-  const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
-  setp('detailPositionEquity',money(eq)); setp('detailPositionMargin',money(margin)); setp('detailPositionFreeMargin',money(free)); setp('detailPositionMarginLevel',level==null?'∞':level.toFixed(2)+'%'); setp('detailPositionRisk',risk);
-}
+'''
+          s = s.replace(marker, guard + marker, 1)
 
-function paintLivePositions(){'''
-          if old_paint not in position:
-              raise SystemExit('paint anchor not found')
-          position = position.replace(old_paint, new_paint, 1)
+          old = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+          new = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      leverage:orderLeverage || null,
+      marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+          if old not in s:
+              raise SystemExit("Position write anchor not found")
+          s = s.replace(old, new, 1)
 
-          old_call = "  const dp=document.getElementById('detailPositionPnl'); if(dp){dp.textContent=(openPnl>=0?'+':'')+money(openPnl);dp.classList.toggle('negative',openPnl<0);}\n}"
-          new_call = "  const dp=document.getElementById('detailPositionPnl'); if(dp){dp.textContent=(openPnl>=0?'+':'')+money(openPnl);dp.classList.toggle('negative',openPnl<0);} updateLiveMarginMetrics();\n}"
-          if old_call not in position:
-              raise SystemExit('paint call anchor not found')
-          position = position.replace(old_call, new_call, 1)
-
-          server_path.write_text(server)
-          position_path.write_text(position)
+          p.write_text(s)
           PY
-      - name: Commit and clean up
+          node --check backend/server.js
+
+      - name: Commit patched backend
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f .github/workflows/apply-margin-risk.yml scripts/apply-margin-risk.js .margin-risk-trigger
-          git add backend/server.js position.html .github/workflows/apply-margin-risk-run.yml .github/workflows/apply-margin-risk.yml scripts/apply-margin-risk.js .margin-risk-trigger
-          git commit -m "Add automatic leverage margin and risk metrics [skip ci]"
-          git push
+          git add backend/server.js
+          if git diff --cached --quiet; then
+            echo "No backend changes needed"
+          else
+            git commit -m "Enforce capital based trading margin"
+            git push origin HEAD:main
+          fi
