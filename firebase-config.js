@@ -81,14 +81,12 @@ const ceAuth = {
   }
 };
 
-// Tiny compatibility object for older pages that only referenced Firebase's
-// persistence enum. It performs no Firebase network calls.
-const firebase = {
-  auth: {
-    Auth: { Persistence: { LOCAL: "local" } },
-    getInstance: () => ceAuth
-  }
-};
+// Compatibility bridge for older pages. Firebase itself is not loaded or used.
+// Support both firebase.auth() and firebase.auth.Auth.Persistence.LOCAL styles.
+function ceFirebaseAuth(){ return ceAuth; }
+ceFirebaseAuth.Auth = { Persistence: { LOCAL: "local" } };
+ceFirebaseAuth.getInstance = () => ceAuth;
+const firebase = { auth: ceFirebaseAuth };
 
 // Dashboard account fallback: newer purchased accounts are stored in /api/trading-accounts.
 (function(){
