@@ -24,15 +24,21 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key_path: ${{ runner.temp }}/vps_key
+          command_timeout: 2m
           script: |
             set -e
             cd /root/Course-Era
             git fetch origin main
             git reset --hard origin/main
 
+            echo "===== PREPARE PASSWORD RESET ====="
             node backend/ensure-password-reset.mjs
             cd backend
+
+            echo "===== INSTALL BACKEND ====="
             npm install
+
+            echo "===== PREPARE MONGODB ====="
             node --check prepare-mongo.js
             node prepare-mongo.js
             node --check server.js
@@ -54,13 +60,37 @@ jobs:
               export RESEND_API_KEY="$RESEND_API_KEY_VALUE"
             fi
             export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
-            pm2 restart course-era-api --update-env
+
+            echo "===== PM2 RESTART ====="
+            set +e
+            timeout 45s pm2 restart course-era-api --update-env
+            PM2_RC=$?
+            set -e
+            echo "PM2_RESTART_EXIT=$PM2_RC"
+            pm2 status || true
+
+            echo "===== API HEALTH ====="
+            HEALTH_OK=0
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS --max-time 5 http://127.0.0.1:3000/health; then
+                HEALTH_OK=1
+                echo
+                break
+              fi
+              echo "Health check $i/10 failed; waiting..."
+              sleep 2
+            done
+
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              echo "===== PM2 DIAGNOSTICS ====="
+              pm2 status || true
+              pm2 describe course-era-api || true
+              pm2 logs course-era-api --lines 80 --nostream || true
+              exit 1
+            fi
+
             pm2 save
 
-            sleep 2
-            echo "===== API HEALTH ====="
-            curl -fsS --max-time 10 http://127.0.0.1:3000/health
-            echo
             echo "===== CHALLENGE API ====="
             RESULT=$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/challenges)
             echo "$RESULT"
@@ -73,6 +103,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key_path: ${{ runner.temp }}/vps_key
+          command_timeout: 1m
           script: |
             set -e
             KEY=$(pm2 jlist | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s).find(x=>x.name==="course-era-api");process.stdout.write(String(p?.pm2_env?.env?.RESEND_API_KEY||""));}catch{}})')
@@ -81,5 +112,5 @@ jobs:
               exit 0
             fi
             echo "RESEND_API_KEY_STATUS=PRESENT"
-            DOMAIN_RESULT=$(curl -fsS -H "Authorization: Bearer $KEY" https://api.resend.com/domains)
+            DOMAIN_RESULT=$(curl -fsS --max-time 15 -H "Authorization: Bearer $KEY" https://api.resend.com/domains)
             node -e 'const d=JSON.parse(process.argv[1]); const x=(d.data||[]).find(v=>v.name==="aurafirming.in"); console.log("RESEND_DOMAIN_STATUS="+(x?.status||"NOT_FOUND")); console.log("RESEND_DOMAIN_SENDING="+(x?.capabilities?.sending||"UNKNOWN"));' "$DOMAIN_RESULT"
