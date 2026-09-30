@@ -43,6 +43,43 @@ jobs:
             node prepare-mongo.js
             node --check server.js
 
+            # Firebase Admin SDK must verify browser Firebase ID tokens against
+            # the same Firebase project. Keep the VPS explicitly pinned to the
+            # Course Era Firebase project and prefer the secure service-account
+            # file already provisioned outside the repository.
+            export FIREBASE_PROJECT_ID='courseera-22425'
+            export GOOGLE_CLOUD_PROJECT='courseera-22425'
+            export GOOGLE_APPLICATION_CREDENTIALS='/etc/secrets/firebase-service-account.json'
+            export ADMIN_EMAILS='lipupoddar@gmail.com'
+
+            echo "===== VERIFY FIREBASE ADMIN AUTH ====="
+            if [ ! -s "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+              echo "FIREBASE_ADMIN_AUTH=SERVICE_ACCOUNT_FILE_MISSING"
+              exit 1
+            fi
+            GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS" node --input-type=module <<'NODE'
+            import admin from 'firebase-admin';
+            const projectId = process.env.FIREBASE_PROJECT_ID;
+            const credentialFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              projectId
+            });
+            try {
+              const user = await admin.auth().getUserByEmail('lipupoddar@gmail.com');
+              console.log('FIREBASE_ADMIN_AUTH=OK');
+              console.log('FIREBASE_PROJECT_ID=' + projectId);
+              console.log('ADMIN_UID_PRESENT=' + Boolean(user.uid));
+            } catch (e) {
+              console.error('FIREBASE_ADMIN_AUTH=FAILED');
+              console.error(e?.code || 'unknown_error');
+              console.error(e?.message || 'Firebase Admin authentication check failed');
+              process.exit(1);
+            } finally {
+              await admin.app().delete();
+            }
+            NODE
+
             RESEND_API_KEY_VALUE=""
             for env_file in /root/Course-Era/backend/.env /root/Course-Era/.env /root/.env; do
               if [ -f "$env_file" ]; then
