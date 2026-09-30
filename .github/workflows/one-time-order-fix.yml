@@ -1,0 +1,72 @@
+name: One-time order execution fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor == 'github-actions[bot]' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch trading order path
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('backend/server.js')
+          s = p.read_text()
+          old = '''    const fastAccount={
+      id:data.accountId || "account",
+      balance:fastBalance,
+      equity:fastBalance+fastOpenPnl,
+      pnl:fastBalance-Number(data.startingBalance || fastBalance),
+      openPnl:fastOpenPnl,
+      status:data.status || "active"
+    };
+    res.status(201).json({
+      message:"Market order executed",
+      position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice,stopLoss,takeProfit},
+      account:fastAccount
+    });
+    refreshTradingAccount(req.user.uid,quotes).catch(()=>{});'''
+          new = '''    const fastEquity=fastBalance+fastOpenPnl;
+    const fastAccount={
+      id:data.accountId || "account",
+      balance:fastBalance,
+      equity:fastEquity,
+      pnl:fastBalance-Number(data.startingBalance || fastBalance),
+      openPnl:fastOpenPnl,
+      status:data.status || "active"
+    };
+    // Persist the opening-state equity immediately. Do not run the full
+    // reconciliation in the order request: that path can evaluate SL/TP
+    // against a single fresh quote immediately after the fill and cause an
+    // unintended instant close. Normal position polling performs reconciliation.
+    await ref.update({
+      equity:fastEquity,
+      openPnl:fastOpenPnl,
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.status(201).json({
+      message:"Market order executed",
+      position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice,stopLoss,takeProfit},
+      account:fastAccount
+    });'''
+          if old not in s:
+              raise SystemExit('Target order block not found; refusing to modify the file.')
+          p.write_text(s.replace(old, new, 1))
+
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js
+          git rm .github/workflows/one-time-order-fix.yml
+          git commit -m "Fix instant trade close after order execution"
+          git push
