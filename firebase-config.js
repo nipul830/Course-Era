@@ -1,6 +1,6 @@
 // Course Era Firebase client configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBqrMvKivVsrVEr8hwDpVWg8f3ZfZttLVQ",
+  apiKey: "AIzaSyBqrMvKivVsrVEr8hwDpVWg8f3fZfZttLVQ",
   authDomain: "courseera-22425.firebaseapp.com",
   projectId: "courseera-22425",
   storageBucket: "courseera-22425.firebasestorage.app",
@@ -49,4 +49,13 @@ ceAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyChallengeHome,{once:true});
   else applyChallengeHome();
+})();
+
+// Position page: remember whether Open or Closed was selected across refreshes.
+(function(){
+  if(!/\/position(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
+  const s=document.createElement('script');
+  s.src='position-tab-fix.js?v=1';
+  s.async=false;
+  document.head.appendChild(s);
 })();
