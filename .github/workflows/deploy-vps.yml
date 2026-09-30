@@ -24,7 +24,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           port: ${{ secrets.VPS_PORT }}
           key_path: ${{ runner.temp }}/vps_key
-          command_timeout: 2m
+          command_timeout: 5m
           script: |
             set -e
             cd /root/Course-Era
@@ -62,22 +62,21 @@ jobs:
             export RESEND_FROM_EMAIL='Aura Farming <noreply@aurafirming.in>'
 
             echo "===== PM2 RESTART ====="
-            set +e
-            timeout 45s pm2 restart course-era-api --update-env
-            PM2_RC=$?
-            set -e
-            echo "PM2_RESTART_EXIT=$PM2_RC"
-            pm2 status || true
+            rm -f /tmp/course-era-pm2-restart.log
+            nohup sh -c 'pm2 restart course-era-api --update-env' >/tmp/course-era-pm2-restart.log 2>&1 </dev/null &
+            PM2_RESTART_PID=$!
+            echo "PM2_RESTART_PID=$PM2_RESTART_PID"
+            sleep 5
 
             echo "===== API HEALTH ====="
             HEALTH_OK=0
-            for i in 1 2 3 4 5 6 7 8 9 10; do
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
               if curl -fsS --max-time 5 http://127.0.0.1:3000/health; then
                 HEALTH_OK=1
                 echo
                 break
               fi
-              echo "Health check $i/10 failed; waiting..."
+              echo "Health check $i/15 failed; waiting..."
               sleep 2
             done
 
@@ -86,9 +85,13 @@ jobs:
               pm2 status || true
               pm2 describe course-era-api || true
               pm2 logs course-era-api --lines 80 --nostream || true
+              cat /tmp/course-era-pm2-restart.log 2>/dev/null || true
               exit 1
             fi
 
+            echo "===== PM2 RESTART LOG ====="
+            cat /tmp/course-era-pm2-restart.log 2>/dev/null || true
+            pm2 status || true
             pm2 save
 
             echo "===== CHALLENGE API ====="
