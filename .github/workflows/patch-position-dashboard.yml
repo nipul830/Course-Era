@@ -111,6 +111,17 @@ jobs:
           }
           for a,b in replacements.items():s=s.replace(a,b,1)
           p.write_text(s,encoding='utf-8')
+      - name: Remove stale close popup
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('position.html')
+          s=p.read_text(encoding='utf-8')
+          old="catch(e){btn.disabled=false;btn.textContent='Close Trade';alert(e.message)}"
+          new="catch(e){btn.disabled=false;btn.textContent='Close Trade';if(String(e&&e.message||'').toLowerCase().includes('already closed')){tabData.open=(tabData.open||[]).filter(x=>String(x.id)!==String(btn.dataset.id));livePositions=tabData.open;renderCurrentTab();loadPositions().catch(()=>{});return;}alert(e.message)}"
+          if old in s:
+              s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
       - name: Commit patch
         run: |
           if git diff --quiet -- position.html backend/server.js; then exit 0; fi
