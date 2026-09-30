@@ -61,6 +61,10 @@ jobs:
             export MONGO_DB_NAME="${MONGO_DB_NAME:-courseera}"
             export ADMIN_EMAIL="${ADMIN_EMAIL:-lipupoddar@gmail.com}"
 
+            echo "===== REMOVE OLD FIREBASE CREDENTIALS ====="
+            rm -f /etc/secrets/firebase-service-account.json
+            unset FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_STORAGE_BUCKET FIREBASE_PROJECT_ID GOOGLE_APPLICATION_CREDENTIALS GOOGLE_CLOUD_PROJECT
+
             echo "===== VERIFY FIREBASE IS NOT USED BY SERVER ====="
             if grep -q 'from "firebase-admin"' server.js; then
               echo "ERROR: firebase-admin import still present after migration"
