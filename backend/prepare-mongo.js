@@ -12,7 +12,7 @@ if (!s.includes('import { getMongoDb } from "./mongodb.js";')) {
 }
 
 const catalogStart = s.indexOf('async function getChallengeCatalog() {');
-const catalogEnd = catalogStart >= 0 ? s.indexOf('\n}\nconst DEFAULT_CHALLENGE_RULES', catalogStart) : -1;
+const catalogEnd = catalogStart >= 0 ? s.indexOf('\n}\n\nconst DEFAULT_CHALLENGE_RULES', catalogStart) : -1;
 if (catalogStart < 0 || catalogEnd < 0) throw new Error("challenge catalog function not found");
 s = s.slice(0, catalogStart) + `async function getChallengeCatalog() {
   const mongo = await getMongoDb();
