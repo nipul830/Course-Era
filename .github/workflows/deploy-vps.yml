@@ -31,8 +31,64 @@ jobs:
             git reset --hard origin/main
 
             # Capital-based margin enforcement: crypto 1:10, gold 1:50, forex 1:100.
-            echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnA9UGF0aCgiYmFja2VuZC9zZXJ2ZXIuanMiKQpzPXAucmVhZF90ZXh0KCkKaWYgImNvbnN0IG1hcmdpbkxldmVyYWdlID0ga2luZCA9PiIgaW4gczoKICAgIHByaW50KCJjYXBpdGFsIG1hcmdpbiBndWFyZCBhbHJlYWR5IHByZXNlbnQiKQogICAgcmFpc2UgU3lzdGVtRXhpdCgwKQptYXJrZXI9JyAgICBjb25zdCBwb3NpdGlvblJlZj1yZWYuY29sbGVjdGlvbigicG9zaXRpb25zIikuZG9jKCk7JwppZiBtYXJrZXIgbm90IGluIHM6IHJhaXNlIFN5c3RlbUV4aXQoIlRyYWRpbmcgb3JkZXIgbWFya2VyIG5vdCBmb3VuZCIpCmd1YXJkPSIiIiAgICAvLyBDYXBpdGFsLWJhc2VkIG1hcmdpbiBlbmZvcmNlbWVudDogY3J5cHRvIDE6MTAsIGdvbGQgMTo1MCwgZm9yZXggMToxMDAuCiAgICBjb25zdCBtYXJnaW5MZXZlcmFnZSA9IGtpbmQgPT4gKHsgY3J5cHRvOjEwLCBnb2xkOjUwLCBmb3JleDoxMDAsICJmb3JleC1qcHkiOjEwMCB9W1N0cmluZyhraW5kfHwiIildIHx8IG51bGwpOwogICAgY29uc3Qgb3JkZXJTcGVjID0gTUFSS0VUX1NZTUJPTFNbc3ltYm9sXTsKICAgIGNvbnN0IG9yZGVyTGV2ZXJhZ2UgPSBtYXJnaW5MZXZlcmFnZShvcmRlclNwZWM/LmtpbmQpOwogICAgbGV0IG9yZGVyTWFyZ2luID0gMDsKICAgIGxldCB1c2VkTWFyZ2luID0gMDsKICAgIGlmIChvcmRlckxldmVyYWdlKSB7CiAgICAgIGNvbnN0IGV4aXN0aW5nU25hcCA9IGF3YWl0IHJlZi5jb2xsZWN0aW9uKCJwb3NpdGlvbnMiKS53aGVyZSgic3RhdHVzIiwiPT0iLCJvcGVuIikuZ2V0KCk7CiAgICAgIGNvbnN0IGV4aXN0aW5nU3ltYm9scyA9IGV4aXN0aW5nU25hcC5kb2NzLm1hcChkID0+IGQuZGF0YSgpPy5zeW1ib2wpLmZpbHRlcihCb29sZWFuKTsKICAgICAgY29uc3QgbWFyZ2luUXVvdGVzID0gYXdhaXQgZ2V0TWFya2V0UXVvdGVzKFsuLi5uZXcgU2V0KFtzeW1ib2wsIC4uLmV4aXN0aW5nU3ltYm9sc10pXSk7CiAgICAgIGNvbnN0IG1hcmdpbkZvciA9IChwb3NpdGlvbiwgcXVvdGUpID0+IHsKICAgICAgICBjb25zdCBzcGVjID0gTUFSS0VUX1NZTUJPTFNbcG9zaXRpb24uc3ltYm9sXTsKICAgICAgICBjb25zdCBsZXZlcmFnZSA9IG1hcmdpbkxldmVyYWdlKHNwZWM/LmtpbmQpOwogICAgICAgIGNvbnN0IGxvdFNpemUgPSBOdW1iZXIocG9zaXRpb24ubG90IHx8IDApOwogICAgICAgIGNvbnN0IHByaWNlID0gTnVtYmVyKHF1b3RlPy5wcmljZSB8fCBwb3NpdGlvbi5jdXJyZW50UHJpY2UgfHwgcG9zaXRpb24uZW50cnlQcmljZSB8fCAwKTsKICAgICAgICBpZiAoIXNwZWMgfHwgIWxldmVyYWdlIHx8ICFsb3RTaXplIHx8ICFwcmljZSkgcmV0dXJuIDA7CiAgICAgICAgY29uc3Qgbm90aW9uYWwgPSBzcGVjLmtpbmQgPT09ICJmb3JleC1qcHkiID8gTWF0aC5hYnMobG90U2l6ZSAqIHNwZWMuY29udHJhY3RTaXplKSA6IE1hdGguYWJzKHByaWNlICogbG90U2l6ZSAqIHNwZWMuY29udHJhY3RTaXplKTsKICAgICAgICByZXR1cm4gbm90aW9uYWwgLyBsZXZlcmFnZTsKICAgICAgfTsKICAgICAgZm9yIChjb25zdCBkb2Mgb2YgZXhpc3RpbmdTbmFwLmRvY3MpIHVzZWRNYXJnaW4gKz0gbWFyZ2luRm9yKGRvYy5kYXRhKCkgfHwge30sIG1hcmdpblF1b3Rlc1tkb2MuZGF0YSgpPy5zeW1ib2xdKTsKICAgICAgb3JkZXJNYXJnaW4gPSBtYXJnaW5Gb3IoeyBzeW1ib2wsIGxvdCwgZW50cnlQcmljZSB9LCBtYXJnaW5RdW90ZXNbc3ltYm9sXSk7CiAgICAgIGNvbnN0IGJhbGFuY2VOb3cgPSBOdW1iZXIoZGF0YS5iYWxhbmNlID8/IGRhdGEuc3RhcnRpbmdCYWxhbmNlID8/IDApOwogICAgICBjb25zdCBvcGVuUG5sTm93ID0gTnVtYmVyKGRhdGEub3BlblBubCA/PyAwKTsKICAgICAgY29uc3QgZXF1aXR5Tm93ID0gTnVtYmVyKGRhdGEuZXF1aXR5ID8/IChiYWxhbmNlTm93ICsgb3BlblBubE5vdykpOwogICAgICBjb25zdCBmcmVlTWFyZ2luID0gZXF1aXR5Tm93IC0gdXNlZE1hcmdpbjsKICAgICAgaWYgKG9yZGVyTWFyZ2luID4gZnJlZU1hcmdpbiArIDAuMDEpIHsKICAgICAgICByZXR1cm4gcmVzLnN0YXR1cyg0MDApLmpzb24oeyBlcnJvcjoiSW5zdWZmaWNpZW50IGZyZWUgbWFyZ2luIiwgcmVxdWlyZWRNYXJnaW46TnVtYmVyKG9yZGVyTWFyZ2luLnRvRml4ZWQoMikpLCB1c2VkTWFyZ2luOk51bWJlcih1c2VkTWFyZ2luLnRvRml4ZWQoMikpLCBmcmVlTWFyZ2luOk51bWJlcihmcmVlTWFyZ2luLnRvRml4ZWQoMikpLCBsZXZlcmFnZTpvc mRlckxldmVyYWdlIH0pOwogICAgICB9CiAgICB9CgoiIiIKcz1zLnJlcGxhY2UobWFya2VyLGd1YXJkK21hcmtlcix1c2VkKQpwLndyaXRlX3RleHQocykK' | base64 -d > /tmp/apply-margin.py
-            python3 /tmp/apply-margin.py
+            python3 - <<'PY'
+            from pathlib import Path
+            p = Path("backend/server.js")
+            s = p.read_text()
+            if "const marginLeverage = kind =>" not in s:
+                marker = '    const positionRef=ref.collection("positions").doc();'
+                if marker not in s:
+                    raise SystemExit("Trading order marker not found")
+                guard = '''    // Capital-based margin enforcement: crypto 1:10, gold 1:50, forex 1:100.
+                const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
+                const orderSpec = MARKET_SYMBOLS[symbol];
+                const orderLeverage = marginLeverage(orderSpec?.kind);
+                let orderMargin = 0;
+                let usedMargin = 0;
+                if (orderLeverage) {
+                  const existingSnap = await ref.collection("positions").where("status","==","open").get();
+                  const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);
+                  const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);
+                  const marginFor = (position, quote) => {
+                    const spec = MARKET_SYMBOLS[position.symbol];
+                    const leverage = marginLeverage(spec?.kind);
+                    const lotSize = Number(position.lot || 0);
+                    const price = Number(quote?.price || position.currentPrice || position.entryPrice || 0);
+                    if (!spec || !leverage || !lotSize || !price) return 0;
+                    const notional = spec.kind === "forex-jpy" ? Math.abs(lotSize * spec.contractSize) : Math.abs(price * lotSize * spec.contractSize);
+                    return notional / leverage;
+                  };
+                  for (const doc of existingSnap.docs) usedMargin += marginFor(doc.data() || {}, marginQuotes[doc.data()?.symbol]);
+                  orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);
+                  const balanceNow = Number(data.balance ?? data.startingBalance ?? 0);
+                  const openPnlNow = Number(data.openPnl ?? 0);
+                  const equityNow = Number(data.equity ?? (balanceNow + openPnlNow));
+                  const freeMargin = equityNow - usedMargin;
+                  if (orderMargin > freeMargin + 0.01) {
+                    return res.status(400).json({ error:"Insufficient free margin", requiredMargin:Number(orderMargin.toFixed(2)), usedMargin:Number(usedMargin.toFixed(2)), freeMargin:Number(freeMargin.toFixed(2)), leverage:orderLeverage });
+                  }
+                }
+
+'''
+                s = s.replace(marker, guard + marker, 1)
+                old = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+                new = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      leverage:orderLeverage || null,
+      marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+                if old not in s:
+                    raise SystemExit("Position write anchor not found")
+                s = s.replace(old, new, 1)
+                p.write_text(s)
+                print("CAPITAL_MARGIN_PATCHED")
+            else:
+                print("CAPITAL_MARGIN_ALREADY_PRESENT")
+            PY
             node --check backend/server.js
 
             node backend/ensure-password-reset.mjs
