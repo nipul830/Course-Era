@@ -1,6 +1,8 @@
 name: Apply speed patch
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-speed-patch.yml'
 permissions:
   contents: write
 jobs:
