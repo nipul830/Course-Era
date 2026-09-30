@@ -1,0 +1,21 @@
+name: Run performance cache patch
+on:
+  push:
+    paths:
+      - '.github/workflows/perf-quick-cache2.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: |
+          python3 .github/perf_patch.py
+          git config user.name 'nipul830'
+          git config user.email '57082785+nipul830@users.noreply.github.com'
+          rm -f .github/perf_patch.py .github/workflows/perf-quick-cache.yml .github/workflows/perf-quick-cache2.yml
+          git add terminal.html position.html .github/perf_patch.py .github/workflows/perf-quick-cache.yml .github/workflows/perf-quick-cache2.yml
+          git commit -m 'Speed up terminal and position data rendering'
+          git push
