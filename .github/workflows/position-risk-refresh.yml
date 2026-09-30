@@ -21,17 +21,17 @@ jobs:
           s = p.read_text()
           changed = False
 
-          # Keep existing risk-color patch and only change the refresh interval.
-          old = 'setInterval(refreshPosition,3000);'
-          new = 'setInterval(refreshPosition,50);'
-          if old in s:
-              s = s.replace(old, new, 1)
+          # Keep the existing risk-color/live-P&L patch and make history refresh immediate.
+          old_history = "setInterval(()=>{if(terminalSessionToken)loadPositions().catch(()=>{});},30000);"
+          new_history = "setInterval(()=>{if(terminalSessionToken)loadPositions().catch(()=>{});},50);"
+          if old_history in s:
+              s = s.replace(old_history, new_history, 1)
               changed = True
-              print('Position auto refresh changed to 50ms')
-          elif new in s:
-              print('Position auto refresh already 50ms')
+              print('Position history auto refresh changed to 50ms')
+          elif new_history in s:
+              print('Position history auto refresh already 50ms')
           else:
-              raise SystemExit('Position refresh interval not found')
+              raise SystemExit('Position history refresh interval not found')
 
           p.write_text(s)
           print('Changed:', changed)
@@ -45,6 +45,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Set position auto refresh to 50ms"
+            git commit -m "Make position updates immediate"
             git push
           fi
