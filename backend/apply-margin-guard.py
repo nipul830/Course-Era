@@ -1,0 +1,60 @@
+from pathlib import Path
+
+path = Path(__file__).with_name("server.js")
+source = path.read_text()
+if "const marginLeverage = kind =>" in source:
+    print("CAPITAL_MARGIN_ALREADY_PRESENT")
+    raise SystemExit(0)
+
+marker = '    const positionRef=ref.collection("positions").doc();'
+if marker not in source:
+    raise SystemExit("Trading order marker not found")
+
+guard = '''    // Capital-based margin enforcement: crypto 1:10, gold 1:50, forex 1:100.
+    const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
+    const orderSpec = MARKET_SYMBOLS[symbol];
+    const orderLeverage = marginLeverage(orderSpec?.kind);
+    let orderMargin = 0;
+    let usedMargin = 0;
+    if (orderLeverage) {
+      const existingSnap = await ref.collection("positions").where("status","==","open").get();
+      const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);
+      const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);
+      const marginFor = (position, quote) => {
+        const spec = MARKET_SYMBOLS[position.symbol];
+        const leverage = marginLeverage(spec?.kind);
+        const lotSize = Number(position.lot || 0);
+        const price = Number(quote?.price || position.currentPrice || position.entryPrice || 0);
+        if (!spec || !leverage || !lotSize || !price) return 0;
+        const notional = spec.kind === "forex-jpy" ? Math.abs(lotSize * spec.contractSize) : Math.abs(price * lotSize * spec.contractSize);
+        return notional / leverage;
+      };
+      for (const doc of existingSnap.docs) usedMargin += marginFor(doc.data() || {}, marginQuotes[doc.data()?.symbol]);
+      orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);
+      const balanceNow = Number(data.balance ?? data.startingBalance ?? 0);
+      const openPnlNow = Number(data.openPnl ?? 0);
+      const equityNow = Number(data.equity ?? (balanceNow + openPnlNow));
+      const freeMargin = equityNow - usedMargin;
+      if (orderMargin > freeMargin + 0.01) {
+        return res.status(400).json({ error:"Insufficient free margin", requiredMargin:Number(orderMargin.toFixed(2)), usedMargin:Number(usedMargin.toFixed(2)), freeMargin:Number(freeMargin.toFixed(2)), leverage:orderLeverage });
+      }
+    }
+
+'''
+source = source.replace(marker, guard + marker, 1)
+
+old = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+new = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      leverage:orderLeverage || null,
+      marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+if old not in source:
+    raise SystemExit("Position write anchor not found")
+source = source.replace(old, new, 1)
+path.write_text(source)
+print("CAPITAL_MARGIN_PATCHED")
