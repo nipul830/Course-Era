@@ -1,0 +1,98 @@
+name: Enforce capital based trading margin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch order margin enforcement
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("backend/server.js")
+          s = p.read_text()
+          old = '''    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+    if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
+    const positionRef=ref.collection("positions").doc();'''
+          new = '''    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+    if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
+
+    // Capital-based margin control: crypto 1:10, gold 1:50, forex 1:100.
+    // A new position may only use the account's available free margin.
+    const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
+    const orderSpec = MARKET_SYMBOLS[symbol];
+    const orderLeverage = marginLeverage(orderSpec?.kind);
+    let orderMargin = 0;
+    let usedMargin = 0;
+    if (orderLeverage) {
+      const existingSnap = await ref.collection("positions").where("status","==","open").get();
+      const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);
+      const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);
+      const marginFor = (p, quote) => {
+        const spec = MARKET_SYMBOLS[p.symbol];
+        const lev = marginLeverage(spec?.kind);
+        const lotSize = Number(p.lot || 0);
+        const px = Number(quote?.price || p.currentPrice || p.entryPrice || 0);
+        if (!spec || !lev || !lotSize || !px) return 0;
+        const notional = spec.kind === "forex-jpy" ? Math.abs(lotSize * spec.contractSize) : Math.abs(px * lotSize * spec.contractSize);
+        return notional / lev;
+      };
+      for (const d of existingSnap.docs) {
+        usedMargin += marginFor(d.data() || {}, marginQuotes[d.data()?.symbol]);
+      }
+      orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);
+      const equityForMargin = Number(data.equity ?? (Number(data.balance ?? data.startingBalance ?? 0) + Number(data.openPnl ?? 0)));
+      const freeMargin = equityForMargin - usedMargin;
+      if (orderMargin > freeMargin + 0.01) {
+        return res.status(400).json({
+          error:"Insufficient free margin",
+          requiredMargin:Number(orderMargin.toFixed(2)),
+          usedMargin:Number(usedMargin.toFixed(2)),
+          freeMargin:Number(freeMargin.toFixed(2)),
+          leverage:orderLeverage
+        });
+      }
+    }
+
+    const positionRef=ref.collection("positions").doc();'''
+          if old in s and 'const marginLeverage = kind =>' not in s:
+              s = s.replace(old, new, 1)
+          elif 'const marginLeverage = kind =>' in s:
+              print('already patched')
+          else:
+              raise SystemExit('order anchor not found')
+
+          old_set = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+          new_set = '''      accountId:String(req.terminal.accountId),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      leverage:orderLeverage || null,
+      marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now'''
+          if old_set in s and 'leverage:orderLeverage || null' not in s:
+              s = s.replace(old_set, new_set, 1)
+          p.write_text(s)
+          PY
+          node --check backend/server.js
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- backend/server.js; then
+            echo "No margin changes needed"
+            exit 0
+          fi
+          git add backend/server.js
+          git commit -m "Enforce capital based trading margin"
+          git push origin main
