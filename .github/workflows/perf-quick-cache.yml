@@ -1,0 +1,43 @@
+name: Apply quick data cache
+on:
+  push:
+    paths:
+      - '.github/workflows/perf-quick-cache.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch terminal and position data loading
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('terminal.html')
+          s=p.read_text()
+          old="""  mountChart('tvMobile',currentSymbol);\n  refreshMarket();\n  refreshTerminalAccount();"""
+          new="""  // Paint cached account/quote state immediately; reconcile in background.\n  try{\n    const cached=JSON.parse(sessionStorage.getItem('auraTerminalAccount')||'null');\n    if(cached) renderTerminalAccount(cached);\n  }catch{}\n  mountChart('tvMobile',currentSymbol);\n  refreshMarket();\n  refreshTerminalAccount();"""
+          if old in s: s=s.replace(old,new,1)
+
+          old="""async function loadChartCandles(symbol,interval){\n  if(chartDataRequest)return chartDataRequest;\n  chartDataRequest=(async()=>{\n    try{\n      const data=await terminalApi('/api/market/candles?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(interval));"""
+          new="""async function loadChartCandles(symbol,interval){\n  if(chartDataRequest)return chartDataRequest;\n  const cacheKey='auraCandleCache:'+symbol+':'+interval;\n  try{\n    const cached=JSON.parse(sessionStorage.getItem(cacheKey)||'null');\n    if(Array.isArray(cached?.candles)&&cached.candles.length&&candleSeries){\n      candleSeries.setData(cached.candles);\n      lightweightChart?.timeScale().fitContent();\n    }\n  }catch{}\n  chartDataRequest=(async()=>{\n    try{\n      const data=await terminalApi('/api/market/candles?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(interval));\n      try{sessionStorage.setItem(cacheKey,JSON.stringify({candles:data.candles||[],quote:data.quote||null,at:Date.now()}));}catch{}"""
+          if old in s: s=s.replace(old,new,1)
+
+          p.write_text(s)
+
+          p=Path('position.html')
+          s=p.read_text()
+          old="""async function loadPositions(){\n  await loadActiveAccountMeta();\n  const data=filterHistoryForSelectedAccount(await positionApi('/api/trading/history'));\n  renderPositionData(data);\n}"""
+          new="""async function loadPositions(){\n  // Render the last selected-account state instantly, then reconcile with the server.\n  const cacheKey='auraPositionCache:'+terminalAccountId();\n  try{\n    const cached=JSON.parse(sessionStorage.getItem(cacheKey)||'null');\n    if(cached?.data){renderPositionData(cached.data);}\n  }catch{}\n  await loadActiveAccountMeta();\n  const data=filterHistoryForSelectedAccount(await positionApi('/api/trading/history'));\n  try{sessionStorage.setItem(cacheKey,JSON.stringify({data,at:Date.now()}));}catch{}\n  renderPositionData(data);\n}"""
+          if old in s: s=s.replace(old,new,1)
+          p.write_text(s)
+
+          git config user.name 'nipul830'
+          git config user.email '57082785+nipul830@users.noreply.github.com'
+          git add terminal.html position.html
+          git commit -m 'Speed up terminal and position data rendering'
+          git push
+          PY
