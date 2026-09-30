@@ -84,45 +84,14 @@ jobs:
               path.write_text(text.replace(old, new, 1))
               print('Trading account list endpoint patched.')
 
-      - name: Add fast navigation cache
-        shell: python
-        run: |
-          from pathlib import Path
-          sw = r'''const CACHE='aura-speed-v1';
-const CORE=['/terminal.html','/position.html','/aura.css','/aura-account.js','/firebase-config.js'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
-self.addEventListener('fetch',e=>{
-  const r=e.request;
-  if(r.method!=='GET') return;
-  const u=new URL(r.url);
-  if(u.origin!==self.location.origin) return;
-  if(r.mode==='navigate' || CORE.includes(u.pathname)){
-    e.respondWith(caches.open(CACHE).then(async c=>{
-      const key=r.mode==='navigate'?'/'+(u.pathname.split('/').pop()||'terminal.html'):r;
-      const cached=await c.match(key);
-      const fresh=fetch(r).then(res=>{if(res.ok)c.put(key,res.clone());return res}).catch(()=>null);
-      return cached || await fresh || new Response('Offline',{status:503});
-    }));
-  }
-});'''
-          Path('sw.js').write_text(sw)
-          reg="<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}));}</script>"
-          for name in ['terminal.html','position.html']:
-              path=Path(name)
-              text=path.read_text()
-              if '/sw.js' not in text:
-                  path.write_text(text.replace('</body>',reg+'</body>',1))
-          print('Fast navigation cache added.')
-
       - name: Commit and push patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/server.js sw.js terminal.html position.html
+          git add backend/server.js
           if git diff --cached --quiet; then
-            echo "No changes to commit."
+            echo "No server.js changes to commit."
             exit 0
           fi
-          git commit -m "Improve terminal and position navigation speed"
+          git commit -m "Fix dashboard account switcher to retain all accounts"
           git push origin HEAD:main

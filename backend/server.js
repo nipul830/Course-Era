@@ -2040,7 +2040,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
       position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice,stopLoss,takeProfit},
       account:fastAccount
     });
-
+    refreshTradingAccount(req.user.uid,quotes).catch(()=>{});
   } catch(e) {
     console.error("TRADING_ORDER_ERROR", e);
     res.status(500).json({error:"Could not execute order",detail:e.message || "Unknown server error"});
