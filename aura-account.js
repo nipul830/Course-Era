@@ -130,6 +130,58 @@
     return out;
   }
 
+  function positionDailyKey(date){
+    if(!(date instanceof Date)||Number.isNaN(date.getTime()))return '';
+    const parts=new Intl.DateTimeFormat('en-GB',{
+      timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'
+    }).formatToParts(date);
+    const get=t=>parts.find(x=>x.type===t)?.value||'';
+    let y=Number(get('year')),m=Number(get('month')),d=Number(get('day')),h=Number(get('hour'));
+    if(h<6){
+      const prev=new Date(Date.UTC(y,m-1,d)-86400000);
+      y=prev.getUTCFullYear();m=prev.getUTCMonth()+1;d=prev.getUTCDate();
+    }
+    return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  }
+
+  function setupPositionDailyPnl(){
+    if(!/position\.html$/i.test(window.location.pathname))return;
+    const row=document.querySelector('.sub-row');
+    const closeAll=document.getElementById('closeAllTrades');
+    if(!row||!closeAll)return;
+    let summary=document.getElementById('positionDailyPnl');
+    if(!summary){
+      summary=document.createElement('div');
+      summary.id='positionDailyPnl';
+      summary.style.cssText='display:none;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;border:1px solid #dfe5e9;border-radius:9px;background:#fff;font-size:12px;font-weight:900;white-space:nowrap;';
+      row.appendChild(summary);
+    }
+    const update=(data)=>{
+      const closed=Array.isArray(data?.closed)?data.closed:[];
+      const today=positionDailyKey(new Date());
+      let total=0;
+      for(const trade of closed){
+        const when=trade?.closedAt||trade?.closeTime||trade?.closed_at;
+        if(!when||positionDailyKey(new Date(when))!==today)continue;
+        total+=Number(trade?.realizedPnl??trade?.pnl??0)||0;
+      }
+      summary.textContent='Today P&L '+(total>=0?'+':'-')+auraMoney(Math.abs(total));
+      summary.style.color=total>0?'#008a5b':total<0?'#e6004d':'#687786';
+      summary.style.borderColor=total>0?'#b9ead9':total<0?'#f2bfd0':'#dfe5e9';
+    };
+    const sync=()=>{
+      const closedActive=document.querySelector('.tab[data-tab="closed"]')?.classList.contains('active');
+      closeAll.style.display=closedActive?'none':'';
+      summary.style.display=closedActive?'inline-flex':'none';
+    };
+    window.auraUpdateDailyPnl=update;
+    window.auraSyncDailyPnl=sync;
+    sync();
+    const tabs=document.querySelectorAll('.tab');
+    tabs.forEach(tab=>tab.addEventListener('click',()=>setTimeout(sync,0)));
+    setInterval(sync,500);
+  }
+
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,init){
     const response=await nativeFetch(input,init);
@@ -139,6 +191,7 @@
       const clone=response.clone();
       const data=await clone.json();
       const filtered=filterByActiveAccount(data);
+      if(typeof window.auraUpdateDailyPnl==='function')window.auraUpdateDailyPnl(filtered);
       return new Response(JSON.stringify(filtered),{
         status:response.status,
         statusText:response.statusText,
@@ -261,6 +314,7 @@
       addDashboardBuyChallengeLink();
       renderTerminalAccountSwitcher();
       fixPositionDashboardLeverage();
+      setupPositionDailyPnl();
       const positions=document.getElementById('positions');
       if(positions)new MutationObserver(fixPositionDashboardLeverage).observe(positions,{childList:true,subtree:true});
     },{once:true});
@@ -268,6 +322,7 @@
     addDashboardBuyChallengeLink();
     renderTerminalAccountSwitcher();
     fixPositionDashboardLeverage();
+    setupPositionDailyPnl();
     const positions=document.getElementById('positions');
     if(positions)new MutationObserver(fixPositionDashboardLeverage).observe(positions,{childList:true,subtree:true});
   }
