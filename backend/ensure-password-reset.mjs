@@ -1,17 +1,16 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 
 const target = "/root/Course-Era/backend/server.js";
+const positionTarget = "/root/Course-Era/position.html";
 let source = readFileSync(target, "utf8");
+let position = readFileSync(positionTarget, "utf8");
+let changed = false;
 
-if (source.includes('app.post("/api/auth/password-reset/request"')) {
-  console.log("Password reset routes already present; nothing to patch.");
-  process.exit(0);
-}
+if (!source.includes('app.post("/api/auth/password-reset/request"')) {
+  const marker = 'app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {';
+  if (!source.includes(marker)) throw new Error("Could not find safe insertion point in server.js");
 
-const marker = 'app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {';
-if (!source.includes(marker)) throw new Error("Could not find safe insertion point in server.js");
-
-const block = String.raw`
+  const block = String.raw`
 const PASSWORD_RESET_CODE_TTL_MS = 10 * 60 * 1000;
 const PASSWORD_RESET_RESEND_MS = 60 * 1000;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
@@ -155,7 +154,51 @@ app.post("/api/auth/password-reset/confirm", async (req, res) => {
 });
 
 `;
+  source = source.replace(marker, block + marker);
+  changed = true;
+}
 
-source = source.replace(marker, block + marker);
-writeFileSync(target, source);
-console.log("Password reset routes patched into server.js");
+if (!source.includes('const leverageForKind = kind =>')) {
+  const historyAnchor = `    res.json({\n      account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),challenge:data.challenge||data.accountType||data.plan||""},\n      open,pending,closed\n    });`;
+  const historyReplacement = `    const leverageForKind = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);\n    const accountBalance = Number(data.balance??data.startingBalance??0);\n    const accountEquity = Number(data.equity??accountBalance);\n    let usedMargin = 0;\n    for (const p of open) {\n      const spec = MARKET_SYMBOLS[p.symbol];\n      const leverage = leverageForKind(spec?.kind);\n      const px = Number(p.currentPrice||p.entryPrice||0);\n      const lot = Number(p.lot||0);\n      if (!spec || !leverage || !px || !lot) { p.leverage = leverage || null; p.marginUsed = 0; continue; }\n      const notional = spec.kind === "forex-jpy" ? Math.abs(lot * spec.contractSize) : Math.abs(px * lot * spec.contractSize);\n      p.leverage = leverage;\n      p.marginUsed = Number((notional / leverage).toFixed(2));\n      usedMargin += p.marginUsed;\n    }\n    usedMargin = Number(usedMargin.toFixed(2));\n    const freeMargin = Number((accountEquity - usedMargin).toFixed(2));\n    const marginLevel = usedMargin > 0 ? Number(((accountEquity / usedMargin) * 100).toFixed(2)) : null;\n    const riskFactor = usedMargin <= 0 ? "Safe" : marginLevel >= 200 ? "Safe" : marginLevel >= 100 ? "Medium" : "High";\n    res.json({\n      account:{id:data.accountId||"account",balance:accountBalance,equity:accountEquity,challenge:data.challenge||data.accountType||data.plan||"",leverage:open.length ? leverageForKind(MARKET_SYMBOLS[open[0].symbol]?.kind) : null,margin:usedMargin,freeMargin,marginLevel,riskFactor},\n      open,pending,closed\n    });`;
+  if (!source.includes(historyAnchor)) throw new Error("Trading history response anchor not found");
+  source = source.replace(historyAnchor, historyReplacement);
+  changed = true;
+}
+
+if (!position.includes('id="detailPositionLeverage"')) {
+  const detailAnchor = '<div class="account-detail"><span class="detail-label">Margin</span><span class="detail-value" id="detailPositionMargin">—</span></div>';
+  if (!position.includes(detailAnchor)) throw new Error("Position margin detail anchor not found");
+  position = position.replace(detailAnchor, detailAnchor + '<div class="account-detail"><span class="detail-label">Leverage</span><span class="detail-value" id="detailPositionLeverage">—</span></div>', 1);
+  const metricAnchor = "const eq=liveBalance+initialPnl; const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v}; setp('detailPositionEquity',money(eq)); setp('detailPositionMargin','—'); setp('detailPositionFreeMargin',money(eq)); setp('detailPositionMarginLevel','—'); setp('detailPositionRisk','Safe'); setp('detailPositionStatus','LIVE');";
+  const metricReplacement = "const eq=liveBalance+initialPnl; const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v}; setp('detailPositionEquity',money(eq)); setp('detailPositionMargin',money(Number(data.account?.margin||0))); setp('detailPositionFreeMargin',money(Number(data.account?.freeMargin??eq))); setp('detailPositionMarginLevel',data.account?.marginLevel==null?'∞':Number(data.account.marginLevel).toFixed(2)+'%'); setp('detailPositionLeverage',data.account?.leverage?('1:'+data.account.leverage):'—'); setp('detailPositionRisk',data.account?.riskFactor||'Safe'); setp('detailPositionStatus','LIVE');";
+  if (!position.includes(metricAnchor)) throw new Error("Position metric anchor not found");
+  position = position.replace(metricAnchor, metricReplacement, 1);
+  const paintAnchor = 'function paintLivePositions(){';
+  const paintReplacement = `function updateLiveMarginMetrics(){\n  const eq=liveBalance+livePositions.reduce((sum,p)=>sum+calcLivePnl(p,Number(p.currentPrice||p.entryPrice||0)),0);\n  let margin=0;\n  for(const p of livePositions){\n    const lev=Number(p.leverage||0),lot=Number(p.lot||0),px=Number(p.currentPrice||p.entryPrice||0);\n    let spec=null;\n    if(p.symbol==='OANDA:XAUUSD')spec={contractSize:100,kind:'gold'};\n    else if(['FX:EURUSD','FX:GBPUSD','FX:AUDUSD'].includes(p.symbol))spec={contractSize:100000,kind:'forex'};\n    else if(p.symbol==='FX:USDJPY')spec={contractSize:100000,kind:'forex-jpy'};\n    else if(['BINANCE:BTCUSDT','BINANCE:ETHUSDT','BINANCE:SOLUSDT','BINANCE:XRPUSDT'].includes(p.symbol))spec={contractSize:1,kind:'crypto'};\n    if(!spec||!lev||!lot||!px)continue;\n    const notional=spec.kind==='forex-jpy'?Math.abs(lot*spec.contractSize):Math.abs(px*lot*spec.contractSize);\n    margin+=notional/lev;\n  }\n  margin=Number(margin.toFixed(2));\n  const free=Number((eq-margin).toFixed(2));\n  const level=margin>0?(eq/margin)*100:null;\n  const risk=margin<=0?'Safe':level>=200?'Safe':level>=100?'Medium':'High';\n  const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};\n  setp('detailPositionEquity',money(eq)); setp('detailPositionMargin',money(margin)); setp('detailPositionFreeMargin',money(free)); setp('detailPositionMarginLevel',level==null?'∞':level.toFixed(2)+'%'); setp('detailPositionRisk',risk);\n}\n\nfunction paintLivePositions(){`;
+  if (!position.includes(paintAnchor)) throw new Error("Live margin paint anchor not found");
+  position = position.replace(paintAnchor, paintReplacement, 1);
+  const paintCallAnchor = "  const dp=document.getElementById('detailPositionPnl'); if(dp){dp.textContent=(openPnl>=0?'+':'')+money(openPnl);dp.classList.toggle('negative',openPnl<0);}\n}";
+  const paintCallReplacement = "  const dp=document.getElementById('detailPositionPnl'); if(dp){dp.textContent=(openPnl>=0?'+':'')+money(openPnl);dp.classList.toggle('negative',openPnl<0);} updateLiveMarginMetrics();\n}";
+  if (!position.includes(paintCallAnchor)) throw new Error("Live margin call anchor not found");
+  position = position.replace(paintCallAnchor, paintCallReplacement, 1);
+  changed = true;
+}
+
+if (changed) {
+  writeFileSync(target, source);
+  writeFileSync(positionTarget, position);
+
+  for (const cleanup of [
+    "/root/Course-Era/.github/workflows/apply-margin-risk.yml",
+    "/root/Course-Era/.github/workflows/apply-margin-risk-run.yml",
+    "/root/Course-Era/scripts/apply-margin-risk.js",
+    "/root/Course-Era/.margin-risk-trigger"
+  ]) {
+    try { if (existsSync(cleanup)) unlinkSync(cleanup); } catch {}
+  }
+
+  console.log("Trading margin/risk patch applied");
+} else {
+  console.log("Password reset and margin/risk patches already present; nothing to patch.");
+}
