@@ -1,0 +1,45 @@
+name: One-time capital margin guard
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: startsWith(github.event.head_commit.message, 'Trigger capital margin')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch order margin guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('backend/server.js')
+          s = p.read_text()
+          if 'const marginLeverage = kind =>' in s:
+              print('Margin guard already installed')
+              raise SystemExit(0)
+          marker = '    const positionRef=ref.collection("positions").doc();'
+          if marker not in s:
+              raise SystemExit('Trading order marker not found')
+          guard = '''    // Capital-based margin guard: crypto 1:10, gold 1:50, forex 1:100.\n    const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);\n    const orderSpec = MARKET_SYMBOLS[symbol];\n    const orderLeverage = marginLeverage(orderSpec?.kind);\n    let orderMargin = 0;\n    if (orderLeverage) {\n      const existingSnap = await ref.collection("positions").where("status","==","open").get();\n      const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);\n      const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);\n      const marginFor = (position, quote) => {\n        const spec = MARKET_SYMBOLS[position.symbol];\n        const leverage = marginLeverage(spec?.kind);\n        const lotSize = Number(position.lot || 0);\n        const price = Number(quote?.price || position.currentPrice || position.entryPrice || 0);\n        if (!spec || !leverage || !lotSize || !price) return 0;\n        const notional = spec.kind === "forex-jpy"\n          ? Math.abs(lotSize * spec.contractSize)\n          : Math.abs(price * lotSize * spec.contractSize);\n        return notional / leverage;\n      };\n      let usedMargin = 0;\n      for (const doc of existingSnap.docs) usedMargin += marginFor(doc.data() || {}, marginQuotes[doc.data()?.symbol]);\n      orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);\n      const balanceNow = Number(data.balance ?? data.startingBalance ?? 0);\n      const equityNow = Number(data.equity ?? (balanceNow + Number(data.openPnl ?? 0)));\n      const freeMargin = equityNow - usedMargin;\n      if (orderMargin > freeMargin + 0.01) {\n        return res.status(400).json({ error:"Insufficient free margin", requiredMargin:Number(orderMargin.toFixed(2)), usedMargin:Number(usedMargin.toFixed(2)), freeMargin:Number(freeMargin.toFixed(2)), leverage:orderLeverage });\n      }\n    }\n'''
+          s = s.replace(marker, guard + marker, 1)
+          old = '''      accountId:String(req.terminal.accountId),\n      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,\n      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),'''
+          new = '''      accountId:String(req.terminal.accountId),\n      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,\n      leverage:orderLeverage || null, marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,\n      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),'''
+          if old not in s:
+              raise SystemExit('Position write anchor not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          node --check backend/server.js
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/server.js
+          if git diff --cached --quiet; then echo 'No changes'; else git commit -m 'Enforce capital based trading margin'; git push origin HEAD:main; fi
