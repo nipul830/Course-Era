@@ -2023,11 +2023,42 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
     const data=req.terminal.account || (await loadTradingAccount(req.terminal.uid, req.terminal.accountId)).data;
     if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
     if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
+    // Capital-based margin guard: crypto 1:10, gold 1:50, forex 1:100.
+    const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
+    const orderSpec = MARKET_SYMBOLS[symbol];
+    const orderLeverage = marginLeverage(orderSpec?.kind);
+    let orderMargin = 0;
+    if (orderLeverage) {
+      const existingSnap = await ref.collection("positions").where("status","==","open").get();
+      const existingSymbols = existingSnap.docs.map(d => d.data()?.symbol).filter(Boolean);
+      const marginQuotes = await getMarketQuotes([...new Set([symbol, ...existingSymbols])]);
+      const marginFor = (position, quote) => {
+        const spec = MARKET_SYMBOLS[position.symbol];
+        const leverage = marginLeverage(spec?.kind);
+        const lotSize = Number(position.lot || 0);
+        const price = Number(quote?.price || position.currentPrice || position.entryPrice || 0);
+        if (!spec || !leverage || !lotSize || !price) return 0;
+        const notional = spec.kind === "forex-jpy"
+          ? Math.abs(lotSize * spec.contractSize)
+          : Math.abs(price * lotSize * spec.contractSize);
+        return notional / leverage;
+      };
+      let usedMargin = 0;
+      for (const doc of existingSnap.docs) usedMargin += marginFor(doc.data() || {}, marginQuotes[doc.data()?.symbol]);
+      orderMargin = marginFor({ symbol, lot, entryPrice }, marginQuotes[symbol]);
+      const balanceNow = Number(data.balance ?? data.startingBalance ?? 0);
+      const equityNow = Number(data.equity ?? (balanceNow + Number(data.openPnl ?? 0)));
+      const freeMargin = equityNow - usedMargin;
+      if (orderMargin > freeMargin + 0.01) {
+        return res.status(400).json({ error:"Insufficient free margin", requiredMargin:Number(orderMargin.toFixed(2)), usedMargin:Number(usedMargin.toFixed(2)), freeMargin:Number(freeMargin.toFixed(2)), leverage:orderLeverage });
+      }
+    }
     const positionRef=ref.collection("positions").doc();
     const now=admin.firestore.FieldValue.serverTimestamp();
     await positionRef.set({
       accountId:String(req.terminal.accountId),
       symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      leverage:orderLeverage || null, marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
       stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
       status:"open", openedAt:now, updatedAt:now
     });
