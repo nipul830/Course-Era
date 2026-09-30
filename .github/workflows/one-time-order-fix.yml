@@ -9,15 +9,14 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor == 'github-actions[bot]' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Patch trading order path
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           p = Path('backend/server.js')
           s = p.read_text()
@@ -44,10 +43,8 @@ jobs:
       openPnl:fastOpenPnl,
       status:data.status || "active"
     };
-    // Persist the opening-state equity immediately. Do not run the full
-    // reconciliation in the order request: that path can evaluate SL/TP
-    // against a single fresh quote immediately after the fill and cause an
-    // unintended instant close. Normal position polling performs reconciliation.
+    // Persist opening-state equity immediately. Do not run full reconciliation
+    // in the order request; normal position polling performs SL/TP reconciliation.
     await ref.update({
       equity:fastEquity,
       openPnl:fastOpenPnl,
@@ -61,6 +58,7 @@ jobs:
           if old not in s:
               raise SystemExit('Target order block not found; refusing to modify the file.')
           p.write_text(s.replace(old, new, 1))
+          PY
 
       - name: Commit patch and remove temporary workflow
         run: |
