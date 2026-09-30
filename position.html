@@ -16,7 +16,7 @@ body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-w
 @media(min-width:761px){.bottom-nav{display:none}}
 </style></head>
 <body>
-<main class="positions-page"><div class="account-top" id="positionAccountPanel"><div class="account-compact"><div class="account-demo" id="positionPhaseLabel">TRADING</div><div class="account-summary"><span class="balance-main" id="positionBalance">—</span><span class="pnl-main" id="positionHeaderPnl">+$0.00</span></div><button class="account-toggle" id="positionAccountToggle" type="button" aria-expanded="false"><span class="arrow">⌄</span></button></div><div class="account-details" id="positionAccountDetails"><div class="account-detail"><span class="detail-label">Balance</span><span class="detail-value" id="detailPositionBalance">—</span></div><div class="account-detail"><span class="detail-label">Floating Profit/Loss</span><span class="detail-value" id="detailPositionPnl">—</span></div><div class="account-detail"><span class="detail-label">Equity</span><span class="detail-value" id="detailPositionEquity">—</span></div><div class="account-detail"><span class="detail-label">Margin</span><span class="detail-value" id="detailPositionMargin">—</span></div><div class="account-detail"><span class="detail-label">Free Margin</span><span class="detail-value" id="detailPositionFreeMargin">—</span></div><div class="account-detail"><span class="detail-label">Margin Level</span><span class="detail-value" id="detailPositionMarginLevel">—</span></div><div class="account-detail"><span class="detail-label">Risk Assessment</span><span class="detail-value" id="detailPositionRisk">Safe</span></div><div class="account-detail"><span class="detail-label">Status</span><span class="detail-value" id="detailPositionStatus">LIVE</span></div><button class="account-expanded-logout" id="positionExpandedLogout" type="button">Logout</button></div></div>
+<main class="positions-page"><div class="account-top" id="positionAccountPanel"><div class="account-compact"><div class="account-demo" id="positionPhaseLabel">TRADING</div><div class="account-summary"><span class="balance-main" id="positionBalance">—</span><span class="pnl-main" id="positionHeaderPnl">+$0.00</span></div><button class="account-toggle" id="positionAccountToggle" type="button" aria-expanded="false"><span class="arrow">⌄</span></button></div><div class="account-details" id="positionAccountDetails"><div class="account-detail"><span class="detail-label">Balance</span><span class="detail-value" id="detailPositionBalance">—</span></div><div class="account-detail"><span class="detail-label">Floating Profit/Loss</span><span class="detail-value" id="detailPositionPnl">—</span></div><div class="account-detail"><span class="detail-label">Equity</span><span class="detail-value" id="detailPositionEquity">—</span></div><div class="account-detail"><span class="detail-label">Margin</span><span class="detail-value" id="detailPositionMargin">—</span></div><div class="account-detail"><span class="detail-label">Leverage</span><span class="detail-value" id="detailPositionLeverage">—</span></div><div class="account-detail"><span class="detail-label">Free Margin</span><span class="detail-value" id="detailPositionFreeMargin">—</span></div><div class="account-detail"><span class="detail-label">Margin Level</span><span class="detail-value" id="detailPositionMarginLevel">—</span></div><div class="account-detail"><span class="detail-label">Risk Assessment</span><span class="detail-value" id="detailPositionRisk">Safe</span></div><div class="account-detail"><span class="detail-label">Status</span><span class="detail-value" id="detailPositionStatus">LIVE</span></div><button class="account-expanded-logout" id="positionExpandedLogout" type="button">Logout</button></div></div>
 <div class="tabs"><button class="tab active" data-tab="open">Open</button><button class="tab" data-tab="closed">Closed</button></div><div class="sub" id="tabSub">Open trades</div><div id="positions"></div></main>
 <nav class="bottom-nav"><a href="index.html"><span class="bn-icon">⌂</span><span class="bn-label">Home</span></a><a href="terminal.html"><span class="bn-icon">▱</span><span class="bn-label">Charts</span></a><a href="position.html" class="active"><span class="bn-icon">♮</span><span class="bn-label">Position</span></a></nav>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -61,8 +61,29 @@ function calcLivePnl(p,price){
   if(p.symbol==='FX:USDJPY')v/=q;
   return Number.isFinite(v)?v:0;
 }
+function updateLiveMarginMetrics(){
+  const eq=liveBalance+livePositions.reduce((sum,p)=>sum+calcLivePnl(p,Number(p.currentPrice||p.entryPrice||0)),0);
+  let margin=0;
+  for(const p of livePositions){
+    const lev=Number(p.leverage||0),lot=Number(p.lot||0),px=Number(p.currentPrice||p.entryPrice||0);
+    let spec=null;
+    if(p.symbol==='OANDA:XAUUSD')spec={contractSize:100,kind:'gold'};
+    else if(['FX:EURUSD','FX:GBPUSD','FX:AUDUSD'].includes(p.symbol))spec={contractSize:100000,kind:'forex'};
+    else if(p.symbol==='FX:USDJPY')spec={contractSize:100000,kind:'forex-jpy'};
+    else if(['BINANCE:BTCUSDT','BINANCE:ETHUSDT','BINANCE:SOLUSDT','BINANCE:XRPUSDT'].includes(p.symbol))spec={contractSize:1,kind:'crypto'};
+    if(!spec||!lev||!lot||!px)continue;
+    const notional=spec.kind==='forex-jpy'?Math.abs(lot*spec.contractSize):Math.abs(px*lot*spec.contractSize);
+    margin+=notional/lev;
+  }
+  margin=Number(margin.toFixed(2));
+  const free=Number((eq-margin).toFixed(2));
+  const level=margin>0?(eq/margin)*100:null;
+  const risk=margin<=0?'Safe':level>=200?'Safe':level>=100?'Medium':'High';
+  const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+  setp('detailPositionEquity',money(eq));setp('detailPositionMargin',money(margin));setp('detailPositionFreeMargin',money(free));setp('detailPositionMarginLevel',level==null?'∞':level.toFixed(2)+'%');setp('detailPositionRisk',risk);
+}
 function paintLivePositions(){
-  if(currentTab!=='open'||!livePositions.length)return;
+  if(currentTab!=='open'||!livePositions.length){updateLiveMarginMetrics();return;}
   let openPnl=0;
   document.querySelectorAll('.position-card').forEach((card,i)=>{
     const p=livePositions[i];if(!p)return;
@@ -72,7 +93,7 @@ function paintLivePositions(){
     if(values[2])values[2].textContent=price(current);
     if(values[3]){values[3].textContent=(pnl>=0?'+':'')+money(pnl);values[3].style.color=pnl>=0?'#00a875':'#e6004d';}
   });
-  const pnlEl=document.getElementById('positionHeaderPnl'); if(pnlEl){pnlEl.textContent=(openPnl>=0?'+':'')+money(openPnl);pnlEl.classList.toggle('positive',openPnl>=0);pnlEl.classList.toggle('negative',openPnl<0);} const dp=document.getElementById('detailPositionPnl'); if(dp){dp.textContent=(openPnl>=0?'+':'')+money(openPnl);dp.classList.toggle('negative',openPnl<0);}
+  const pnlEl=document.getElementById('positionHeaderPnl'); if(pnlEl){pnlEl.textContent=(openPnl>=0?'+':'')+money(openPnl);pnlEl.classList.toggle('positive',openPnl>=0);pnlEl.classList.toggle('negative',openPnl<0);} const dp=document.getElementById('detailPositionPnl'); if(dp){dp.textContent=(openPnl>=0?'+':'')+money(openPnl);dp.classList.toggle('negative',openPnl<0);} updateLiveMarginMetrics();
 }
 async function refreshLivePnl(){
   if(liveQuoteRequest||!livePositions.length||currentTab!=='open')return;
@@ -103,8 +124,6 @@ function renderCards(items){
     try{
       const id=String(btn.dataset.id);
       const data=await positionApi('/api/trading/positions/'+encodeURIComponent(id)+'/close',{method:'POST'});
-      // Remove the trade from Open immediately; history/account reconciliation
-      // continues in the background so the close button never waits on it.
       const closed=tabData.open.find(x=>String(x.id)===id);
       tabData.open=(tabData.open||[]).filter(x=>String(x.id)!==id);
       if(closed){
@@ -140,7 +159,7 @@ function renderPositionData(data){
   const phaseEl=document.getElementById('positionPhaseLabel'); if(phaseEl)phaseEl.textContent=phaseLabel(data.account?.challenge);
   liveBalance=Number(data.account?.balance||0);
   document.getElementById('positionBalance').textContent=money(liveBalance); document.getElementById('detailPositionBalance').textContent=money(liveBalance);
-  const initialPnl=tabData.open.reduce((sum,p)=>sum+calcLivePnl(p,p.currentPrice||p.entryPrice),0); const pnlEl=document.getElementById('positionHeaderPnl'); if(pnlEl){pnlEl.textContent=(initialPnl>=0?'+':'')+money(initialPnl);pnlEl.classList.toggle('positive',initialPnl>=0);pnlEl.classList.toggle('negative',initialPnl<0);} const dp=document.getElementById('detailPositionPnl'); if(dp)dp.textContent=(initialPnl>=0?'+':'')+money(initialPnl); const eq=liveBalance+initialPnl; const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v}; setp('detailPositionEquity',money(eq)); setp('detailPositionMargin','—'); setp('detailPositionFreeMargin',money(eq)); setp('detailPositionMarginLevel','—'); setp('detailPositionRisk','Safe'); setp('detailPositionStatus','LIVE');
+  const initialPnl=tabData.open.reduce((sum,p)=>sum+calcLivePnl(p,p.currentPrice||p.entryPrice),0); const pnlEl=document.getElementById('positionHeaderPnl'); if(pnlEl){pnlEl.textContent=(initialPnl>=0?'+':'')+money(initialPnl);pnlEl.classList.toggle('positive',initialPnl>=0);pnlEl.classList.toggle('negative',initialPnl<0);} const dp=document.getElementById('detailPositionPnl'); if(dp)dp.textContent=(initialPnl>=0?'+':'')+money(initialPnl); const eq=liveBalance+initialPnl; const setp=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v}; setp('detailPositionEquity',money(eq)); setp('detailPositionMargin',money(Number(data.account?.margin||0))); setp('detailPositionFreeMargin',money(Number(data.account?.freeMargin??eq))); setp('detailPositionMarginLevel',data.account?.marginLevel==null?'∞':Number(data.account.marginLevel).toFixed(2)+'%'); setp('detailPositionLeverage',data.account?.leverage?('1:'+data.account.leverage):'—'); setp('detailPositionRisk',data.account?.riskFactor||'Safe'); setp('detailPositionStatus','LIVE');
   tabData.open=(data.open||data.positions||[]).map(p=>({...p,currentPrice:Number(p.currentPrice||p.entryPrice||0)}));
   tabData.closed=data.closed||[];
   livePositions=tabData.open;
