@@ -44,12 +44,13 @@ jobs:
             node --check server.js
 
             # Firebase Admin SDK must verify browser Firebase ID tokens against
-            # the same Firebase project. Keep the VPS explicitly pinned to the
-            # Course Era Firebase project and prefer the secure service-account
-            # file already provisioned outside the repository.
+            # the same Firebase project. Force the VPS to use the secure service
+            # account file and do not allow an older PM2 FIREBASE_SERVICE_ACCOUNT_JSON
+            # value to override it.
             export FIREBASE_PROJECT_ID='courseera-22425'
             export GOOGLE_CLOUD_PROJECT='courseera-22425'
             export GOOGLE_APPLICATION_CREDENTIALS='/etc/secrets/firebase-service-account.json'
+            export FIREBASE_SERVICE_ACCOUNT_JSON=''
             export ADMIN_EMAILS='lipupoddar@gmail.com'
 
             echo "===== VERIFY FIREBASE ADMIN AUTH ====="
@@ -57,10 +58,9 @@ jobs:
               echo "FIREBASE_ADMIN_AUTH=SERVICE_ACCOUNT_FILE_MISSING"
               exit 1
             fi
-            GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS" node --input-type=module <<'NODE'
+            GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS" FIREBASE_SERVICE_ACCOUNT_JSON='' node --input-type=module <<'NODE'
             import admin from 'firebase-admin';
             const projectId = process.env.FIREBASE_PROJECT_ID;
-            const credentialFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
             admin.initializeApp({
               credential: admin.credential.applicationDefault(),
               projectId
