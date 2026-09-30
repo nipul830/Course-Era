@@ -1,0 +1,148 @@
+name: Performance Hotfix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'PERF-HOTFIX-TRIGGER'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch terminal and trading latency
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('backend/server.js')
+          s = p.read_text()
+
+          old = 'const now=Date.now(), out={}, freshForMs=200;'
+          new = 'const now=Date.now(), out={}, freshForMs=1000;'
+          if old not in s:
+              raise SystemExit('server: quote cache marker not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    const quotes=await getMarketQuotes([symbol]);
+    const quote=quotes[symbol];
+    if (!quote?.price) return res.status(502).json({error:"No live market price available"});'''
+          new = '''    // Prefer the live WebSocket quote already held in memory. Only fall back to
+    // the external market feed when the cache is missing/stale.
+    let quote=quoteCache.get(symbol);
+    if (!quote?.price || Date.now()-Number(quote.fetchedAt||0)>1500) {
+      const quotes=await getMarketQuotes([symbol]);
+      quote=quotes[symbol];
+    }
+    if (!quote?.price) return res.status(502).json({error:"No live market price available"});'''
+          if old not in s:
+              raise SystemExit('server: order quote block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    await positionRef.set({
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now
+    });'''
+          new = '''    await positionRef.set({
+      accountId:String(data.accountId||""),
+      symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
+      stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
+      status:"open", openedAt:now, updatedAt:now
+    });'''
+          if old not in s:
+              raise SystemExit('server: position write block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    const symbols=[...new Set(open.map(p=>p.symbol).filter(Boolean))];
+    if(symbols.length){
+      try {
+        const quotes=await getMarketQuotes(symbols);
+        for(const p of open) p.currentPrice=Number(quotes[p.symbol]?.price||p.currentPrice||p.entryPrice||0);
+      } catch(e) {}
+    }'''
+          new = '''    // History must be account-scoped and must not wait on the external market feed.
+    // The terminal WebSocket already maintains the latest quote in quoteCache.
+    const selectedAccountId=String(data.accountId||"").trim();
+    const accountCreatedAt=(()=>{
+      const v=data.createdAt;
+      return v?.toMillis?.() || (v?._seconds ? Number(v._seconds)*1000 : 0);
+    })();
+    const accountScoped=all.filter(p=>{
+      const pid=String(p.accountId||p.tradingAccountId||p.account?.accountId||"").trim();
+      if(pid) return !selectedAccountId || pid===selectedAccountId;
+      const tradeTime=Date.parse(p.openedAt||p.createdAt||p.closedAt||"") || 0;
+      return !accountCreatedAt || !tradeTime || tradeTime>=accountCreatedAt;
+    });
+    const scopedOpen=accountScoped.filter(p=>p.status==="open");
+    const scopedPending=accountScoped.filter(p=>p.status==="pending");
+    const scopedClosed=accountScoped.filter(p=>p.status==="closed").sort((a,b)=>{
+      const at=Date.parse(a.closedAt||"")||0,bt=Date.parse(b.closedAt||"")||0;return bt-at;
+    });
+    for(const p of scopedOpen) {
+      const cached=quoteCache.get(p.symbol);
+      p.currentPrice=Number(cached?.price||p.currentPrice||p.entryPrice||0);
+    }'''
+          if old not in s:
+              raise SystemExit('server: history quote block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''      open,pending,closed
+    });'''
+          new = '''      open:scopedOpen,pending:scopedPending,closed:scopedClosed
+    });'''
+          if old not in s:
+              raise SystemExit('server: history response block not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+
+          p = Path('terminal.html')
+          s = p.read_text()
+          old = '    await refreshTerminalAccount();\n    \n  }catch(e){'
+          new = '    refreshTerminalAccount();\n    \n  }catch(e){'
+          if old not in s:
+              raise SystemExit('terminal: post-order refresh wait not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('position.html')
+          s = p.read_text()
+          old = '''  await loadActiveAccountMeta();
+  const data=filterHistoryForSelectedAccount(await positionApi('/api/trading/history'));
+  try{sessionStorage.setItem(cacheKey,JSON.stringify({data,at:Date.now()}));}catch{}
+  renderPositionData(data);'''
+          new = '''  // History is now account-scoped by the backend, so do not block page paint
+  // on a second account-metadata request.
+  const rawData=await positionApi('/api/trading/history');
+  const data=filterHistoryForSelectedAccount(rawData);
+  try{sessionStorage.setItem(cacheKey,JSON.stringify({data,at:Date.now()}));}catch{}
+  renderPositionData(data);
+  loadActiveAccountMeta().then(()=>{
+    const filtered=filterHistoryForSelectedAccount(rawData);
+    try{sessionStorage.setItem(cacheKey,JSON.stringify({data:filtered,at:Date.now()}));}catch{}
+    renderPositionData(filtered);
+  }).catch(()=>{});'''
+          if old not in s:
+              raise SystemExit('position: blocking metadata sequence not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+          node --check backend/server.js
+          git status --short
+
+      - name: Commit patched files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/performance-hotfix.yml
+          git add backend/server.js terminal.html position.html .github/workflows/performance-hotfix.yml
+          git commit -m "Optimize terminal and position latency" || exit 0
+          git push origin main
