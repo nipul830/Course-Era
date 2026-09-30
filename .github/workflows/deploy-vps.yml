@@ -17,7 +17,7 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
           chmod 600 "$RUNNER_TEMP/vps_key"
 
-      - name: Deploy MongoDB backend to VPS
+      - name: Deploy MongoDB-only backend to VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -38,7 +38,7 @@ jobs:
             cd backend
             npm install
 
-            echo "===== APPLY MONGODB RUNTIME MIGRATION ====="
+            echo "===== APPLY MONGODB-ONLY RUNTIME MIGRATION ====="
             node --check prepare-all-mongo.mjs
             node prepare-all-mongo.mjs
             node --check server.js
@@ -61,6 +61,17 @@ jobs:
             export MONGO_DB_NAME="${MONGO_DB_NAME:-courseera}"
             export ADMIN_EMAIL="${ADMIN_EMAIL:-lipupoddar@gmail.com}"
 
+            echo "===== VERIFY FIREBASE IS NOT USED BY SERVER ====="
+            if grep -q 'from "firebase-admin"' server.js; then
+              echo "ERROR: firebase-admin import still present after migration"
+              exit 1
+            fi
+            if grep -qE 'process\.env\.FIREBASE_|FIREBASE_SERVICE_ACCOUNT_JSON|FIREBASE_STORAGE_BUCKET' server.js; then
+              echo "ERROR: Firebase environment access still present in server.js"
+              exit 1
+            fi
+            echo "MONGODB_ONLY_SERVER=OK"
+
             echo "===== MONGODB ADMIN ====="
             if [ -n "${ADMIN_PASSWORD:-}" ]; then
               node ensure-admin-mongo.mjs
@@ -68,8 +79,10 @@ jobs:
               echo "MONGO_ADMIN_BOOTSTRAP=SKIPPED (set ADMIN_PASSWORD in backend/.env to create/update the admin password)"
             fi
 
-            echo "===== PM2 RESTART ====="
-            pm2 restart course-era-api --update-env
+            echo "===== CLEAN PM2 ENV AND RESTART ====="
+            pm2 delete course-era-api 2>/dev/null || true
+            cd /root/Course-Era/backend
+            pm2 start server.js --name course-era-api --cwd /root/Course-Era/backend
             sleep 5
 
             echo "===== HEALTH ====="
@@ -81,10 +94,14 @@ jobs:
             echo "$RESULT"
             node -e 'const d=JSON.parse(process.argv[1]); if(!Array.isArray(d.challenges)||!d.challenges.length) process.exit(1); console.log("MONGODB_CHALLENGE_API_OK="+d.challenges.length);' "$RESULT"
 
-            echo "===== AUTH API SMOKE CHECK ====="
-            curl -fsS --max-time 10 http://127.0.0.1:3000/api/config
-            echo
+            echo "===== AUTH CONFIG SMOKE CHECK ====="
+            CONFIG=$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/config)
+            echo "$CONFIG"
+            echo "$CONFIG" | grep -q '"mongoConfigured":true'
+            echo "$CONFIG" | grep -q '"firebaseConfigured":false'
+
             pm2 save
+            pm2 status
 
       - name: Verify VPS email configuration
         uses: appleboy/ssh-action@v1.2.2
