@@ -61,7 +61,7 @@ async function closeAllOpenTrades(){
 }
 let livePositions=[];
 let liveBalance=0;
-let currentTab='open';
+let currentTab=sessionStorage.getItem('auraPositionTab')||'open';
 let tabData={open:[],closed:[]};
 let liveQuoteRequest=false;
 document.getElementById('closeAllTrades')?.addEventListener('click',closeAllOpenTrades);
@@ -170,7 +170,7 @@ function renderCurrentTab(){
   renderCards(tabData[currentTab]||[]);
   if(currentTab==='open'){livePositions=tabData.open;paintLivePositions();}
 }
-document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{currentTab=btn.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===btn));renderCurrentTab();}));
+document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===currentTab)); document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{currentTab=btn.dataset.tab;sessionStorage.setItem('auraPositionTab',currentTab);document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===btn));renderCurrentTab();}));
 
 function renderPositionData(data){
   const phaseEl=document.getElementById('positionPhaseLabel'); if(phaseEl)phaseEl.textContent=phaseLabel(data.account?.challenge);
