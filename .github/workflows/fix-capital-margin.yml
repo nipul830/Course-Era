@@ -2,36 +2,35 @@ name: Enforce capital based trading margin
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Patch trading margin guard
-        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("backend/server.js")
+          p = Path('backend/server.js')
           s = p.read_text()
 
-          marker = 'const marginLeverage = kind =>'
-          if marker not in s:
-              anchor = '''    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+          if 'const marginLeverage = kind =>' in s:
+              print('Margin guard already present')
+              raise SystemExit(0)
+
+          anchor = '''    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
               if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
               const positionRef=ref.collection("positions").doc();'''
-              replacement = '''    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
+          replacement = '''    if ((data.status||"active")!=="active") return res.status(403).json({error:"Trading account is not active",status:data.status||"inactive"});
               if (req.terminal?.terminalRole !== "trader") return res.status(403).json({error:"Investor password is read-only. Use the trading password to place orders."});
 
               // Capital-based margin: crypto 1:10, gold 1:50, forex 1:100.
-              // A new order can use only the account's currently available free margin.
               const marginLeverage = kind => ({ crypto:10, gold:50, forex:100, "forex-jpy":100 }[String(kind||"")] || null);
               const orderSpec = MARKET_SYMBOLS[symbol];
               const orderLeverage = marginLeverage(orderSpec?.kind);
@@ -70,9 +69,9 @@ jobs:
               }
 
               const positionRef=ref.collection("positions").doc();'''
-              if anchor not in s:
-                  raise SystemExit("Trading order anchor not found")
-              s = s.replace(anchor, replacement, 1)
+          if anchor not in s:
+              raise SystemExit('Trading order anchor not found')
+          s = s.replace(anchor, replacement, 1)
 
           old_set = '''      accountId:String(req.terminal.accountId),
       symbol, side, lot:Number(lot.toFixed(4)), entryPrice,
@@ -84,24 +83,22 @@ jobs:
       marginUsed:orderMargin ? Number(orderMargin.toFixed(2)) : 0,
       stopLoss:stopLoss===null?null:Number(stopLoss), takeProfit:takeProfit===null?null:Number(takeProfit),
       status:"open", openedAt:now, updatedAt:now'''
-          if 'marginUsed:orderMargin' not in s:
-              if old_set not in s:
-                  raise SystemExit("Position write anchor not found")
-              s = s.replace(old_set, new_set, 1)
+          if old_set not in s:
+              raise SystemExit('Position write anchor not found')
+          s = s.replace(old_set, new_set, 1)
 
           p.write_text(s)
           PY
-
           node --check backend/server.js
 
-      - name: Commit backend patch
+      - name: Commit patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- backend/server.js; then
-            echo "Margin guard already present"
-            exit 0
-          fi
           git add backend/server.js
-          git commit -m "Fix capital based margin enforcement"
-          git push origin main
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Fix capital based margin enforcement"
+            git push
+          fi
