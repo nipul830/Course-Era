@@ -1,0 +1,128 @@
+name: Migrate challenge routes to MongoDB
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/server.js"
+      - "backend/package.json"
+      - "backend/mongodb.js"
+      - ".github/workflows/migrate-challenges-to-mongodb.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch challenge routes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("backend/server.js")
+          s = p.read_text()
+
+          if 'import { getMongoDb } from "./mongodb.js";' not in s:
+              s = s.replace('import { fileURLToPath } from "node:url";', 'import { fileURLToPath } from "node:url";\nimport { getMongoDb } from "./mongodb.js";', 1)
+
+          old = '''async function getChallengeCatalog() {
+            initFirebase();
+            const snap = await db.collection("settings").doc("challengeCatalog").get();
+            const saved = snap.exists && Array.isArray(snap.data()?.items) ? snap.data().items : null;
+            return saved && saved.length ? saved : DEFAULT_CHALLENGES;
+          }'''
+          new = '''async function getChallengeCatalog() {
+            const mongo = await getMongoDb();
+            const saved = await mongo.collection("settings").findOne({ _id: "challengeCatalog" });
+            const items = saved && Array.isArray(saved.items) ? saved.items : null;
+            return items && items.length ? items : DEFAULT_CHALLENGES;
+          }'''
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old_rules_get = '''app.get("/api/challenge-rules", async (req,res) => {
+            try {
+              initFirebase();
+              const snap = await db.collection("settings").doc("challengeRules").get();
+              const saved = snap.exists && snap.data()?.rules && typeof snap.data().rules === "object" ? snap.data().rules : null;
+              res.json({ rules: saved || DEFAULT_CHALLENGE_RULES });
+            } catch(e) {
+              res.status(500).json({ error:"Could not load challenge rules" });
+            }
+          });'''
+          new_rules_get = '''app.get("/api/challenge-rules", async (req,res) => {
+            try {
+              const mongo = await getMongoDb();
+              const saved = await mongo.collection("settings").findOne({ _id: "challengeRules" });
+              const rules = saved && saved.rules && typeof saved.rules === "object" ? saved.rules : null;
+              res.json({ rules: rules || DEFAULT_CHALLENGE_RULES });
+            } catch(e) {
+              res.status(500).json({ error:"Could not load challenge rules" });
+            }
+          });'''
+          if old_rules_get in s:
+              s = s.replace(old_rules_get, new_rules_get, 1)
+
+          old_rules_put = '''    initFirebase();
+    const clean = v => String(v ?? "").trim().slice(0,300);'''
+          # Only patch the first occurrence immediately inside challenge-rules PUT.
+          marker = 'app.put("/api/challenge-rules", requireAuth, requireAdmin, async (req,res) => {'
+          pos = s.find(marker)
+          if pos >= 0:
+              start = s.find(old_rules_put, pos)
+              if start >= 0:
+                  s = s[:start] + '    const clean = v => String(v ?? "").trim().slice(0,300);' + s[start+len(old_rules_put):]
+
+          old_rules_set = '''    await db.collection("settings").doc("challengeRules").set({
+      rules,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: req.user.uid
+    }, { merge:true });'''
+          new_rules_set = '''    const mongo = await getMongoDb();
+    await mongo.collection("settings").updateOne(
+      { _id: "challengeRules" },
+      { $set: { rules, updatedAt: new Date(), updatedBy: req.user.uid } },
+      { upsert: true }
+    );'''
+          if old_rules_set in s:
+              s = s.replace(old_rules_set, new_rules_set, 1)
+
+          old_catalog_put = '''    initFirebase();
+    if (!Array.isArray(req.body.challenges) || !req.body.challenges.length) {'''
+          pos = s.find('app.put("/api/challenges", requireAuth, requireAdmin, async (req, res) => {')
+          if pos >= 0:
+              start = s.find(old_catalog_put, pos)
+              if start >= 0:
+                  s = s[:start] + '    if (!Array.isArray(req.body.challenges) || !req.body.challenges.length) {' + s[start+len(old_catalog_put):]
+
+          old_catalog_set = '''    await db.collection("settings").doc("challengeCatalog").set({
+      items, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy:req.user.uid
+    });'''
+          new_catalog_set = '''    const mongo = await getMongoDb();
+    await mongo.collection("settings").updateOne(
+      { _id: "challengeCatalog" },
+      { $set: { items, updatedAt: new Date(), updatedBy: req.user.uid } },
+      { upsert: true }
+    );'''
+          if old_catalog_set in s:
+              s = s.replace(old_catalog_set, new_catalog_set, 1)
+
+          p.write_text(s)
+          PY
+          node --check backend/server.js
+
+      - name: Commit migration patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js
+          if git diff --cached --quiet; then
+            echo "No challenge route changes needed."
+          else
+            git commit -m "Migrate challenge catalog and rules to MongoDB"
+            git push
+          fi
