@@ -97,3 +97,11 @@ function logout(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
   else start();
 })();
+
+// Dashboard trade history/P&L repair. Loaded dynamically so existing dashboard
+// markup and UI remain unchanged.
+(function(){
+  if(!document.querySelector('.dashboard'))return;
+  const load=()=>{if(document.getElementById('auraDashboardTradeFix'))return;const s=document.createElement('script');s.id='auraDashboardTradeFix';s.src='dashboard-fix.js?v=2';s.async=true;document.head.appendChild(s)};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
+})();
