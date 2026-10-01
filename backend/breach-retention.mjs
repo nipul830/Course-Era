@@ -1,60 +1,67 @@
-import admin from 'firebase-admin';
+import { getMongoDb } from './mongodb.js';
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const INTERVAL_MS = 15 * 60 * 1000;
-
-// Do not initialize Firebase here: server.js owns Firebase initialization and
-// keeps its db handle in module scope. We wait until server.js has initialized it.
-function getDb(){
-  if(!admin.apps.length) return null;
-  return admin.firestore();
-}
+const PATH = '__collectionPath';
+const DOC_ID = '__docId';
 
 function millis(v){
   if(!v) return 0;
-  if(typeof v.toDate==='function') return v.toDate().getTime();
-  if(v._seconds) return Number(v._seconds)*1000;
+  if(v instanceof Date) return v.getTime();
+  if(v?.$date) return new Date(v.$date).getTime();
+  if(v?._seconds) return Number(v._seconds)*1000;
   const n=Date.parse(v);
   return Number.isFinite(n)?n:0;
 }
 
-async function deletePositions(db, ref){
-  const snap=await ref.collection('positions').get();
-  if(!snap.size)return;
-  let batch=db.batch(), count=0;
-  for(const d of snap.docs){
-    batch.delete(d.ref); count++;
-    if(count>=450){await batch.commit();batch=db.batch();count=0;}
-  }
-  if(count)await batch.commit();
-}
-
 async function cleanup(){
   try{
-    const db=getDb();
-    if(!db) return;
-    const snap=await db.collectionGroup('tradingAccounts').where('status','==','breached').get();
+    const db=await getMongoDb();
+    const docs=db.collection('firestore_docs');
+    const accounts=await docs.find({
+      [PATH]:{$regex:/\/tradingAccounts$/},
+      status:'breached'
+    }).toArray();
     const now=Date.now();
-    for(const doc of snap.docs){
-      const data=doc.data()||{};
-      const breachedAt=millis(data.breachedAt);
+
+    for(const doc of accounts){
+      const breachedAt=millis(doc.breachedAt);
       if(!breachedAt){
-        await doc.ref.update({breachedAt:admin.firestore.FieldValue.serverTimestamp()});
+        // Migration safety: old breached records get a fresh 7-day retention timestamp.
+        await docs.updateOne({_id:doc._id},{$set:{breachedAt:new Date()}});
         continue;
       }
-      if(now-breachedAt < RETENTION_MS) continue;
+      if(now-breachedAt<RETENTION_MS) continue;
 
-      const accountId=String(data.accountId||doc.id);
-      const uid=String(doc.ref.parent.parent?.id||'');
-      if(!uid) continue;
-      await deletePositions(db,doc.ref);
-      const credentialId=String(data.terminalCredentialId||'').trim();
-      if(credentialId) await db.collection('terminalCredentials').doc(credentialId).delete().catch(()=>{});
-      await db.collection('users').doc(uid).collection('challengeAccounts').doc(accountId).delete().catch(()=>{});
-      const selectedRef=db.collection('users').doc(uid).collection('trading').doc('account');
-      const selected=await selectedRef.get();
-      if(selected.exists && String(selected.data()?.accountId||'')===accountId) await selectedRef.delete().catch(()=>{});
-      await doc.ref.delete();
+      const accountId=String(doc.accountId||doc[DOC_ID]||'');
+      const path=String(doc[PATH]||'');
+      const match=path.match(/^users\/([^/]+)\/tradingAccounts$/);
+      const uid=match?.[1]||'';
+      if(!uid||!accountId) continue;
+
+      // Remove all position/history documents belonging to the breached account.
+      await docs.deleteMany({[PATH]:`users/${uid}/tradingAccounts/${accountId}/positions`});
+
+      const credentialId=String(doc.terminalCredentialId||'').trim();
+      if(credentialId){
+        await docs.deleteOne({[PATH]:'terminalCredentials',[DOC_ID]:credentialId});
+      }
+
+      await docs.deleteOne({
+        [PATH]:`users/${uid}/challengeAccounts`,
+        [DOC_ID]:accountId
+      });
+
+      // Remove the selected-account mirror if it still points to the deleted account.
+      const selected=await docs.findOne({
+        [PATH]:`users/${uid}/trading`,
+        [DOC_ID]:'account'
+      });
+      if(selected&&String(selected.accountId||'')===accountId){
+        await docs.deleteOne({_id:selected._id});
+      }
+
+      await docs.deleteOne({_id:doc._id});
       console.log(`[breach-retention] deleted ${accountId} after 7 days`);
     }
   }catch(e){
