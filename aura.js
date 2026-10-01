@@ -105,3 +105,55 @@ function logout(){
   const load=()=>{if(document.getElementById('auraDashboardTradeFix'))return;const s=document.createElement('script');s.id='auraDashboardTradeFix';s.src='dashboard-fix.js?v=2';s.async=true;document.head.appendChild(s)};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();
+
+// Terminal breach isolation: the backend already revokes the breached account's
+// terminal credential. This additionally removes any previously unlocked
+// breached account from the terminal's top Account Switch menu immediately.
+(function(){
+  if(!/terminal\.html$/i.test(window.location.pathname))return;
+  const API='https://aurafirming.in';
+  const unlockedKey=()=>{try{const uid=ceAuth?.currentUser?.uid;return uid?'auraTerminalUnlocked:'+uid:null}catch(e){return null}};
+  async function getStatuses(){
+    try{
+      const user=typeof ceAuth==='undefined'?null:ceAuth.currentUser;
+      if(!user)return {};
+      const token=await user.getIdToken(false);
+      const r=await fetch(API+'/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+      if(!r.ok)return {};
+      const d=await r.json();
+      const out={};
+      (Array.isArray(d.accounts)?d.accounts:[]).forEach(a=>{const id=String(a?.accountId||a?.id||'').trim();if(id)out[id]=String(a?.status||'').toLowerCase()});
+      return out;
+    }catch(e){return {}}
+  }
+  async function filterMenu(){
+    const menu=document.getElementById('auraTerminalAccountSwitcher');
+    if(!menu)return;
+    const statuses=await getStatuses();
+    const key=unlockedKey();
+    let unlocked={};
+    try{unlocked=JSON.parse(sessionStorage.getItem(key)||'{}')||{}}catch(e){unlocked={}}
+    let changed=false;
+    menu.querySelectorAll('[role="option"]').forEach(btn=>{
+      const id=String(btn.querySelector('strong')?.textContent||'').trim();
+      if(id&&statuses[id]==='breached'){
+        btn.remove();
+        if(unlocked[id]){delete unlocked[id];changed=true}
+      }
+    });
+    if(changed&&key)sessionStorage.setItem(key,JSON.stringify(unlocked));
+    const list=menu.querySelector('[role="listbox"]')||menu.lastElementChild;
+    if(list&&![...list.children].some(x=>x.getAttribute?.('role')==='option')){
+      const msg=document.createElement('div');
+      msg.style.cssText='padding:16px;color:#7b8793;font-size:12px;font-weight:700';
+      msg.textContent='No active logged-in accounts.';
+      list.innerHTML='';list.appendChild(msg);
+    }
+  }
+  const boot=()=>{
+    const observer=new MutationObserver(()=>{if(document.getElementById('auraTerminalAccountSwitcher'))setTimeout(filterMenu,0)});
+    observer.observe(document.body,{subtree:true,childList:true});
+    setInterval(()=>{if(document.getElementById('auraTerminalAccountSwitcher'))filterMenu()},5000);
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
