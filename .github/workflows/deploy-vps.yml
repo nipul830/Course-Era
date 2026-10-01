@@ -31,6 +31,32 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "===== PATCH TERMINAL CLOSE TOOLBAR ====="
+            python3 - <<'PY'
+            from pathlib import Path
+            p=Path('/root/Course-Era/terminal.html')
+            s=p.read_text(encoding='utf-8')
+            if "id='chartToolbarCloseTrade'" not in s:
+                old_css='.chart-close-btn{position:absolute;right:8px;width:28px;height:28px;'
+                if old_css not in s: raise SystemExit('Expected chart close button CSS not found')
+                s=s.replace(old_css,'.chart-close-btn{display:none!important;position:absolute;right:8px;width:28px;height:28px;',1)
+                old_fn='''function updateChartOrderActions(){\n  if(!chartOrderActions||!candleSeries)return;\n  updateChartRiskHandles();'''
+                new_fn='''function updateChartToolbarCloseTrade(){\n  const btn=document.getElementById('chartToolbarCloseTrade');\n  if(!btn)return;\n  const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol&&p.id):[];\n  const position=positions[0]||null;\n  btn.style.display=position?'inline-flex':'none';\n  btn.dataset.positionId=position?String(position.id):'';\n}\nfunction updateChartOrderActions(){\n  if(!chartOrderActions||!candleSeries)return;\n  updateChartToolbarCloseTrade();\n  updateChartRiskHandles();'''
+                if old_fn not in s: raise SystemExit('Expected chart order action function not found')
+                s=s.replace(old_fn,new_fn,1)
+                old_toolbar='''    const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);\n    const canvas=document.createElement('div');canvas.className='aura-chart-canvas';'''
+                new_toolbar='''    const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);\n    const closeTradeBtn=document.createElement('button');\n    closeTradeBtn.type='button';\n    closeTradeBtn.id='chartToolbarCloseTrade';\n    closeTradeBtn.className='chart-toolbar-close';\n    closeTradeBtn.textContent='Close Trade';\n    closeTradeBtn.style.display='none';\n    closeTradeBtn.addEventListener('click',ev=>{\n      ev.preventDefault();\n      ev.stopPropagation();\n      const id=String(closeTradeBtn.dataset.positionId||'');\n      const position=terminalPositions.find(x=>String(x.id)===id)||terminalPositions.find(x=>x&&x.symbol===currentSymbol);\n      if(position)confirmCloseTrade(position);\n    });\n    toolbar.appendChild(closeTradeBtn);\n    const canvas=document.createElement('div');canvas.className='aura-chart-canvas';'''
+                if old_toolbar not in s: raise SystemExit('Expected chart toolbar construction not found')
+                s=s.replace(old_toolbar,new_toolbar,1)
+                old_style='.aura-chart-live{margin-left:auto;margin-right:0}'
+                new_style='.aura-chart-live{margin-left:auto;margin-right:0}.chart-toolbar-close{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;height:30px;padding:0 9px;border:1px solid #e6004d;border-radius:8px;background:#fff;color:#e6004d;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer;touch-action:manipulation}.chart-toolbar-close:active{transform:scale(.96)}'
+                if old_style not in s: raise SystemExit('Expected chart live style not found')
+                s=s.replace(old_style,new_style,1)
+                p.write_text(s,encoding='utf-8')
+            PY
+            grep -q "chartToolbarCloseTrade" terminal.html
+            grep -q "display:none!important;position:absolute;right:8px" terminal.html
+
             echo "===== REMOVE FIREBASE CLIENT SDK TAGS ====="
             node scripts/remove-firebase-client.mjs
 
