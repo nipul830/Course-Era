@@ -106,42 +106,86 @@ function logout(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();
 
-// Terminal breach isolation: the backend already revokes the breached account's
-// terminal credential. This additionally removes any previously unlocked
-// breached account from the terminal's top Account Switch menu immediately.
+// Terminal breach isolation: terminal switcher is backed by sessionStorage,
+// so breach filtering must purge that local list using the authoritative API.
+// Use XMLHttpRequest here intentionally: other terminal guards wrap fetch and
+// may hide breached accounts before this check can see their status.
 (function(){
   if(!/terminal\.html$/i.test(window.location.pathname))return;
   const API='https://aurafirming.in';
   const unlockedKey=()=>{try{const uid=ceAuth?.currentUser?.uid;return uid?'auraTerminalUnlocked:'+uid:null}catch(e){return null}};
-  async function getStatuses(){
-    try{
-      const user=typeof ceAuth==='undefined'?null:ceAuth.currentUser;
-      if(!user)return {};
-      const token=await user.getIdToken(false);
-      const r=await fetch(API+'/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
-      if(!r.ok)return {};
-      const d=await r.json();
-      const out={};
-      (Array.isArray(d.accounts)?d.accounts:[]).forEach(a=>{const id=String(a?.accountId||a?.id||'').trim();if(id)out[id]=String(a?.status||'').toLowerCase()});
-      return out;
-    }catch(e){return {}}
+
+  function rawAccountStatuses(token){
+    return new Promise((resolve)=>{
+      try{
+        const xhr=new XMLHttpRequest();
+        xhr.open('GET',API+'/api/trading-accounts',true);
+        xhr.setRequestHeader('Authorization','Bearer '+token);
+        xhr.setRequestHeader('Cache-Control','no-cache');
+        xhr.timeout=10000;
+        xhr.onload=()=>{
+          try{
+            if(xhr.status<200||xhr.status>=300)return resolve(null);
+            const d=JSON.parse(xhr.responseText||'{}');
+            const out={};
+            (Array.isArray(d.accounts)?d.accounts:[]).forEach(a=>{
+              const id=String(a?.accountId||a?.id||'').trim();
+              if(!id)return;
+              const fields=[a?.status,a?.accountStatus,a?.phaseStatus,a?.state,a?.lifecycleStatus,a?.breachStatus];
+              const text=fields.map(v=>String(v??'').toLowerCase()).join(' ');
+              const breached=fields.some(v=>/breach|revok|terminated|failed/.test(String(v??'').toLowerCase()))
+                || /breach|revok|terminated|failed/.test(text)
+                || Boolean(a?.breachedAt||a?.breachReason);
+              out[id]=breached;
+            });
+            resolve(out);
+          }catch(e){resolve(null)}
+        };
+        xhr.onerror=()=>resolve(null);
+        xhr.ontimeout=()=>resolve(null);
+        xhr.send();
+      }catch(e){resolve(null)}
+    });
   }
+
+  async function purgeUnlocked(){
+    const key=unlockedKey();
+    if(!key)return;
+    const user=typeof ceAuth==='undefined'?null:ceAuth.currentUser;
+    if(!user)return;
+    let unlocked={};
+    try{unlocked=JSON.parse(sessionStorage.getItem(key)||'{}')||{}}catch(e){unlocked={}};
+    const ids=Object.keys(unlocked);
+    if(!ids.length)return;
+    let token='';
+    try{token=await user.getIdToken(false)}catch(e){return}
+    const statuses=await rawAccountStatuses(token);
+    if(!statuses)return;
+    let changed=false;
+    ids.forEach(id=>{
+      if(statuses[id]===true){delete unlocked[id];changed=true;}
+    });
+    if(changed)sessionStorage.setItem(key,JSON.stringify(unlocked));
+    const current=String(sessionStorage.getItem('auraTerminalAccount')||'');
+    const currentId=(()=>{try{return JSON.parse(current)?.accountId||JSON.parse(current)?.id||''}catch(e){return''}})();
+    if(currentId&&statuses[String(currentId)]===true){
+      sessionStorage.removeItem('auraTerminalSession');
+      sessionStorage.removeItem('auraTerminalRole');
+      sessionStorage.removeItem('auraTerminalAccount');
+    }
+  }
+
   async function filterMenu(){
+    await purgeUnlocked();
     const menu=document.getElementById('auraTerminalAccountSwitcher');
     if(!menu)return;
-    const statuses=await getStatuses();
     const key=unlockedKey();
     let unlocked={};
-    try{unlocked=JSON.parse(sessionStorage.getItem(key)||'{}')||{}}catch(e){unlocked={}}
-    let changed=false;
+    try{unlocked=JSON.parse(sessionStorage.getItem(key)||'{}')||{}}catch(e){unlocked={}};
     menu.querySelectorAll('[role="option"]').forEach(btn=>{
       const id=String(btn.querySelector('strong')?.textContent||'').trim();
-      if(id&&statuses[id]==='breached'){
-        btn.remove();
-        if(unlocked[id]){delete unlocked[id];changed=true}
-      }
+      if(id&&!unlocked[id])btn.remove();
     });
-    if(changed&&key)sessionStorage.setItem(key,JSON.stringify(unlocked));
     const list=menu.querySelector('[role="listbox"]')||menu.lastElementChild;
     if(list&&![...list.children].some(x=>x.getAttribute?.('role')==='option')){
       const msg=document.createElement('div');
@@ -150,10 +194,12 @@ function logout(){
       list.innerHTML='';list.appendChild(msg);
     }
   }
+
   const boot=()=>{
-    const observer=new MutationObserver(()=>{if(document.getElementById('auraTerminalAccountSwitcher'))setTimeout(filterMenu,0)});
+    purgeUnlocked().catch(()=>{});
+    const observer=new MutationObserver(()=>{if(document.getElementById('auraTerminalAccountSwitcher'))setTimeout(()=>filterMenu().catch(()=>{}),0)});
     observer.observe(document.body,{subtree:true,childList:true});
-    setInterval(()=>{if(document.getElementById('auraTerminalAccountSwitcher'))filterMenu()},5000);
+    setInterval(()=>filterMenu().catch(()=>{}),5000);
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
