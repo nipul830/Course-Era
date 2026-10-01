@@ -58,6 +58,34 @@
   }
 
   const nativeFetch=window.fetch.bind(window);
+
+  // Remove any saved terminal account that has since become breached/revoked.
+  // Each saved token is checked against the same protected positions endpoint
+  // used by the terminal, so the switcher never keeps a breached account.
+  async function purgeBreachedUnlockedAccounts(){
+    const uid=currentUid();
+    if(!uid)return;
+    const key='auraTerminalUnlocked:'+uid;
+    let unlocked={};
+    try{unlocked=JSON.parse(sessionStorage.getItem(key)||'{}')||{};}catch{return;}
+    let changed=false;
+    for(const [accountId,item] of Object.entries(unlocked)){
+      const token=String(item?.token||'');
+      if(!token)continue;
+      try{
+        const r=await nativeFetch('https://aurafirming.in/api/trading/positions',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+        if(r.status===403){delete unlocked[accountId];changed=true;}
+        else if(r.status===401){
+          const payload=decodeSession(token);
+          if(!payload || Number(payload.exp||0)<Date.now()/1000){delete unlocked[accountId];changed=true;}
+        }
+      }catch{}
+    }
+    if(changed)sessionStorage.setItem(key,JSON.stringify(unlocked));
+    const current=String(sessionStorage.getItem(ACCOUNT)||'');
+    if(current && !unlocked[current]) clearTerminalSession();
+  }
+
   window.fetch=async function(input,init){
     const url=typeof input==='string'?input:(input?.url||'');
 
@@ -84,7 +112,6 @@
 
     if(!/\/api\/terminal\/login(?:\?|$)/i.test(url)){
       const response=await nativeFetch(input,init);
-      // If a currently logged-in account becomes breached, revoke the terminal session immediately.
       if(!response.ok && /\/api\/(?:terminal|trading|positions|orders)/i.test(url)){
         try{
           const data=await response.clone().json();
@@ -127,6 +154,7 @@
 
   const boot=()=>{
     if(!validateStoredSession()) location.reload();
+    else purgeBreachedUnlockedAccounts().catch(()=>{});
   };
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
   else boot();
