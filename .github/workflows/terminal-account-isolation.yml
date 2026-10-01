@@ -1,0 +1,54 @@
+name: Enforce Terminal Account Isolation
+
+on:
+  workflow_run:
+    workflows: ["Deploy to VPS"]
+    types: [completed]
+
+jobs:
+  patch-terminal:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
+          chmod 600 "$RUNNER_TEMP/vps_key"
+
+      - name: Apply terminal account isolation
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key_path: ${{ runner.temp }}/vps_key
+          command_timeout: 2m
+          script: |
+            set -e
+            cd /root/Course-Era
+            git fetch origin main
+            git reset --hard origin/main
+
+            node --input-type=module - <<'NODE'
+            import {readFileSync,writeFileSync} from 'node:fs';
+            const p='terminal.html';
+            const tag='<script src="terminal-auth-guard.js?v=1"></script>';
+            let s=readFileSync(p,'utf8');
+            if(!s.includes('terminal-auth-guard.js')){
+              const marker='<script src="firebase-config.js?v=6"></script>';
+              if(!s.includes(marker)) throw new Error('terminal.html firebase-config marker not found');
+              s=s.replace(marker, marker+'\n'+tag);
+              writeFileSync(p,s);
+            }
+            console.log('TERMINAL_ACCOUNT_ISOLATION=OK');
+            NODE
+
+            cd /root/Course-Era/backend
+            node --check server.js
+            pm2 restart course-era-api --update-env
+            sleep 3
+            curl -fsS --max-time 10 http://127.0.0.1:3000/health
+            echo
+            pm2 save
