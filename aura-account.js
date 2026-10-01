@@ -161,7 +161,7 @@
       const today=positionDailyKey(new Date());
       let total=0;
       for(const trade of closed){
-        const when=trade?.closedAt||trade?.closeTime||trade?.closed_at;
+        const when=trade?.closedAt||trade?.closeTime||trade?.closed_at||trade?.updatedAt||trade?.updated_at;
         if(!when||positionDailyKey(new Date(when))!==today)continue;
         total+=Number(trade?.realizedPnl??trade?.pnl??0)||0;
       }
