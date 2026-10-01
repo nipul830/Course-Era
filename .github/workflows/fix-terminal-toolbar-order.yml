@@ -78,31 +78,47 @@ jobs:
               if live_css in s:
                   s = s.replace(live_css, new_css, 1)
 
-          # Lot size: default 0.01 and allow direct manual editing in the same control.
+          # Keep the original scroll/select lot control; only change its default to 0.01.
           s = s.replace(
-              '<label class="lot-control">Lot <select id="lotSize" aria-label="Lot size"></select></label>',
               '<label class="lot-control">Lot <input id="lotSize" type="number" min="0.01" step="0.01" value="0.01" inputmode="decimal" aria-label="Lot size"></label>',
+              '<label class="lot-control">Lot <select id="lotSize" aria-label="Lot size"></select></label>',
               1
           )
           s = s.replace(
-              '.lot-control select{width:70px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332}',
               '.lot-control input{width:70px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332;padding:0}',
+              '.lot-control select{width:70px;border:0;outline:0;background:transparent;text-align:center;font-size:13px;font-weight:800;color:#182332}',
               1
           )
           s = s.replace("Number(document.getElementById('lotSize')?.value||'0.10')", "Number(document.getElementById('lotSize')?.value||'0.01')", 1)
 
-          # Remove the old 0.01-100.00 dropdown generator; the input itself now owns the value.
-          s = re.sub(
-              r"\(function\(\)\{\s*const lot=document\.getElementById\('lotSize'\);\s*if\(lot\)\{\s*const fillLots=.*?\n\s*\}\s*\}\)\(\);\s*\n(?=\s*const symbolBtn=)",
-              "",
-              s,
-              count=1,
-              flags=re.S
-          )
+          # Restore the original 0.01-100.00 scroll selector if the previous editable-input patch removed it.
+          if "const fillLots=()=>" not in s:
+              marker = "})();\n\nconst symbolBtn=document.getElementById('symbolBtn'),symbolList=document.getElementById('symbolList');"
+              generator = """(function(){
+            const lot=document.getElementById('lotSize');
+            if(lot){
+              const fillLots=()=>{
+                if(lot.options.length>1)return;
+                const frag=document.createDocumentFragment();
+                for(let i=1;i<=10000;i++){
+                  const v=(i/100).toFixed(2),o=document.createElement('option');
+                  o.value=v;o.textContent=v;if(v==='0.01')o.selected=true;frag.appendChild(o);
+                }
+                lot.appendChild(frag);
+              };
+              if('requestIdleCallback' in window)requestIdleCallback(fillLots,{timeout:1200});else setTimeout(fillLots,0);
+            }
+          })();
+
+          const symbolBtn=document.getElementById('symbolBtn'),symbolList=document.getElementById('symbolList');"""
+              if marker in s:
+                  s = s.replace(marker, generator, 1)
+          else:
+              s = s.replace("if(v==='0.10')o.selected=true", "if(v==='0.01')o.selected=true", 1)
 
           p.write_text(s, encoding='utf-8')
           print('TERMINAL_TOOLBAR_ORDER=Close_then_LIVE')
-          print('LOT_SIZE_DEFAULT=0.01_EDITABLE=true')
+          print('LOT_SIZE_DEFAULT=0.01_SCROLL_SELECTOR=true')
 
       - name: Commit permanent fix
         shell: bash
