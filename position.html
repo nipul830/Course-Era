@@ -23,6 +23,7 @@ body{background:#fff;color:#182332}.positions-page{padding:22px 16px 105px;max-w
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js?v=6"></script>
 <script src="aura-account.js"></script>
+<script src="position-pnl-fix.js"></script>
 <script>
 let terminalSessionToken=sessionStorage.getItem('auraTerminalSession')||'';
 async function positionApi(path,opt={}){
@@ -144,13 +145,7 @@ function renderCards(items){
       const closed=tabData.open.find(x=>String(x.id)===id);
       tabData.open=(tabData.open||[]).filter(x=>String(x.id)!==id);
       if(closed){
-        tabData.closed=[{
-          ...closed,
-          status:'closed',
-          closePrice:Number(data.closePrice||closed.currentPrice||closed.entryPrice||0),
-          realizedPnl:Number(data.realizedPnl||0),
-          closedAt:new Date().toISOString()
-        },...(tabData.closed||[])];
+        tabData.closed=[{...closed,status:'closed',closePrice:Number(data.closePrice||closed.currentPrice||closed.entryPrice||0),realizedPnl:Number(data.realizedPnl||0),closedAt:new Date().toISOString()},...(tabData.closed||[])];
       }
       if(data.account){
         liveBalance=Number(data.account.balance||liveBalance);
