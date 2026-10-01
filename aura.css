@@ -99,3 +99,7 @@ footer{border-top:1px solid var(--line);padding:25px 6%;color:var(--muted);font-
 .profile-menu-links a,.profile-menu-links .profile-language{display:flex!important;width:100%;box-sizing:border-box;min-height:48px;align-items:center;justify-content:space-between;padding:0 10px;margin:0;border-bottom:1px solid #211b10}
 .profile-menu-links a{white-space:nowrap}
 .profile-menu-links .profile-language{white-space:nowrap}
+
+/* Terminal mobile toolbar: force the Close action red */
+#chartToolbarCloseTrade.chart-toolbar-close{background:#e6004d !important;border-color:#e6004d !important;color:#fff !important;display:inline-flex;align-items:center;justify-content:center}
+#chartToolbarCloseTrade.chart-toolbar-close:disabled{background:#e6004d !important;border-color:#e6004d !important;color:#fff !important;opacity:1}
