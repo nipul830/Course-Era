@@ -1,18 +1,12 @@
 import admin from 'firebase-admin';
-import { readFileSync } from 'node:fs';
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const INTERVAL_MS = 15 * 60 * 1000;
 
+// Do not initialize Firebase here: server.js owns Firebase initialization and
+// keeps its db handle in module scope. We wait until server.js has initialized it.
 function getDb(){
-  if(admin.apps.length) return admin.firestore();
-  const p = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if(p){
-    const serviceAccount = JSON.parse(readFileSync(p,'utf8'));
-    admin.initializeApp({credential: admin.credential.cert(serviceAccount)});
-  }else{
-    admin.initializeApp();
-  }
+  if(!admin.apps.length) return null;
   return admin.firestore();
 }
 
@@ -38,11 +32,12 @@ async function deletePositions(db, ref){
 async function cleanup(){
   try{
     const db=getDb();
+    if(!db) return;
     const snap=await db.collectionGroup('tradingAccounts').where('status','==','breached').get();
     const now=Date.now();
     for(const doc of snap.docs){
       const data=doc.data()||{};
-      let breachedAt=millis(data.breachedAt);
+      const breachedAt=millis(data.breachedAt);
       if(!breachedAt){
         await doc.ref.update({breachedAt:admin.firestore.FieldValue.serverTimestamp()});
         continue;
