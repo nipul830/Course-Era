@@ -95,7 +95,7 @@ jobs:
             echo "===== CLEAN PM2 ENV AND RESTART ====="
             pm2 delete course-era-api 2>/dev/null || true
             cd /root/Course-Era/backend
-            pm2 start server.js --name course-era-api --cwd /root/Course-Era/backend
+            pm2 start server.js --name course-era-api --cwd /root/Course-Era/backend --node-args="--import ./breach-retention.mjs"
             sleep 5
 
             echo "===== HEALTH ====="
