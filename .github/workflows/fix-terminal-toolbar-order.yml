@@ -1,0 +1,74 @@
+name: Fix terminal toolbar Close LIVE order
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.event.head_commit.message != 'fix terminal toolbar order permanently' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply exact toolbar order
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('terminal.html')
+          s = p.read_text(encoding='utf-8')
+
+          live = "const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);"
+          close_start = "const closeTradeBtn=document.createElement('button');"
+          canvas = "const canvas=document.createElement('div');canvas.className='aura-chart-canvas';"
+
+          # Find the toolbar section containing LIVE + Close Trade and replace only that section.
+          pattern = re.escape(live) + r"\s*" + re.escape(close_start) + r".*?" + re.escape(canvas)
+          m = re.search(pattern, s, flags=re.S)
+          if not m:
+              raise SystemExit('Expected LIVE + Close Trade toolbar block not found')
+
+          close_block = '''const closeTradeBtn=document.createElement('button');
+          closeTradeBtn.type='button';
+          closeTradeBtn.id='chartToolbarCloseTrade';
+          closeTradeBtn.className='chart-toolbar-close';
+          closeTradeBtn.textContent='Close';
+          closeTradeBtn.style.display='none';
+          closeTradeBtn.addEventListener('click',ev=>{
+            ev.preventDefault();
+            ev.stopPropagation();
+            const id=String(closeTradeBtn.dataset.positionId||'');
+            const position=terminalPositions.find(x=>String(x.id)===id)||terminalPositions.find(x=>x&&x.symbol===currentSymbol);
+            if(position)confirmCloseTrade(position);
+          });
+          toolbar.appendChild(closeTradeBtn);
+          const live=document.createElement('span');live.textContent='● LIVE';live.className='aura-chart-live';toolbar.appendChild(live);
+          const canvas=document.createElement('div');canvas.className='aura-chart-canvas';'''
+
+          s = s[:m.start()] + close_block + s[m.end():]
+
+          # Make the close button red and keep LIVE immediately to its right.
+          s = s.replace(
+              '.aura-chart-live{margin-left:auto;margin-right:0}',
+              '.aura-chart-live{margin-left:4px;margin-right:0}.chart-toolbar-close{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;height:30px;min-width:44px;padding:0 9px;border:1px solid #e6004d;border-radius:8px;background:#e6004d;color:#fff;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer;touch-action:manipulation}.chart-toolbar-close:active{transform:scale(.96)}',
+              1
+          )
+
+          p.write_text(s, encoding='utf-8')
+          print('TERMINAL_TOOLBAR_ORDER=Close_then_LIVE')
+
+      - name: Commit permanent fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add terminal.html
+          git diff --cached --quiet && { echo "No terminal change needed"; exit 0; }
+          git commit -m "fix terminal toolbar order permanently"
+          git push
