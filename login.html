@@ -1,24 +1,75 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login — Aura Farming</title><link rel="stylesheet" href="styles.css"></head><body><div class="auth-wrap"><div class="auth-card"><a class="brand" href="index.html">Aura <span>Farming</span></a><h1>Welcome back</h1><p>Login to continue to your trading account.</p><form id="loginForm"><label>Email<input id="email" type="email" required placeholder="you@example.com"></label><label>Password<input id="password" type="password" required placeholder="••••••••"></label><button id="loginBtn" class="btn primary full" type="submit">Login</button></form><p class="muted"><a href="forgot-password.html">Forgot password?</a></p><p class="muted">New here? <a href="signup.html">Create an account</a></p><p id="loginMsg" class="msg"></p></div></div><script src="firebase-config.js?v=mongo1"></script><script>
-const loginParams=new URLSearchParams(location.search);
-const nextTarget=loginParams.get("next")||"courses.html";
-async function loginDemo(e){
-  e.preventDefault();
-  const msg=document.getElementById("loginMsg");
-  const btn=document.getElementById("loginBtn");
-  const email=document.getElementById("email").value.trim();
-  const password=document.getElementById("password").value;
-  btn.disabled=true; msg.textContent="Signing in…";
-  try{
-    const signIn=ceAuth.signInWithEmailAndPassword(email,password);
-    const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000));
-    const cred=await Promise.race([signIn,timeout]);
-    localStorage.setItem("ce_user",JSON.stringify({uid:cred.user.uid,name:cred.user.displayName||cred.user.email.split("@")[0],email:cred.user.email}));
-    location.replace(nextTarget);
-  }catch(err){
-    const map={"auth/invalid-credential":"Email or password is incorrect.","auth/user-not-found":"No account found with this email.","auth/wrong-password":"Incorrect password.","auth/too-many-requests":"Too many attempts. Please try again later.","auth/network-request-failed":"Network error. Check your internet connection and try again."};
-    msg.textContent=map[err.code]||err.message||"Authentication failed."; btn.disabled=false;
-  }
-}
-document.getElementById("loginForm").addEventListener("submit",loginDemo);
-ceAuth.onAuthStateChanged(function(user){if(user&&!loginParams.has("logout"))location.replace(nextTarget);});
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050806">
+  <title>Login — Aura Farming</title>
+  <link rel="stylesheet" href="styles.css?v=login-fix">
+  <style>
+    :root{--af-gold:#f4c542;--af-gold2:#ffd95a;--af-green:#35e58b;--af-bg:#050806;--af-card:#0b120e;--af-line:#284033;--af-muted:#94a69c}
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0}
+    body{min-height:100vh;background:radial-gradient(circle at 50% -12%,#214b2f 0,#0b1911 32%,#050806 72%);color:#f5f8f5;font-family:Inter,Arial,sans-serif}
+    .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;position:relative;overflow:hidden}
+    .auth-wrap:before{content:"";position:absolute;width:440px;height:440px;border-radius:50%;top:-250px;left:50%;transform:translateX(-50%);background:#f4c54212;filter:blur(10px);pointer-events:none}
+    .auth-card{position:relative;width:min(430px,100%);padding:34px;background:linear-gradient(155deg,#101b13,#070c09);border:1px solid #38513e;border-radius:24px;box-shadow:0 24px 70px #000b,0 0 35px #f4c5420e}
+    .auth-card .brand{display:block;text-align:center;color:#fff;font-size:29px;font-weight:900;letter-spacing:.2px;text-decoration:none;margin:0 0 28px}
+    .auth-card .brand span{color:var(--af-gold);text-decoration:underline;text-decoration-color:var(--af-gold);text-underline-offset:5px}
+    .auth-card h1{text-align:center;font-size:31px;line-height:1.15;margin:0 0 9px;color:#fff}
+    .auth-card>p:first-of-type{text-align:center;color:var(--af-muted);font-size:14px;line-height:1.6;margin:0 0 24px}
+    .auth-card label{display:grid;gap:8px;color:#dce7df;font-size:13px;font-weight:700;margin:15px 0}
+    .auth-card input{width:100%;min-height:48px;padding:13px 14px;border-radius:11px;border:1px solid #2c4233;background:#050a07;color:#fff;font:inherit;outline:none}
+    .auth-card input::placeholder{color:#66776e}
+    .auth-card input:focus{border-color:var(--af-gold);box-shadow:0 0 0 3px #f4c54218}
+    .auth-card .btn.primary{width:100%;min-height:50px;margin-top:8px;border:1px solid var(--af-gold);border-radius:11px;background:linear-gradient(135deg,var(--af-gold2),var(--af-gold));color:#171205;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 8px 24px #f4c54220;transition:.15s ease}
+    .auth-card .btn.primary:hover{filter:brightness(1.06);transform:translateY(-1px)}
+    .auth-card .btn.primary:disabled{opacity:.65;cursor:not-allowed;transform:none}
+    .auth-card .muted{text-align:center;color:var(--af-muted);font-size:13px;line-height:1.5;margin:17px 0 0}
+    .auth-card .muted a{color:var(--af-gold2);font-weight:800;text-decoration:none}
+    .auth-card .muted a:hover{text-decoration:underline}
+    .auth-card .msg{min-height:22px;text-align:center;color:var(--af-gold2);font-size:13px;margin:14px 0 0}
+    @media(max-width:520px){.auth-wrap{padding:18px}.auth-card{padding:27px 21px;border-radius:20px}.auth-card .brand{font-size:25px}.auth-card h1{font-size:27px}}
+  </style>
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="auth-card" aria-label="Aura Farming login">
+      <a class="brand" href="index.html">Aura <span>Farming</span></a>
+      <h1>Welcome back</h1>
+      <p>Login to continue to your trading account.</p>
+      <form id="loginForm">
+        <label>Email<input id="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label>
+        <button id="loginBtn" class="btn primary full" type="submit">Login</button>
+      </form>
+      <p class="muted"><a href="forgot-password.html">Forgot password?</a></p>
+      <p class="muted">New here? <a href="signup.html">Create an account</a></p>
+      <p id="loginMsg" class="msg"></p>
+    </section>
+  </main>
+  <script src="firebase-config.js?v=mongo1"></script>
+  <script>
+    const loginParams=new URLSearchParams(location.search);
+    const nextTarget=loginParams.get("next")||"courses.html";
+    async function loginDemo(e){
+      e.preventDefault();
+      const msg=document.getElementById("loginMsg"),btn=document.getElementById("loginBtn");
+      const email=document.getElementById("email").value.trim(),password=document.getElementById("password").value;
+      btn.disabled=true;msg.textContent="Signing in…";
+      try{
+        const signIn=ceAuth.signInWithEmailAndPassword(email,password);
+        const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000));
+        const cred=await Promise.race([signIn,timeout]);
+        localStorage.setItem("ce_user",JSON.stringify({uid:cred.user.uid,name:cred.user.displayName||cred.user.email.split("@")[0],email:cred.user.email}));
+        location.replace(nextTarget);
+      }catch(err){
+        const map={"auth/invalid-credential":"Email or password is incorrect.","auth/user-not-found":"No account found with this email.","auth/wrong-password":"Incorrect password.","auth/too-many-requests":"Too many attempts. Please try again later.","auth/network-request-failed":"Network error. Check your internet connection and try again."};
+        msg.textContent=map[err.code]||err.message||"Authentication failed.";btn.disabled=false;
+      }
+    }
+    document.getElementById("loginForm").addEventListener("submit",loginDemo);
+    if(window.ceAuth&&typeof ceAuth.onAuthStateChanged==="function")ceAuth.onAuthStateChanged(function(user){if(user&&!loginParams.has("logout"))location.replace(nextTarget);});
+  </script>
+</body>
+</html>
