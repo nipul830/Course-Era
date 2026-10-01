@@ -35,12 +35,12 @@
 
   // Position page used to wait up to 3 seconds for its next history poll.
   // Keep the existing polling logic/UI intact, but accelerate only the
-  // specific loadPositions interval to 500ms so a new BUY/SELL appears fast.
+  // specific loadPositions interval to 50ms so a new BUY/SELL appears almost instantly.
   const nativeSetInterval=window.setInterval.bind(window);
   window.setInterval=function(fn,delay,...args){
     try{
       const source=String(fn);
-      if(Number(delay)===3000&&source.includes('loadPositions()'))delay=500;
+      if(Number(delay)===3000&&source.includes('loadPositions()'))delay=50;
     }catch(e){}
     return nativeSetInterval(fn,delay,...args);
   };
