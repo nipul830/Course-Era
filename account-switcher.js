@@ -43,7 +43,7 @@
 
   async function getAccounts(user){
     const token=await user.getIdToken(false);
-    const r=await fetch(API+'/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+    const r=await fetch(API+'/api/trading-accounts?view=dashboard',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
     if(!r.ok)throw new Error('accounts '+r.status);
     const d=await r.json();
     return Array.isArray(d.accounts)?d.accounts:[];
