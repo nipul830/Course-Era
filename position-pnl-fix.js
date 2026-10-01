@@ -13,12 +13,20 @@
     const ai=idOf(a),bi=idOf(b);if(ai&&bi)return ai===bi;
     return String(a?.symbol||'')+'|'+String(a?.side||'')+'|'+String(a?.openedAt||a?.entryPrice||'')===String(b?.symbol||'')+'|'+String(b?.side||'')+'|'+String(b?.openedAt||b?.entryPrice||'');
   }
+  function closedTime(x){return x?.closedAt||x?.closeTime||x?.closed_at||x?.close_time||x?.updatedAt||x?.timestamp||x?.createdAt||x?.dailyRecordedAt||'';}
   function mergeClosed(acct,items){
-    const store=CLOSED_KEY+acct,existing=[...(memory[acct]?.closed||[]),...read(store,[]),...(items||[])],out=[];
-    for(const x of existing){if(!x||typeof x!=='object')continue;const i=out.findIndex(y=>sameTrade(y,x));if(i<0)out.push(x);else out[i]={...out[i],...x};}
+    const store=CLOSED_KEY+acct,existing=[...(memory[acct]?.closed||[]),...read(store,[]),...(items||[])],out=[],now=new Date().toISOString();
+    for(const raw of existing){
+      if(!raw||typeof raw!=='object')continue;
+      const x={...raw};
+      // Some older closed-trade records have no close timestamp at all.
+      // Record the first time this fix sees them so today's P&L is not stuck at $0.
+      if(!closedTime(x))x.dailyRecordedAt=now;
+      const i=out.findIndex(y=>sameTrade(y,x));
+      if(i<0)out.push(x);else out[i]={...out[i],...x};
+    }
     memory[acct]={...(memory[acct]||{}),closed:out};write(store,out);return out;
   }
-  function closedTime(x){return x?.closedAt||x?.closeTime||x?.closed_at||x?.close_time||x?.updatedAt||x?.timestamp||x?.createdAt||'';}
   function dailyStart(){
     const now=new Date();
     const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hour12:false}).formatToParts(now);
@@ -55,8 +63,8 @@
   }
   function scheduleDailyRefresh(){
     clearTimeout(window.__auraDailyPnlTimer);
-    const now=new Date(),next=new Date(now);next.setHours(6,0,0,0);if(next<=now)next.setDate(next.getDate()+1);
-    window.__auraDailyPnlTimer=setTimeout(()=>{renderDailyPnl();scheduleDailyRefresh();},Math.max(1000,next-now+100));
+    const next=dailyStart()+86400000;
+    window.__auraDailyPnlTimer=setTimeout(()=>{renderDailyPnl();scheduleDailyRefresh();},Math.max(1000,next-Date.now()+100));
   }
   function setDailyPnl(){window.auraTodayPnl=getDailyPnl();renderDailyPnl();}
   function cacheHistory(data){
