@@ -85,3 +85,4 @@ function updateChartOrderActions(){
           git diff --cached --quiet && exit 0
           git commit -m "Move trade close control to chart toolbar [terminal-close-toolbar-patched]"
           git push
+# retrigger after workflow-file creation
