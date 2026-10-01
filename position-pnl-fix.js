@@ -18,7 +18,47 @@
     for(const x of existing){if(!x||typeof x!=='object')continue;const i=out.findIndex(y=>sameTrade(y,x));if(i<0)out.push(x);else out[i]={...out[i],...x};}
     memory[acct]={...(memory[acct]||{}),closed:out};write(store,out);return out;
   }
-  function setDailyPnl(){ window.auraTodayPnl=0; }
+  function closedTime(x){return x?.closedAt||x?.closeTime||x?.closed_at||x?.close_time||x?.updatedAt||x?.timestamp||x?.createdAt||'';}
+  function dailyStart(){
+    const now=new Date();
+    const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hour12:false}).formatToParts(now);
+    const p={};parts.forEach(x=>p[x.type]=x.value);
+    let y=Number(p.year),m=Number(p.month),d=Number(p.day),h=Number(p.hour);
+    if(h<6){const prev=new Date(Date.UTC(y,m-1,d)-86400000);y=prev.getUTCFullYear();m=prev.getUTCMonth()+1;d=prev.getUTCDate();}
+    return Date.UTC(y,m-1,d,0,30,0,0);
+  }
+  function isAfterDailyReset(x){
+    const t=Date.parse(closedTime(x));
+    return Number.isFinite(t)&&t>=dailyStart();
+  }
+  function getDailyPnl(){
+    const list=memory[activeKey]?.closed||[];
+    return list.filter(isAfterDailyReset).reduce((s,x)=>s+pnl(x),0);
+  }
+  function renderDailyPnl(){
+    const positions=document.getElementById('positions');
+    const tabs=document.querySelector('.tabs');
+    if(!positions||!tabs)return;
+    let box=document.getElementById('dailyPnlBox');
+    if(!box){
+      box=document.createElement('div');box.id='dailyPnlBox';
+      box.innerHTML='<div class="daily-pnl-label">Daily P&L</div><div class="daily-pnl-value" id="dailyPnlValue">$0.00</div>';
+      positions.parentNode.insertBefore(box,positions);
+    }
+    const closedTab=document.querySelector('.tab[data-tab="closed"]');
+    const show=closedTab?.classList.contains('active');
+    box.style.display=show?'flex':'none';
+    if(show){
+      const v=getDailyPnl(),el=document.getElementById('dailyPnlValue');
+      if(el){el.textContent=(v>=0?'+':'')+money(v);el.classList.toggle('positive',v>=0);el.classList.toggle('negative',v<0);}
+    }
+  }
+  function scheduleDailyRefresh(){
+    clearTimeout(window.__auraDailyPnlTimer);
+    const now=new Date(),next=new Date(now);next.setHours(6,0,0,0);if(next<=now)next.setDate(next.getDate()+1);
+    window.__auraDailyPnlTimer=setTimeout(()=>{renderDailyPnl();scheduleDailyRefresh();},Math.max(1000,next-now+100));
+  }
+  function setDailyPnl(){window.auraTodayPnl=getDailyPnl();renderDailyPnl();}
   function cacheHistory(data){
     activeKey=accountKey(data);const closed=mergeClosed(activeKey,Array.isArray(data.closed)?data.closed:[]);const open=Array.isArray(data.open)?data.open:(Array.isArray(data.positions)?data.positions:[]);const openMap={};
     for(const p of open)if(idOf(p))openMap[idOf(p)]=p;
@@ -28,20 +68,23 @@
   }
   function rememberClosedFromClose(id,data){
     const m=memory[activeKey]||{},original=(m.open||{})[String(id)];if(!original)return;
-    const closed={...original,status:'closed',closePrice:Number(data?.closePrice||original.currentPrice||original.entryPrice||0),realizedPnl:Number(data?.realizedPnl||0),closedAt:data?.closedAt||new Date().toISOString()};
-    mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});
+    const closed={...original,status:'closed',closePrice:Number(data?.closePrice||original.currentPrice||original.entryPrice||0),realizedPnl:Number(data?.realizedPnl??data?.pnl??0),closedAt:data?.closedAt||data?.closeTime||new Date().toISOString()};
+    mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});renderDailyPnl();
   }
-  function install(){const k=String(sessionStorage.getItem('auraTerminalAccountId')||'default');activeKey=k;mergeClosed(k,[]);window.auraUpdateDailyPnl=setDailyPnl;}
+  function install(){
+    const k=String(sessionStorage.getItem('auraTerminalAccountId')||'default');activeKey=k;mergeClosed(k,[]);window.auraUpdateDailyPnl=setDailyPnl;
+    const wire=()=>{
+      document.querySelectorAll('.tab[data-tab]').forEach(tab=>tab.addEventListener('click',()=>setTimeout(renderDailyPnl,0)));
+      renderDailyPnl();scheduleDailyRefresh();
+    };
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();
+  }
 
-  // Position page used to wait up to 3 seconds for its next history poll.
-  // Keep the existing polling logic/UI intact, but accelerate only the
-  // specific loadPositions interval to 50ms so a new BUY/SELL appears almost instantly.
+  // Keep the existing polling logic/UI intact, but accelerate the specific
+  // loadPositions interval so a new BUY/SELL appears almost instantly.
   const nativeSetInterval=window.setInterval.bind(window);
   window.setInterval=function(fn,delay,...args){
-    try{
-      const source=String(fn);
-      if(Number(delay)===3000&&source.includes('loadPositions()'))delay=50;
-    }catch(e){}
+    try{const source=String(fn);if(Number(delay)===3000&&source.includes('loadPositions()'))delay=50;}catch(e){}
     return nativeSetInterval(fn,delay,...args);
   };
 
@@ -58,5 +101,6 @@
     }catch(e){}
     return response;
   };
+  const style=document.createElement('style');style.textContent='#dailyPnlBox{display:none;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:12px 16px;border:1px solid #e0e5e9;border-radius:12px;background:#fff;box-shadow:0 4px 14px #0000000b}.daily-pnl-label{font-size:13px;font-weight:800;color:#687786}.daily-pnl-value{font-size:20px;font-weight:900;color:#008a5b}.daily-pnl-value.negative{color:#e6004d}';document.head.appendChild(style);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
