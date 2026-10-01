@@ -29,6 +29,39 @@
     return 'auraTerminalAccount:'+String(accountId||'').trim();
   }
 
+  function terminalUnlockedKey(uid){
+    return 'auraTerminalUnlocked:'+String(uid||'').trim();
+  }
+
+  function readTerminalUnlocked(){
+    try{
+      const uid=ceAuth?.currentUser?.uid;
+      if(!uid)return{};
+      return JSON.parse(sessionStorage.getItem(terminalUnlockedKey(uid))||'{}')||{};
+    }catch(e){return{};}
+  }
+
+  function rememberTerminalLogin(token,data){
+    try{
+      const uid=ceAuth?.currentUser?.uid;
+      const payload=decodeTerminalToken(token);
+      const accountId=String(payload?.accountId||data?.account?.id||'').trim();
+      if(!uid||!payload||String(payload.uid)!==String(uid)||!accountId)return;
+      const all=readTerminalUnlocked();
+      all[accountId]={
+        token,
+        role:String(payload.role||'trader'),
+        account:data?.account||{id:accountId},
+        savedAt:Date.now()
+      };
+      sessionStorage.setItem(terminalUnlockedKey(uid),JSON.stringify(all));
+      sessionStorage.setItem('auraTerminalOwnerUid',String(uid));
+      sessionStorage.setItem('auraTerminalSession',token);
+      sessionStorage.setItem('auraTerminalRole',String(payload.role||'trader'));
+      if(data?.account)sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account));
+    }catch(e){console.warn('Terminal account unlock save failed:',e);}
+  }
+
   function saveTerminalAccount(account){
     try{
       const ctx=terminalAccountContext();
@@ -184,9 +217,28 @@
 
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input?.url||'');
+    if(url.includes('/api/terminal/login')){
+      try{
+        if(typeof ceAuth==='undefined'||!ceAuth.currentUser){
+          return new Response(JSON.stringify({error:'Website login required before terminal login'}),{status:401,headers:{'Content-Type':'application/json'}});
+        }
+        const token=await ceAuth.currentUser.getIdToken(false);
+        const headers=new Headers(init?.headers || (typeof Request!=='undefined' && input instanceof Request ? input.headers : undefined));
+        headers.set('Authorization','Bearer '+token);
+        const nextInit={...(init||{}),headers};
+        const response=await nativeFetch(input,nextInit);
+        try{
+          const data=await response.clone().json();
+          if(response.ok&&data?.token)rememberTerminalLogin(data.token,data);
+        }catch(e){}
+        return response;
+      }catch(e){
+        return new Response(JSON.stringify({error:e.message||'Terminal login failed'}),{status:401,headers:{'Content-Type':'application/json'}});
+      }
+    }
     const response=await nativeFetch(input,init);
     try{
-      const url=typeof input==='string'?input:(input?.url||'');
       if(!url.includes('/api/trading/history')&&!url.includes('/api/trading/positions'))return response;
       const clone=response.clone();
       const data=await clone.json();
@@ -221,29 +273,25 @@
     const id=String(accountId||'').trim();
     if(!id)return;
     try{
-      if(typeof ceAuth==='undefined'||!ceAuth.currentUser)throw new Error('Login required');
-      const token=await ceAuth.currentUser.getIdToken(false);
-      const mode=(typeof terminalRole!=='undefined'&&terminalRole==='investor')?'investor':'trader';
-      const selectRes=await fetch(AURA_API_BASE+'/api/trading-account/select',{
-        method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({accountId:id})
-      });
-      const selectData=await selectRes.json().catch(()=>({}));
-      if(!selectRes.ok)throw new Error(selectData.error||'Could not select account');
-      const credRes=await fetch(AURA_API_BASE+'/api/trading-credentials',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
-      const creds=await credRes.json().catch(()=>({}));
-      if(!credRes.ok||!creds.loginId)throw new Error(creds.error||'Terminal credentials unavailable');
-      const password=mode==='investor'?creds.investorPassword:creds.tradingPassword;
-      const loginRes=await fetch(AURA_API_BASE+'/api/terminal/login',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loginId:creds.loginId,password,mode})
-      });
-      const loginData=await loginRes.json().catch(()=>({}));
-      if(!loginRes.ok||!loginData.token)throw new Error(loginData.error||'Could not switch terminal account');
-      sessionStorage.setItem('auraTerminalSession',loginData.token);
-      sessionStorage.removeItem('auraTerminalAccount');
+      const uid=ceAuth?.currentUser?.uid;
+      if(!uid)throw new Error('Login required');
+      const unlocked=readTerminalUnlocked();
+      const saved=unlocked[id];
+      if(!saved?.token)throw new Error('Login this account once with its Terminal ID + password first.');
+      const payload=decodeTerminalToken(saved.token);
+      if(!payload||String(payload.uid)!==String(uid)||Number(payload.exp||0)<Date.now()/1000){
+        delete unlocked[id];
+        sessionStorage.setItem(terminalUnlockedKey(uid),JSON.stringify(unlocked));
+        throw new Error('This terminal session expired. Login this account again.');
+      }
+      sessionStorage.setItem('auraTerminalSession',saved.token);
+      sessionStorage.setItem('auraTerminalRole',saved.role||payload.role||'trader');
+      sessionStorage.setItem('auraTerminalOwnerUid',String(uid));
+      if(saved.account)sessionStorage.setItem('auraTerminalAccount',JSON.stringify(saved.account));
       window.location.reload();
     }catch(e){
       console.warn('Terminal account switch failed:',e);
-      const status=document.getElementById('terminalStatus');
+      const status=document.getElementById('terminalStatus')||document.getElementById('tradeStatus');
       if(status)status.textContent=e.message||'Could not switch account';
     }
   }
@@ -261,24 +309,35 @@
     label.style.cssText='display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#182332;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:none;position:relative;';
     const chev=document.createElement('span');chev.textContent='▾';chev.style.cssText='font-size:15px;color:#667585;line-height:1;';label.appendChild(chev);
     const menu=document.createElement('div');menu.id='auraTerminalAccountSwitcher';menu.setAttribute('role','listbox');menu.style.cssText='display:none;position:absolute;left:28px;right:28px;top:43px;background:#fff;border:1px solid #dce2e7;border-radius:16px;box-shadow:0 12px 30px #0002;z-index:120;overflow:hidden;';
-    const head=document.createElement('div');head.textContent='TRADING ACCOUNTS';head.style.cssText='padding:10px 14px 7px;color:#8a96a2;font-size:10px;font-weight:900;letter-spacing:.08em;border-bottom:1px solid #eef1f4;';menu.appendChild(head);
+    const head=document.createElement('div');head.textContent='LOGGED-IN ACCOUNTS';head.style.cssText='padding:10px 14px 7px;color:#8a96a2;font-size:10px;font-weight:900;letter-spacing:.08em;border-bottom:1px solid #eef1f4;';menu.appendChild(head);
     const list=document.createElement('div');list.style.cssText='max-height:330px;overflow-y:auto;-webkit-overflow-scrolling:touch;';menu.appendChild(list);root.style.position='relative';root.appendChild(menu);
-    label.addEventListener('click',async(e)=>{
-      e.stopPropagation();const open=menu.style.display==='block';menu.style.display=open?'none':'block';label.setAttribute('aria-expanded',String(!open));if(open)return;
-      list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px;font-weight:700">Loading accounts…</div>';
-      try{
-        const user=ceAuth?.currentUser;if(!user)throw new Error('Login required');
-        const token=await user.getIdToken(false);const res=await fetch(AURA_API_BASE+'/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'});const data=await res.json().catch(()=>({}));
-        if(!res.ok)throw new Error(data.error||'Could not load accounts');
-        const accounts=Array.isArray(data.accounts)?data.accounts:[];const current=terminalAccountContext()?.accountId||'';list.innerHTML='';
-        if(!accounts.length){list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px">No purchased accounts found</div>';return;}
-        accounts.forEach((a,i)=>{
-          const id=String(a.accountId||a.id||'').trim();if(!id)return;const challenge=String(a.challenge||a.name||'Account '+(i+1));const size=Number(a.startingBalance??a.accountSize??a.size??0);const sizeText=size?'$'+size.toLocaleString('en-US'):'Account';
-          const item=document.createElement('button');item.type='button';item.setAttribute('role','option');item.setAttribute('aria-selected',String(id===current));item.style.cssText='display:block;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:#fff;text-align:left;color:#17212b;cursor:pointer;-webkit-tap-highlight-color:transparent;';if(id===current)item.style.background='#fff8e8';
-          const top=document.createElement('strong');top.textContent=id;top.style.cssText='display:block;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-          const sub=document.createElement('span');sub.textContent=challenge+' · '+sizeText;sub.style.cssText='display:block;margin-top:4px;color:#7c8995;font-size:11px;font-weight:800;';item.append(top,sub);item.addEventListener('click',()=>terminalSwitchAccount(id));list.appendChild(item);
-        });
-      }catch(err){list.innerHTML='<div style="padding:16px;color:#e6004d;font-size:12px;font-weight:700">Unable to load accounts</div>';console.warn('Terminal account switcher:',err);}
+    label.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const open=menu.style.display==='block';
+      menu.style.display=open?'none':'block';
+      label.setAttribute('aria-expanded',String(!open));
+      if(open)return;
+      list.innerHTML='';
+      const unlocked=readTerminalUnlocked();
+      const entries=Object.entries(unlocked).sort((a,b)=>Number(b[1]?.savedAt||0)-Number(a[1]?.savedAt||0));
+      const current=terminalAccountContext()?.accountId||'';
+      if(!entries.length){
+        list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px;font-weight:700">No account logged in yet. Copy the Terminal ID + password from Dashboard and login first.</div>';
+        return;
+      }
+      entries.forEach(([id,item])=>{
+        const account=item.account||{};
+        const challenge=String(account.challenge||'Account');
+        const size=Number(account.balance||account.startingBalance||0);
+        const itemBtn=document.createElement('button');
+        itemBtn.type='button';itemBtn.setAttribute('role','option');itemBtn.setAttribute('aria-selected',String(id===current));
+        itemBtn.style.cssText='display:block;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:'+(id===current?'#fff8e8':'#fff')+';text-align:left;color:#17212b;cursor:pointer;-webkit-tap-highlight-color:transparent;';
+        const top=document.createElement('strong');top.textContent=id;top.style.cssText='display:block;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        const sub=document.createElement('span');sub.textContent=challenge+(size?' · $'+size.toLocaleString('en-US'):'');sub.style.cssText='display:block;margin-top:4px;color:#7c8995;font-size:11px;font-weight:800;';
+        itemBtn.append(top,sub);
+        itemBtn.addEventListener('click',()=>{menu.style.display='none';label.setAttribute('aria-expanded','false');terminalSwitchAccount(id)});
+        list.appendChild(itemBtn);
+      });
     });
     document.addEventListener('click',(e)=>{if(menu.style.display==='block'&&!menu.contains(e.target)&&e.target!==label){menu.style.display='none';label.setAttribute('aria-expanded','false');}});
   }
@@ -299,6 +358,22 @@
     else if(values.size>1)el.textContent='Mixed';
   }
 
+  function setupTerminalOwnerIsolation(){
+    if(typeof ceAuth==='undefined'||!ceAuth.onAuthStateChanged)return;
+    ceAuth.onAuthStateChanged(user=>{
+      const currentUid=String(user?.uid||'');
+      const previousUid=String(sessionStorage.getItem('auraTerminalOwnerUid')||'');
+      if(previousUid&&previousUid!==currentUid){
+        sessionStorage.removeItem('auraTerminalSession');
+        sessionStorage.removeItem('auraTerminalRole');
+        sessionStorage.removeItem('auraTerminalAccount');
+        if(/terminal\.html$/i.test(window.location.pathname))window.location.reload();
+      }
+      if(currentUid)sessionStorage.setItem('auraTerminalOwnerUid',currentUid);
+      else sessionStorage.removeItem('auraTerminalOwnerUid');
+    });
+  }
+
   window.auraTerminalAccountContext=terminalAccountContext;
   window.auraTerminalAccountStorageKey=terminalAccountStorageKey;
   window.auraSaveTerminalAccount=saveTerminalAccount;
@@ -308,6 +383,7 @@
   window.auraMoney=auraMoney;
   window.auraTerminalAccountSwitcher=renderTerminalAccountSwitcher;
 
+  setupTerminalOwnerIsolation();
   syncTerminalAccountNumber();
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded',()=>{
