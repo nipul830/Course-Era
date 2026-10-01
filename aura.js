@@ -74,3 +74,26 @@ function logout(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyDashboardNavigation,{once:true});
   else applyDashboardNavigation();
 })();
+
+// Visible brand text is now Aura Firming across pages that load aura.js.
+(function(){
+  const replaceBranding=()=>{
+    const root=document.body;
+    if(!root)return;
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    const nodes=[];
+    let node;
+    while((node=walker.nextNode())){
+      if(node.parentElement&&['SCRIPT','STYLE','NOSCRIPT'].includes(node.parentElement.tagName))continue;
+      if(/Farming/i.test(node.nodeValue||''))nodes.push(node);
+    }
+    nodes.forEach(n=>{n.nodeValue=n.nodeValue.replace(/Farming/gi,'Firming')});
+  };
+  const start=()=>{
+    replaceBranding();
+    const observer=new MutationObserver(()=>replaceBranding());
+    observer.observe(document.body,{subtree:true,childList:true,characterData:true});
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
+  else start();
+})();
