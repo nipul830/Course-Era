@@ -17,157 +17,153 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch legacy account API
+      - name: Add configurable challenge controls
         shell: python
         run: |
           from pathlib import Path
-          p = Path('backend/server.js')
-          s = p.read_text()
 
-          old = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
-  try {
-    initFirebase();
-    const base = db.collection("users").doc(req.user.uid);
-    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();
-    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
-    if (!accounts.length) {
-      const current = await base.collection("trading").doc("account").get();
-      if (current.exists) return res.json({ accounts:[{ id:current.id, ...(current.data() || {}) }] });
-    }
-    return res.json({ accounts });
-  } catch (e) {
-    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
-  }
-});'''
+          def patch(path, old, new, label):
+              p = Path(path)
+              s = p.read_text()
+              if new in s:
+                  return
+              if old not in s:
+                  raise SystemExit('Missing patch anchor: ' + label)
+              p.write_text(s.replace(old, new, 1))
 
-          new = '''app.get("/api/trading-accounts", requireAuth, async (req, res) => {
-  try {
-    initFirebase();
-    const base = db.collection("users").doc(req.user.uid);
-    const [accountsSnap, legacySnap, currentSnap] = await Promise.all([
-      base.collection("tradingAccounts").orderBy("createdAt", "desc").get(),
-      base.collection("challengeAccounts").orderBy("createdAt", "desc").get(),
-      base.collection("trading").doc("account").get()
-    ]);
+          # Admin: floating loss ON/OFF + selectable percentage + min days 0-10.
+          patch('admin-challenges.html',
+            '<div class="row"><div class="field"><label>Phase 1 Profit</label><input id="phase1" placeholder="8%"></div><div class="field"><label>Phase 2 Profit</label><input id="phase2" placeholder="6%"></div></div><div class="rules">',
+            '<div class="row"><div class="field"><label>Phase 1 Profit</label><input id="phase1" placeholder="8%"></div><div class="field"><label>Phase 2 Profit</label><input id="phase2" placeholder="6%"></div></div><div class="row"><div class="field"><label>Floating Loss</label><label class="check"><input id="floatingLossEnabled" type="checkbox"> Enable floating loss</label></div><div class="field"><label>Floating Loss %</label><select id="floatingLossPct"><option value="0.25">0.25%</option><option value="0.50">0.50%</option><option value="0.75">0.75%</option><option value="1">1%</option><option value="1.25">1.25%</option><option value="1.50">1.50%</option><option value="1.75">1.75%</option><option value="2">2%</option><option value="2.25">2.25%</option><option value="2.50">2.50%</option></select></div></div><div class="rules"><div class="ruleshead"><span>Minimum Trading Days</span></div><div id="minTradingDaysList"></div></div><div class="rules">',
+            'admin controls')
 
-    const byId = new Map();
-    const add = (a) => {
-      const id = String(a.accountId || a.id || "").trim();
-      if (id && !byId.has(id)) byId.set(id, { id, ...a, accountId:id });
-    };
+          patch('admin-challenges.html',
+            "function renderRules(rules){$('rulesList').innerHTML='';(Array.isArray(rules)?rules:[]).forEach(r=>{const p=typeof r==='string'?ruleToPair(r):r;addRule(p.name,p.value)})}",
+            "function renderRules(rules){$('rulesList').innerHTML='';(Array.isArray(rules)?rules:[]).forEach(r=>{const p=typeof r==='string'?ruleToPair(r):r;addRule(p.name,p.value)})}function dayOptions(value){let h='';for(let i=0;i<=10;i++)h+='<option value=\"'+i+'\" '+(Number(value||0)===i?'selected':'')+'>'+i+' day'+(i===1?'':'s')+'</option>';return h}function renderMinTradingDays(model,values={}){const root=$('minTradingDaysList');if(!root)return;const fields=model==='2 Step'?[['phase1','Phase 1'],['phase2','Phase 2'],['funded','Funded']]:model==='1 Step'?[['phase1','Phase 1'],['funded','Funded']]:[['funded','Funded']];root.innerHTML='<div class=\"row\">'+fields.map(x=>'<div class=\"field\"><label>'+x[1]+'</label><select class=\"min-day-select\" data-stage=\"'+x[0]+'\">'+dayOptions(values[x[0]])+'</select></div>').join('')+'</div>'}function collectMinTradingDays(){const out={};document.querySelectorAll('.min-day-select').forEach(x=>out[x.dataset.stage]=Math.max(0,Math.min(10,Number(x.value)||0)));return out}",
+            'admin helpers')
 
-    accountsSnap.docs.forEach(d => add({ id:d.id, ...(d.data() || {}) }));
-    legacySnap.docs.forEach(d => {
-      const x = d.data() || {};
-      const size = Number(x.accountSize || x.startingBalance || x.size || 0);
-      add({
-        id:d.id,
-        accountId:String(x.accountId || d.id),
-        startingBalance:size,
-        balance:Number(x.balance ?? size),
-        equity:Number(x.equity ?? x.balance ?? size),
-        pnl:Number(x.pnl || 0),
-        currency:x.currency || "USD",
-        challenge:x.challenge || ((x.model || "") + (x.size ? " " + x.size : "")),
-        challengeId:x.challengeId,
-        status:x.status || "active",
-        terminalCredentialId:x.terminalCredentialId,
-        createdAt:x.createdAt,
-        updatedAt:x.updatedAt
-      });
-    });
-    if (currentSnap.exists) add({ id:currentSnap.id, ...(currentSnap.data() || {}) });
+          patch('admin-challenges.html',
+            "function fill(x){const m=meta(x);$('model').value=m.model;$('size').value=x.size||'';$('id').value=x.id||'';$('accountSize').value=x.accountSize||'';$('price').value=x.price||'';$('discount').value=x.discountPercent||0;$('daily').value=x.dailyDrawdown||'';$('total').value=x.totalDrawdown||'';$('profit').value=x.profitTarget||'';$('evaluation').value=m.evaluation;$('phase1').value=x.phase1Profit||'';$('phase2').value=x.phase2Profit||'';$('enabled').checked=enabledOf(x);renderRules(rulesForModel(m.model))}",
+            "function fill(x){const m=meta(x);$('model').value=m.model;$('size').value=x.size||'';$('id').value=x.id||'';$('accountSize').value=x.accountSize||'';$('price').value=x.price||'';$('discount').value=x.discountPercent||0;$('daily').value=x.dailyDrawdown||'';$('total').value=x.totalDrawdown||'';$('profit').value=x.profitTarget||'';$('evaluation').value=m.evaluation;$('phase1').value=x.phase1Profit||'';$('phase2').value=x.phase2Profit||'';$('floatingLossEnabled').checked=x.floatingLossEnabled===true;$('floatingLossPct').value=String(x.floatingLossPct||1);$('enabled').checked=enabledOf(x);renderRules(rulesForModel(m.model));renderMinTradingDays(m.model,x.minTradingDays||{})}",
+            'admin fill')
 
-    const accounts = Array.from(byId.values()).sort((a,b) => {
-      const at = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const bt = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return bt - at;
-    });
-    return res.json({ accounts });
-  } catch (e) {
-    return res.status(500).json({ error:"Could not load trading accounts", detail:e.message });
-  }
-});'''
+          patch('admin-challenges.html',
+            "function formData(){return{id:$('id').value.trim(),model:$('model').value,size:$('size').value.trim(),accountSize:Number($('accountSize').value),price:Number($('price').value),discountPercent:Number($('discount').value)||0,dailyDrawdown:$('daily').value.trim(),totalDrawdown:$('total').value.trim(),profitTarget:$('profit').value.trim(),evaluation:$('evaluation').value.trim(),phase1Profit:$('phase1').value.trim(),phase2Profit:$('phase2').value.trim(),enabled:$('enabled').checked}}",
+            "function formData(){return{id:$('id').value.trim(),model:$('model').value,size:$('size').value.trim(),accountSize:Number($('accountSize').value),price:Number($('price').value),discountPercent:Number($('discount').value)||0,dailyDrawdown:$('daily').value.trim(),totalDrawdown:$('total').value.trim(),profitTarget:$('profit').value.trim(),evaluation:$('evaluation').value.trim(),phase1Profit:$('phase1').value.trim(),phase2Profit:$('phase2').value.trim(),floatingLossEnabled:$('floatingLossEnabled').checked,floatingLossPct:Number($('floatingLossPct').value)||1,minTradingDays:collectMinTradingDays(),enabled:$('enabled').checked}}",
+            'admin form')
 
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif new not in s:
-              raise SystemExit('Legacy account list target not found')
+          patch('admin-challenges.html',
+            "$('model').onchange=()=>renderRules(rulesForModel($('model').value));",
+            "$('model').onchange=()=>{renderRules(rulesForModel($('model').value));renderMinTradingDays($('model').value,{})};",
+            'admin model change')
 
-          old2 = '''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
-  try {
-    initFirebase();
-    const accountId = String(req.body?.accountId || "").trim();
-    if (!accountId) return res.status(400).json({ error:"accountId is required" });
-    const userRef = db.collection("users").doc(req.user.uid);
-    const selectedRef = userRef.collection("tradingAccounts").doc(accountId);
-    const selectedSnap = await selectedRef.get();
-    if (!selectedSnap.exists) return res.status(404).json({ error:"Trading account not found" });
-    const selected = selectedSnap.data() || {};
-    if (selected.status && selected.status !== "active") return res.status(403).json({ error:"Trading account is not active" });
-    await userRef.collection("trading").doc("account").set(selected, { merge:false });
-    return res.json({ account:{ id:accountId, ...selected } });
-  } catch (e) {
-    return res.status(500).json({ error:"Could not select trading account", detail:e.message });
-  }
-});'''
+          patch('backend/server.js',
+            '''function accountRules(account) {
+  return {
+    dailyDrawdownPct: parsePercent(account.dailyDrawdown, 4),
+    maxDrawdownPct: parsePercent(account.maxDrawdown, 8)
+  };
+}''',
+            '''function accountModel(account) {
+  const challenge = String(account?.challenge || "");
+  return challenge.startsWith("2 Step") ? "2 Step" : challenge.startsWith("1 Step") ? "1 Step" : challenge.startsWith("Instant") ? "Instant" : "";
+}
+function normalizeMinTradingDays(value, model = "") {
+  const raw = value && typeof value === "object" ? value : {};
+  const fields = model === "2 Step" ? ["phase1","phase2","funded"] : model === "1 Step" ? ["phase1","funded"] : ["funded"];
+  const out = {};
+  for (const key of fields) out[key] = Math.max(0, Math.min(10, Number(raw[key]) || 0));
+  return out;
+}
+function floatingLossPercent(value, fallback = 1) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0.25, Math.min(2.5, n)) : fallback;
+}
+function accountRules(account) {
+  return {
+    dailyDrawdownPct: parsePercent(account.dailyDrawdown, 4),
+    maxDrawdownPct: parsePercent(account.maxDrawdown || account.totalDrawdown, 8),
+    floatingLossEnabled: account.floatingLossEnabled === true,
+    floatingLossPct: floatingLossPercent(account.floatingLossPct, 1),
+    minTradingDays: normalizeMinTradingDays(account.minTradingDays, accountModel(account))
+  };
+}''',
+            'server account rules')
 
-          new2 = '''app.post("/api/trading-account/select", requireAuth, async (req, res) => {
-  try {
-    initFirebase();
-    const accountId = String(req.body?.accountId || "").trim();
-    if (!accountId) return res.status(400).json({ error:"accountId is required" });
-    const userRef = db.collection("users").doc(req.user.uid);
-    const selectedRef = userRef.collection("tradingAccounts").doc(accountId);
-    let selectedSnap = await selectedRef.get();
+          patch('backend/server.js',
+            '''      ...(x.phase2Profit ? { phase2Profit:String(x.phase2Profit) } : {}),
+      ...(x.evaluation ? { evaluation:String(x.evaluation) } : {})''',
+            '''      ...(x.phase2Profit ? { phase2Profit:String(x.phase2Profit) } : {}),
+      ...(x.evaluation ? { evaluation:String(x.evaluation) } : {}),
+      floatingLossEnabled: x.floatingLossEnabled === true,
+      floatingLossPct: floatingLossPercent(x.floatingLossPct, 1),
+      minTradingDays: normalizeMinTradingDays(x.minTradingDays, String(x.model || "").trim())''',
+            'server catalog')
 
-    if (!selectedSnap.exists) {
-      const legacySnap = await userRef.collection("challengeAccounts").doc(accountId).get();
-      if (!legacySnap.exists) return res.status(404).json({ error:"Trading account not found" });
-      const x = legacySnap.data() || {};
-      const size = Number(x.accountSize || x.startingBalance || x.size || 0);
-      await selectedRef.set({
-        accountId,
-        startingBalance:size,
-        balance:Number(x.balance ?? size),
-        equity:Number(x.equity ?? x.balance ?? size),
-        pnl:Number(x.pnl || 0),
-        currency:x.currency || "USD",
-        challenge:x.challenge || ((x.model || "") + (x.size ? " " + x.size : "")),
-        challengeId:x.challengeId,
-        status:x.status || "active",
-        terminalCredentialId:x.terminalCredentialId,
-        createdAt:x.createdAt,
-        updatedAt:admin.firestore.FieldValue.serverTimestamp()
-      }, { merge:true });
-      selectedSnap = await selectedRef.get();
-    }
+          patch('backend/server.js',
+            '''        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active",
+        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()''',
+            '''        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active",
+        dailyDrawdown:challenge.dailyDrawdown || "4%", totalDrawdown:challenge.totalDrawdown || "8%",
+        profitTarget:challenge.profitTarget || "", phase1Profit:challenge.phase1Profit || "", phase2Profit:challenge.phase2Profit || "",
+        floatingLossEnabled:challenge.floatingLossEnabled === true, floatingLossPct:floatingLossPercent(challenge.floatingLossPct, 1),
+        minTradingDays:normalizeMinTradingDays(challenge.minTradingDays, challenge.model),
+        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()''',
+            'server primary account')
 
-    const selected = selectedSnap.data() || {};
-    if (selected.status && selected.status !== "active") return res.status(403).json({ error:"Trading account is not active" });
-    await userRef.collection("trading").doc("account").set(selected, { merge:false });
-    return res.json({ account:{ id:accountId, ...selected } });
-  } catch (e) {
-    return res.status(500).json({ error:"Could not select trading account", detail:e.message });
-  }
-});'''
+          patch('backend/server.js',
+            '''        accountSize:Number(challenge.accountSize), status:"active",
+        terminalCredentialId:credentialBundle.id,''',
+            '''        accountSize:Number(challenge.accountSize), status:"active",
+        dailyDrawdown:challenge.dailyDrawdown || "4%", totalDrawdown:challenge.totalDrawdown || "8%",
+        profitTarget:challenge.profitTarget || "", phase1Profit:challenge.phase1Profit || "", phase2Profit:challenge.phase2Profit || "",
+        floatingLossEnabled:challenge.floatingLossEnabled === true, floatingLossPct:floatingLossPercent(challenge.floatingLossPct, 1),
+        minTradingDays:normalizeMinTradingDays(challenge.minTradingDays, challenge.model),
+        terminalCredentialId:credentialBundle.id,''',
+            'server challenge account')
 
-          if old2 in s:
-              s = s.replace(old2, new2, 1)
-          elif new2 not in s:
-              raise SystemExit('Legacy account select target not found')
+          patch('backend/server.js',
+            '''        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active", terminalCredentialId:credentialBundle.id,
+        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()''',
+            '''        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active", terminalCredentialId:credentialBundle.id,
+        dailyDrawdown:challenge.dailyDrawdown || "4%", totalDrawdown:challenge.totalDrawdown || "8%",
+        profitTarget:challenge.profitTarget || "", phase1Profit:challenge.phase1Profit || "", phase2Profit:challenge.phase2Profit || "",
+        floatingLossEnabled:challenge.floatingLossEnabled === true, floatingLossPct:floatingLossPercent(challenge.floatingLossPct, 1),
+        minTradingDays:normalizeMinTradingDays(challenge.minTradingDays, challenge.model),
+        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()''',
+            'server trading account')
 
-          p.write_text(s)
-          print('Legacy account support patched successfully.')
+          patch('backend/server.js',
+            '''          dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
+          maxDrawdownLimit: accountRules(account).maxDrawdownPct''',
+            '''          dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
+          maxDrawdownLimit: accountRules(account).maxDrawdownPct,
+          floatingLossEnabled: accountRules(account).floatingLossEnabled,
+          floatingLossPct: accountRules(account).floatingLossPct,
+          minTradingDays: accountRules(account).minTradingDays,
+          dailyDrawdownRule: account.dailyDrawdown || (accountRules(account).dailyDrawdownPct + "%"),
+          maxDrawdownRule: account.totalDrawdown || (accountRules(account).maxDrawdownPct + "%")''',
+            'server dashboard payload')
 
-      - name: Commit and push server fix
+          patch('courses.html',
+            "const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)]];\n    rules.forEach((rule,i)=>items.push(['Rule '+(i+1),rule]));",
+            "const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)],['Daily Drawdown',String(account.dailyDrawdownRule||((account.dailyDrawdownLimit??4)+'%'))],['Max Drawdown',String(account.maxDrawdownRule||((account.maxDrawdownLimit??8)+'%'))]];if(account.floatingLossEnabled===true)items.push(['Floating Loss',Number(account.floatingLossPct||1).toFixed(2)+'%']);const days=account.minTradingDays||{};if(model==='2 Step'){items.push(['Min Days — Phase 1',String(days.phase1||0)]);items.push(['Min Days — Phase 2',String(days.phase2||0)]);items.push(['Min Days — Funded',String(days.funded||0)])}else if(model==='1 Step'){items.push(['Min Days — Phase 1',String(days.phase1||0)]);items.push(['Min Days — Funded',String(days.funded||0)])}else{items.push(['Min Days — Funded',String(days.funded||0)])};rules.forEach((rule,i)=>items.push(['Rule '+(i+1),rule]));",
+            'dashboard rules')
+
+          print('Challenge control patch ready.')
+
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/server.js
+          git add backend/server.js admin-challenges.html courses.html
           if git diff --cached --quiet; then
-            echo "No server changes needed."
+            echo "No changes needed."
             exit 0
           fi
-          git commit -m "Fix dashboard legacy account visibility"
+          git commit -m "Add configurable floating loss and minimum trading days"
           git push origin HEAD:main
