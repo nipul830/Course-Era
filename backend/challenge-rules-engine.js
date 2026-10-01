@@ -1,4 +1,6 @@
 import "dotenv/config";
+import admin from "firebase-admin";
+import { readFileSync } from "node:fs";
 import { getMongoDb } from "./mongodb.js";
 
 export const CHALLENGE_RULES = Object.freeze({
@@ -95,6 +97,131 @@ async function cleanup(col) {
   for(const a of old) await col.deleteOne({_id:a._id});
 }
 
+let firebaseReady = false;
+function initFirebaseForRiskMonitor() {
+  if (firebaseReady || admin.apps.length) { firebaseReady = true; return; }
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const file = process.env.GOOGLE_APPLICATION_CREDENTIALS || "/etc/secrets/firebase-service-account.json";
+  try {
+    if (raw) {
+      admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
+    } else {
+      const serviceAccount = JSON.parse(readFileSync(file, "utf8"));
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    }
+    firebaseReady = true;
+  } catch (e) {
+    console.error("FLOATING_RISK_FIREBASE_INIT_ERROR", e?.message || e);
+  }
+}
+
+const MARKET = {
+  "OANDA:XAUUSD": { code:"XAUUSD", contractSize:100 },
+  "FX:EURUSD": { code:"EURUSD", contractSize:100000 },
+  "FX:GBPUSD": { code:"GBPUSD", contractSize:100000 },
+  "FX:USDJPY": { code:"USDJPY", contractSize:100000, jpy:true },
+  "FX:AUDUSD": { code:"AUDUSD", contractSize:100000 },
+  "BINANCE:BTCUSDT": { code:"BTCUSD", contractSize:1 },
+  "BINANCE:ETHUSDT": { code:"ETHUSD", contractSize:1 },
+  "BINANCE:SOLUSDT": { code:"SOLUSD", contractSize:1 },
+  "BINANCE:XRPUSDT": { code:"XRPUSD", contractSize:1 },
+  "INDEX:NAS100": { code:"INDEX:NAS100", contractSize:1 },
+  "INDEX:DEX40": { code:"INDEX:DEX40", contractSize:1 },
+  "INDEX:US30": { code:"INDEX:US30", contractSize:1 },
+  "OIL:USOIL": { code:"USOIL", contractSize:1 },
+  "NASDAQ:AAPL": { code:"AAPL", contractSize:1 },
+  "NASDAQ:NVDA": { code:"NVDA", contractSize:1 }
+};
+
+async function livePrice(symbol) {
+  const spec=MARKET[symbol];
+  if(!spec) return null;
+  const r=await fetch("https://biquote.io/api/"+encodeURIComponent(spec.code),{headers:{Accept:"application/json",User-Agent:"AuraFarming-Risk/1.0"}});
+  if(!r.ok) return null;
+  const d=await r.json();
+  const p=Number(d.mid||d.price||d.ask||d.bid);
+  return Number.isFinite(p)&&p>0?p:null;
+}
+
+function positionPnl(p, price) {
+  const spec=MARKET[p.symbol];
+  const entry=n(p.entryPrice), lot=n(p.lot);
+  if(!spec || !entry || !price || !lot) return 0;
+  let v=(String(p.side).toUpperCase()==="BUY" ? price-entry : entry-price)*lot*spec.contractSize;
+  if(spec.jpy) v/=price;
+  return Number.isFinite(v)?v:0;
+}
+
+async function closeFloatingLossAccounts() {
+  try {
+    initFirebaseForRiskMonitor();
+    if (!firebaseReady) return;
+    const db=admin.firestore();
+    const accounts=await db.collectionGroup("trading").where("status","==","active").get();
+    for (const accountDoc of accounts.docs) {
+      const account=accountDoc.data()||{};
+      const size=Math.max(0,n(account.startingBalance,n(account.accountSize,n(account.balance))));
+      if (!size || accountDoc.id!=="account") continue;
+      const posSnap=await accountDoc.ref.collection("positions").where("status","==","open").get();
+      if (posSnap.empty) {
+        if (account.floatingLossActive) await accountDoc.ref.update({floatingLossActive:false});
+        continue;
+      }
+      const symbols=[...new Set(posSnap.docs.map(d=>d.data()?.symbol).filter(Boolean))];
+      const prices={};
+      await Promise.all(symbols.map(async s=>{ prices[s]=await livePrice(s); }));
+      let openPnl=0;
+      const positions=posSnap.docs.map(d=>({id:d.id,...d.data()}));
+      for(const p of positions) openPnl+=positionPnl(p,prices[p.symbol]);
+      const threshold=-(size*CHALLENGE_RULES.floatingLoss);
+      const hit=openPnl<=threshold;
+      if(!hit) {
+        if(account.floatingLossActive) await accountDoc.ref.update({floatingLossActive:false,openPnl:Number(openPnl.toFixed(2)),equity:n(account.balance)+openPnl});
+        continue;
+      }
+      if(account.floatingLossActive) continue;
+
+      let balance=n(account.balance,n(account.startingBalance));
+      for(const p of positions) {
+        const price=Number(prices[p.symbol]||0);
+        if(!price) continue;
+        const pnl=positionPnl(p,price);
+        balance+=pnl;
+        await accountDoc.ref.collection("positions").doc(p.id).update({
+          status:"closed", closePrice:price, realizedPnl:pnl, closeReason:"1% floating loss limit",
+          closedAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      const hits=n(account.floatingLossHits)+1;
+      const isFunded=funded(account);
+      const limit=isFunded?CHALLENGE_RULES.fundedFloatingHitsToBreach:CHALLENGE_RULES.phaseFloatingHitsToBreach;
+      const update={
+        balance,
+        equity:balance,
+        pnl:balance-n(account.startingBalance,balance),
+        openPnl:0,
+        floatingLossHits:hits,
+        floatingLossActive:true,
+        lastFloatingLossAt:admin.firestore.FieldValue.serverTimestamp(),
+        lastFloatingLossWarning:`1% floating loss hit #${hits}`,
+        updatedAt:admin.firestore.FieldValue.serverTimestamp()
+      };
+      if(isFunded && hits===2) update.profitSplitPercent=CHALLENGE_RULES.fundedSecondHitProfitSplit;
+      if(hits>=limit) {
+        update.status="breached";
+        update.breachReason=`1% floating loss hit ${hits} time(s)`;
+        update.breachedAt=admin.firestore.FieldValue.serverTimestamp();
+        update.breachDeleteAt=new Date(Date.now()+CHALLENGE_RULES.breachRetentionDays*86400000);
+      }
+      await accountDoc.ref.update(update);
+      console.log("FLOATING_RISK_CLOSE",account.accountId,"hit",hits,"openPnl",openPnl.toFixed(2));
+    }
+  } catch(e) {
+    console.error("FLOATING_RISK_ERROR",e?.message||e);
+  }
+}
+
 async function tick() {
   try {
     const db=await getMongoDb();
@@ -106,3 +233,4 @@ async function tick() {
   } catch(e) { console.error("CHALLENGE_ENGINE_ERROR",e?.message||e); }
 }
 setTimeout(()=>{tick();setInterval(tick,5000)},1500);
+setTimeout(()=>{closeFloatingLossAccounts();setInterval(closeFloatingLossAccounts,1000)},2000);
