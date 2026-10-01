@@ -3,29 +3,30 @@ import { readFileSync, writeFileSync } from "node:fs";
 const target = new URL("./server.js", import.meta.url);
 let source = readFileSync(target, "utf8");
 
-if (source.includes("CHALLENGE_PAYMENT_MONGO_ROUTE_V2")) {
-  console.log("CHALLENGE_PAYMENT_MONGO_ROUTE_V2=ALREADY_APPLIED");
-  process.exit(0);
-}
-
-if (!source.includes('import { getMongoDb } from "./mongodb.js";')) {
+const mongoImport = 'import { getMongoDb } from "./mongodb.js";';
+if (!source.includes(mongoImport)) {
   const marker = 'import { fileURLToPath } from "node:url";';
   if (!source.includes(marker)) throw new Error("Could not find server import marker");
-  source = source.replace(marker, marker + '\nimport { getMongoDb } from "./mongodb.js";');
+  source = source.replace(marker, marker + "\n" + mongoImport);
 }
 
-const marker = 'app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), async (req, res) => {';
-const index = source.indexOf(marker);
-if (index < 0) throw new Error("Existing challenge payment route not found");
+const startMarker = 'app.post("/api/challenge-payments"';
+const endMarker = 'app.get("/api/challenge-payments/my"';
+const start = source.indexOf(startMarker);
+const end = source.indexOf(endMarker, start);
+if (start < 0) throw new Error("Challenge payment POST route not found");
+if (end < 0) throw new Error("Challenge payment history route not found");
 
-const route = `/* CHALLENGE_PAYMENT_MONGO_ROUTE_V2 */
+const route = `/* CHALLENGE_PAYMENT_MONGO_ROUTE_V3 */
 app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), async (req, res) => {
   try {
+    const mongo = await getMongoDb();
     const challengeId = String(req.body?.challengeId || "").trim();
     const transactionId = String(req.body?.transactionId || "").trim();
     const method = String(req.body?.method || "UPI").trim().toUpperCase();
     const currency = String(req.body?.currency || "INR").trim().toUpperCase();
     const amount = positiveAmount(req.body?.amount);
+
     if (!challengeId || !transactionId || amount === null) {
       return res.status(400).json({ error: "challengeId, transactionId and valid amount are required" });
     }
@@ -41,19 +42,27 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
     const discountedPrice = Math.round(Number(challenge.price) * (1 - discountPercent / 100) * 100) / 100;
     const expectedAmount = currency === "INR" ? Math.round(discountedPrice * 98) : discountedPrice;
     if (Math.abs(expectedAmount - amount) > 0.01) {
-      return res.status(400).json({ error: "Payment amount does not match selected currency price", expectedAmount, receivedAmount: amount, currency });
+      return res.status(400).json({
+        error: "Payment amount does not match selected currency price",
+        expectedAmount,
+        receivedAmount: amount,
+        currency
+      });
     }
 
-    const mongo = await getMongoDb();
-    const payments = mongo.collection("firestore_docs");
-    const duplicate = await payments.findOne({ __collectionPath: "payments", transactionId });
+    const payments = mongo.collection("payments");
+    const duplicate = await payments.findOne({ transactionId });
     if (duplicate) {
-      const existing = { ...duplicate };
-      delete existing._id;
-      delete existing.__collectionPath;
-      delete existing.__docId;
-      if (existing.userId === req.user.uid && existing.type === "challenge" && existing.challengeId === challengeId) {
-        return res.status(200).json({ id: duplicate.__docId, status: existing.status || "pending", message: existing.status === "approved" ? "This payment was already approved." : existing.status === "rejected" ? "This payment was already rejected." : "Payment already submitted. It is waiting for admin review." });
+      if (String(duplicate.userId) === String(req.user.uid) && duplicate.type === "challenge" && duplicate.challengeId === challengeId) {
+        return res.status(200).json({
+          id: String(duplicate._id),
+          status: duplicate.status || "pending",
+          message: duplicate.status === "approved"
+            ? "This payment was already approved."
+            : duplicate.status === "rejected"
+              ? "This payment was already rejected."
+              : "Payment already submitted. It is waiting for admin review."
+        });
       }
       return res.status(409).json({ error: "This transaction/reference ID was already submitted" });
     }
@@ -61,17 +70,18 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
     let screenshotUrl = "";
     let screenshotPath = "";
     if (req.file) {
-      if (!String(req.file.mimetype || "").startsWith("image/")) return res.status(400).json({ error: "Payment screenshot must be an image" });
-      if (req.file.buffer.length > 650000) return res.status(400).json({ error: "Payment screenshot could not be uploaded. Please choose a smaller screenshot and try again." });
+      if (!String(req.file.mimetype || "").startsWith("image/")) {
+        return res.status(400).json({ error: "Payment screenshot must be an image" });
+      }
+      if (req.file.buffer.length > 650000) {
+        return res.status(400).json({ error: "Payment screenshot could not be uploaded. Please choose a smaller screenshot and try again." });
+      }
       screenshotUrl = "data:" + req.file.mimetype + ";base64," + req.file.buffer.toString("base64");
     }
 
     const id = crypto.randomUUID();
-    const now = new Date();
     await payments.insertOne({
-      _id: "payments::" + id,
-      __collectionPath: "payments",
-      __docId: id,
+      _id: id,
       userId: req.user.uid,
       userEmail: req.user.email || "",
       type: "challenge",
@@ -88,19 +98,27 @@ app.post("/api/challenge-payments", requireAuth, upload.single("screenshot"), as
       screenshotUrl,
       screenshotPath,
       status: "pending",
-      submittedAt: now,
+      submittedAt: new Date(),
       reviewedAt: null,
       reviewedBy: null
     });
 
-    res.status(201).json({ id, status: "pending", message: "Challenge payment submitted for verification" });
+    res.status(201).json({
+      id,
+      status: "pending",
+      message: "Challenge payment submitted for verification"
+    });
   } catch (e) {
     console.error("CHALLENGE_PAYMENT_MONGO_ERROR", e);
-    res.status(500).json({ error: "Could not submit challenge payment", detail: e?.message || "Unknown server error" });
+    res.status(500).json({
+      error: "Could not submit challenge payment",
+      detail: e?.message || "Unknown server error"
+    });
   }
 });
 
 `;
-source = source.slice(0, index) + route + source.slice(index);
+
+source = source.slice(0, start) + route + source.slice(end);
 writeFileSync(target, source);
-console.log("CHALLENGE_PAYMENT_MONGO_ROUTE_V2=APPLIED");
+console.log("CHALLENGE_PAYMENT_MONGO_ROUTE_V3=APPLIED");
