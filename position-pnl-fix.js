@@ -32,6 +32,19 @@
     mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});
   }
   function install(){const k=String(sessionStorage.getItem('auraTerminalAccountId')||'default');activeKey=k;mergeClosed(k,[]);window.auraUpdateDailyPnl=setDailyPnl;}
+
+  // Position page used to wait up to 3 seconds for its next history poll.
+  // Keep the existing polling logic/UI intact, but accelerate only the
+  // specific loadPositions interval to 500ms so a new BUY/SELL appears fast.
+  const nativeSetInterval=window.setInterval.bind(window);
+  window.setInterval=function(fn,delay,...args){
+    try{
+      const source=String(fn);
+      if(Number(delay)===3000&&source.includes('loadPositions()'))delay=500;
+    }catch(e){}
+    return nativeSetInterval(fn,delay,...args);
+  };
+
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,init){
     const url=typeof input==='string'?input:(input?.url||''),method=String(init?.method||input?.method||'GET').toUpperCase();const response=await nativeFetch(input,init);
