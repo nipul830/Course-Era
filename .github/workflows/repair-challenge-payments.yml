@@ -1,13 +1,14 @@
 name: Repair Challenge Payments
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Deploy to VPS"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:
   repair:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Prepare SSH key
