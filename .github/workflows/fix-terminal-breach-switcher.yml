@@ -1,0 +1,153 @@
+name: Fix terminal breached account switcher
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove revoked accounts from terminal switcher
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('aura-account.js')
+          s = p.read_text()
+          start = s.find('  async function renderTerminalAccountSwitcher(){')
+          end = s.find('\n  function fixPositionDashboardLeverage(){', start)
+          if start < 0 or end < 0:
+              raise SystemExit('terminal account switcher function not found')
+
+          new_fn = r'''  async function purgeRevokedTerminalAccounts(){
+    try{
+      const uid=ceAuth?.currentUser?.uid;
+      if(!uid)return readTerminalUnlocked();
+      const unlocked=readTerminalUnlocked();
+      const entries=Object.entries(unlocked);
+      if(!entries.length)return unlocked;
+      const checks=await Promise.all(entries.map(async([id,item])=>{
+        const token=String(item?.token||'');
+        if(!token)return [id,false];
+        const payload=decodeTerminalToken(token);
+        if(!payload||String(payload.uid)!==String(uid)||Number(payload.exp||0)<Date.now()/1000)return [id,false];
+        try{
+          const response=await nativeFetch(AURA_API_BASE+'/api/trading/positions',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+          return [id,response.ok];
+        }catch(e){
+          return [id,true];
+        }
+      }));
+      let changed=false;
+      for(const [id,valid] of checks){
+        if(valid)continue;
+        delete unlocked[id];
+        changed=true;
+      }
+      if(changed)sessionStorage.setItem(terminalUnlockedKey(uid),JSON.stringify(unlocked));
+      return unlocked;
+    }catch(e){
+      console.warn('Terminal revoked-account cleanup failed:',e);
+      return readTerminalUnlocked();
+    }
+  }
+
+  async function renderTerminalAccountSwitcher(){
+    const root=document.querySelector('.mobile-terminal .m-top');
+    if(!root||document.getElementById('auraTerminalAccountSwitcher'))return;
+    const label=root.querySelector('.account-label');
+    if(!label)return;
+    const role=label.querySelector('#terminalRoleBadge');
+    if(role)role.style.display='none';
+    label.textContent='Account Switch';
+    label.id='auraTerminalAccountSwitchButton';
+    label.setAttribute('role','button');
+    label.setAttribute('aria-haspopup','listbox');
+    label.setAttribute('aria-expanded','false');
+    label.style.cssText='display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#182332;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:none;position:relative;';
+    const chev=document.createElement('span');
+    chev.textContent='▾';
+    chev.style.cssText='font-size:15px;color:#667585;line-height:1;';
+    label.appendChild(chev);
+    const menu=document.createElement('div');
+    menu.id='auraTerminalAccountSwitcher';
+    menu.setAttribute('role','listbox');
+    menu.style.cssText='display:none;position:absolute;left:28px;right:28px;top:43px;background:#fff;border:1px solid #dce2e7;border-radius:16px;box-shadow:0 12px 30px #0002;z-index:120;overflow:hidden;';
+    const head=document.createElement('div');
+    head.textContent='LOGGED-IN ACCOUNTS';
+    head.style.cssText='padding:10px 14px 7px;color:#8a96a2;font-size:10px;font-weight:900;letter-spacing:.08em;border-bottom:1px solid #eef1f4;';
+    menu.appendChild(head);
+    const list=document.createElement('div');
+    list.style.cssText='max-height:330px;overflow-y:auto;-webkit-overflow-scrolling:touch;';
+    menu.appendChild(list);
+    root.style.position='relative';
+    root.appendChild(menu);
+
+    label.addEventListener('click',async e=>{
+      e.stopPropagation();
+      const open=menu.style.display==='block';
+      menu.style.display=open?'none':'block';
+      label.setAttribute('aria-expanded',String(!open));
+      if(open)return;
+      list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px;font-weight:700">Checking account status…</div>';
+      const unlocked=await purgeRevokedTerminalAccounts();
+      list.innerHTML='';
+      const entries=Object.entries(unlocked).sort((a,b)=>Number(b[1]?.savedAt||0)-Number(a[1]?.savedAt||0));
+      const current=terminalAccountContext()?.accountId||'';
+      if(!entries.length){
+        list.innerHTML='<div style="padding:16px;color:#7b8793;font-size:12px;font-weight:700">No active account logged in yet. Copy the Terminal ID + password from Dashboard and login first.</div>';
+        return;
+      }
+      entries.forEach(([id,item])=>{
+        const account=item.account||{};
+        const challenge=String(account.challenge||'Account');
+        const size=Number(account.balance||account.startingBalance||0);
+        const itemBtn=document.createElement('button');
+        itemBtn.type='button';
+        itemBtn.setAttribute('role','option');
+        itemBtn.setAttribute('aria-selected',String(id===current));
+        itemBtn.style.cssText='display:block;width:100%;padding:13px 14px;border:0;border-bottom:1px solid #eef1f4;background:'+(id===current?'#fff8e8':'#fff')+';text-align:left;color:#17212b;cursor:pointer;-webkit-tap-highlight-color:transparent;';
+        const top=document.createElement('strong');
+        top.textContent=id;
+        top.style.cssText='display:block;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        const sub=document.createElement('span');
+        sub.textContent=challenge+(size?' · $'+size.toLocaleString('en-US'):'');
+        sub.style.cssText='display:block;margin-top:4px;color:#7c8995;font-size:11px;font-weight:800;';
+        itemBtn.append(top,sub);
+        itemBtn.addEventListener('click',()=>{
+          menu.style.display='none';
+          label.setAttribute('aria-expanded','false');
+          terminalSwitchAccount(id);
+        });
+        list.appendChild(itemBtn);
+      });
+    });
+    document.addEventListener('click',e=>{
+      if(menu.style.display==='block'&&!menu.contains(e.target)&&e.target!==label){
+        menu.style.display='none';
+        label.setAttribute('aria-expanded','false');
+      }
+    });
+  }'''
+
+          s = s[:start] + new_fn + s[end:]
+          p.write_text(s)
+          PY
+
+          node --check aura-account.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add aura-account.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Remove revoked accounts from terminal switcher [skip ci]'
+            git push
+          fi
