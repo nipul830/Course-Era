@@ -78,7 +78,7 @@ jobs:
               if live_css in s:
                   s = s.replace(live_css, new_css, 1)
 
-          # Keep the original scroll/select lot control; only change its default to 0.01.
+          # Keep the original MT5-style scroll selector; only change the default to 0.01.
           s = s.replace(
               '<label class="lot-control">Lot <input id="lotSize" type="number" min="0.01" step="0.01" value="0.01" inputmode="decimal" aria-label="Lot size"></label>',
               '<label class="lot-control">Lot <select id="lotSize" aria-label="Lot size"></select></label>',
