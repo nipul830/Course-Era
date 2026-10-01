@@ -19,8 +19,6 @@
     for(const raw of existing){
       if(!raw||typeof raw!=='object')continue;
       const x={...raw};
-      // Some older closed-trade records have no close timestamp at all.
-      // Record the first time this fix sees them so today's P&L is not stuck at $0.
       if(!closedTime(x))x.dailyRecordedAt=now;
       const i=out.findIndex(y=>sameTrade(y,x));
       if(i<0)out.push(x);else out[i]={...out[i],...x};
@@ -35,80 +33,26 @@
     if(h<6){const prev=new Date(Date.UTC(y,m-1,d)-86400000);y=prev.getUTCFullYear();m=prev.getUTCMonth()+1;d=prev.getUTCDate();}
     return Date.UTC(y,m-1,d,0,30,0,0);
   }
-  function isAfterDailyReset(x){
-    const t=Date.parse(closedTime(x));
-    return Number.isFinite(t)&&t>=dailyStart();
-  }
-  function getDailyPnl(){
-    const list=memory[activeKey]?.closed||[];
-    return list.filter(isAfterDailyReset).reduce((s,x)=>s+pnl(x),0);
-  }
+  function isAfterDailyReset(x){const t=Date.parse(closedTime(x));return Number.isFinite(t)&&t>=dailyStart();}
+  function getDailyPnl(){const list=memory[activeKey]?.closed||[];return list.filter(isAfterDailyReset).reduce((s,x)=>s+pnl(x),0);}
   function renderDailyPnl(){
-    const positions=document.getElementById('positions');
-    const tabs=document.querySelector('.tabs');
-    if(!positions||!tabs)return;
+    const positions=document.getElementById('positions'),tabs=document.querySelector('.tabs');if(!positions||!tabs)return;
     let box=document.getElementById('dailyPnlBox');
-    if(!box){
-      box=document.createElement('div');box.id='dailyPnlBox';
-      box.innerHTML='<div class="daily-pnl-label">Daily P&L</div><div class="daily-pnl-value" id="dailyPnlValue">$0.00</div>';
-      positions.parentNode.insertBefore(box,positions);
-    }
-    const closedTab=document.querySelector('.tab[data-tab="closed"]');
-    const show=closedTab?.classList.contains('active');
-    box.style.display=show?'flex':'none';
-    if(show){
-      const v=getDailyPnl(),el=document.getElementById('dailyPnlValue');
-      if(el){el.textContent=(v>=0?'+':'')+money(v);el.classList.toggle('positive',v>=0);el.classList.toggle('negative',v<0);}
-    }
+    if(!box){box=document.createElement('div');box.id='dailyPnlBox';box.innerHTML='<div class="daily-pnl-label">Daily P&L</div><div class="daily-pnl-value" id="dailyPnlValue">$0.00</div>';positions.parentNode.insertBefore(box,positions);}
+    const closedTab=document.querySelector('.tab[data-tab="closed"]');const show=closedTab?.classList.contains('active');box.style.display=show?'flex':'none';
+    if(show){const v=getDailyPnl(),el=document.getElementById('dailyPnlValue');if(el){el.textContent=(v>=0?'+':'')+money(v);el.classList.toggle('positive',v>=0);el.classList.toggle('negative',v<0);}}
   }
-  function scheduleDailyRefresh(){
-    clearTimeout(window.__auraDailyPnlTimer);
-    const next=dailyStart()+86400000;
-    window.__auraDailyPnlTimer=setTimeout(()=>{renderDailyPnl();scheduleDailyRefresh();},Math.max(1000,next-Date.now()+100));
-  }
+  function scheduleDailyRefresh(){clearTimeout(window.__auraDailyPnlTimer);const next=dailyStart()+86400000;window.__auraDailyPnlTimer=setTimeout(()=>{renderDailyPnl();scheduleDailyRefresh();},Math.max(1000,next-Date.now()+100));}
   function setDailyPnl(){window.auraTodayPnl=getDailyPnl();renderDailyPnl();}
   function cacheHistory(data){
-    activeKey=accountKey(data);const closed=mergeClosed(activeKey,Array.isArray(data.closed)?data.closed:[]);const open=Array.isArray(data.open)?data.open:(Array.isArray(data.positions)?data.positions:[]);const openMap={};
-    for(const p of open)if(idOf(p))openMap[idOf(p)]=p;
-    memory[activeKey]={...(memory[activeKey]||{}),open:openMap};write(OPEN_KEY+activeKey,openMap);
-    for(const t of closed){const id=idOf(t);if(id)delete openMap[id]}
-    data.closed=closed;data.open=Object.values(openMap);setDailyPnl();return data;
+    activeKey=accountKey(data);const closed=mergeClosed(activeKey,Array.isArray(data.closed)?data.closed:[]);const open=Array.isArray(data.open)?data.open:(Array.isArray(data.positions)?data.positions:[]),openMap={};
+    for(const p of open)if(idOf(p))openMap[idOf(p)]=p;memory[activeKey]={...(memory[activeKey]||{}),open:openMap};write(OPEN_KEY+activeKey,openMap);
+    for(const t of closed){const id=idOf(t);if(id)delete openMap[id]};data.closed=closed;data.open=Object.values(openMap);setDailyPnl();return data;
   }
-  function rememberClosedFromClose(id,data){
-    const m=memory[activeKey]||{},original=(m.open||{})[String(id)];if(!original)return;
-    const closed={...original,status:'closed',closePrice:Number(data?.closePrice||original.currentPrice||original.entryPrice||0),realizedPnl:Number(data?.realizedPnl??data?.pnl??0),closedAt:data?.closedAt||data?.closeTime||new Date().toISOString()};
-    mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});renderDailyPnl();
-  }
-  function install(){
-    const k=String(sessionStorage.getItem('auraTerminalAccountId')||'default');activeKey=k;mergeClosed(k,[]);window.auraUpdateDailyPnl=setDailyPnl;
-    const wire=()=>{
-      document.querySelectorAll('.tab[data-tab]').forEach(tab=>tab.addEventListener('click',()=>setTimeout(renderDailyPnl,0)));
-      renderDailyPnl();scheduleDailyRefresh();
-    };
-    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();
-  }
-
-  // Keep the existing polling logic/UI intact, but accelerate the specific
-  // loadPositions interval so a new BUY/SELL appears almost instantly.
-  const nativeSetInterval=window.setInterval.bind(window);
-  window.setInterval=function(fn,delay,...args){
-    try{const source=String(fn);if(Number(delay)===3000&&source.includes('loadPositions()'))delay=50;}catch(e){}
-    return nativeSetInterval(fn,delay,...args);
-  };
-
-  const nativeFetch=window.fetch.bind(window);
-  window.fetch=async function(input,init){
-    const url=typeof input==='string'?input:(input?.url||''),method=String(init?.method||input?.method||'GET').toUpperCase();const response=await nativeFetch(input,init);
-    try{
-      const data=await response.clone().json();
-      if(/\/api\/trading\/history(?:\?|$)/.test(url)){
-        const fixed=cacheHistory(data),h=new Headers(response.headers);h.delete('content-length');h.delete('content-encoding');h.delete('etag');
-        return new Response(JSON.stringify(fixed),{status:response.status,statusText:response.statusText,headers:h});
-      }
-      const m=url.match(/\/api\/trading\/positions\/([^/?]+)\/close(?:\?|$)/);if(m&&method==='POST')rememberClosedFromClose(decodeURIComponent(m[1]),data);
-    }catch(e){}
-    return response;
-  };
-  const style=document.createElement('style');style.textContent='#dailyPnlBox{display:none;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:12px 16px;border:1px solid #e0e5e9;border-radius:12px;background:#fff;box-shadow:0 4px 14px #0000000b}.daily-pnl-label{font-size:13px;font-weight:800;color:#687786}.daily-pnl-value{font-size:20px;font-weight:900;color:#008a5b}.daily-pnl-value.negative{color:#e6004d}';document.head.appendChild(style);
+  function rememberClosedFromClose(id,data){const m=memory[activeKey]||{},original=(m.open||{})[String(id)];if(!original)return;const closed={...original,status:'closed',closePrice:Number(data?.closePrice||original.currentPrice||original.entryPrice||0),realizedPnl:Number(data?.realizedPnl??data?.pnl??0),closedAt:data?.closedAt||data?.closeTime||new Date().toISOString()};mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});renderDailyPnl();}
+  function install(){const k=String(sessionStorage.getItem('auraTerminalAccountId')||'default');activeKey=k;mergeClosed(k,[]);window.auraUpdateDailyPnl=setDailyPnl;const wire=()=>{document.querySelectorAll('.tab[data-tab]').forEach(tab=>tab.addEventListener('click',()=>setTimeout(renderDailyPnl,0)));renderDailyPnl();scheduleDailyRefresh();};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();}
+  const nativeSetInterval=window.setInterval.bind(window);window.setInterval=function(fn,delay,...args){try{const source=String(fn);if(Number(delay)===3000&&source.includes('loadPositions()'))delay=50;}catch(e){}return nativeSetInterval(fn,delay,...args);};
+  const nativeFetch=window.fetch.bind(window);window.fetch=async function(input,init){const url=typeof input==='string'?input:(input?.url||''),method=String(init?.method||input?.method||'GET').toUpperCase(),response=await nativeFetch(input,init);try{const data=await response.clone().json();if(/\/api\/trading\/history(?:\?|$)/.test(url)){const fixed=cacheHistory(data),h=new Headers(response.headers);h.delete('content-length');h.delete('content-encoding');h.delete('etag');return new Response(JSON.stringify(fixed),{status:response.status,statusText:response.statusText,headers:h});}const m=url.match(/\/api\/trading\/positions\/([^/?]+)\/close(?:\?|$)/);if(m&&method==='POST')rememberClosedFromClose(decodeURIComponent(m[1]),data);}catch(e){}return response;};
+  const style=document.createElement('style');style.textContent='#dailyPnlBox{display:none;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;padding:7px 12px;border:1px solid #e0e5e9;border-radius:10px;background:#fff;box-shadow:0 2px 8px #0000000b;min-height:0}.daily-pnl-label{font-size:11px;font-weight:800;color:#687786;line-height:1.2}.daily-pnl-value{font-size:16px;font-weight:900;line-height:1.2;color:#008a5b}.daily-pnl-value.negative{color:#e6004d}';document.head.appendChild(style);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
