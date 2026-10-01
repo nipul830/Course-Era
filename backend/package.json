@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node --import ./challenge-rules-engine.js server.js" },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
