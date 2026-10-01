@@ -39,8 +39,10 @@
 
   async function token(){
     try{
-      if(typeof ceAuth!=='undefined' && ceAuth.currentUser)return await ceAuth.currentUser.getIdToken(true);
-    }catch{}
+      if(typeof ceAuth!=='undefined' && ceAuth.currentUser)return await ceAuth.currentUser.getIdToken(false);
+    }catch(e){
+      console.warn('Payment approval auth refresh:',e?.message||e);
+    }
     return '';
   }
 
