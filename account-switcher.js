@@ -22,7 +22,21 @@
       .aura-account-switcher-item span{display:block;margin-top:3px;color:#9b8552;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .aura-account-switcher-item.selected{border-color:#d6b35a;background:#171106;box-shadow:inset 0 0 0 1px #d6b35a33}
       .aura-account-switcher-item.selected strong{color:#f1d98a}
+      .aura-account-switcher-item.breached{border-color:#6b1735;background:#12070b}
+      .aura-account-switcher-item.breached strong{color:#ff6b96}
+      .aura-account-switcher-item.breached span{color:#d887a1}
       .aura-account-switcher-empty{padding:10px 11px;border:1px dashed #302713;border-radius:11px;color:#7f6d43;font-size:10px}
+      .aura-breach-modal{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;padding:20px;background:#0009}
+      .aura-breach-modal.open{display:flex}
+      .aura-breach-card{width:min(430px,94vw);background:#090806;border:1px solid #6b1735;border-radius:18px;padding:20px;box-shadow:0 20px 70px #0008;color:#fff}
+      .aura-breach-card h3{margin:0 0 5px;color:#ff6b96;font-size:18px}
+      .aura-breach-card .sub{margin:0 0 15px;color:#9b8552;font-size:11px;font-weight:700}
+      .aura-breach-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .aura-breach-row{padding:10px;border:1px solid #302713;border-radius:10px;background:#050505}
+      .aura-breach-row small{display:block;color:#7f6d43;font-size:9px;font-weight:800;text-transform:uppercase}
+      .aura-breach-row b{display:block;margin-top:3px;color:#fff;font-size:13px;word-break:break-word}
+      .aura-breach-reason{margin-top:10px;padding:10px;border:1px solid #6b1735;border-radius:10px;background:#12070b;color:#ffb2c8;font-size:11px;font-weight:700}
+      .aura-breach-close{width:100%;height:42px;margin-top:14px;border:1px solid #d6b35a;border-radius:10px;background:#171106;color:#f1d98a;font-weight:900;cursor:pointer}
     `;
     document.head.appendChild(s);
   }
@@ -40,10 +54,46 @@
     const n=Number(a?.startingBalance??a?.accountSize??a?.size??0);
     return n?'$'+n.toLocaleString('en-US'):'Account';
   }
+  function money(v){return '$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+  function isBreached(a){return String(a?.status||'').toLowerCase()==='breached'}
+
+  function showBreachData(account){
+    let modal=document.getElementById('auraBreachDataModal');
+    if(!modal){
+      modal=document.createElement('div');
+      modal.id='auraBreachDataModal';
+      modal.className='aura-breach-modal';
+      modal.innerHTML='<div class="aura-breach-card"><h3>BREACHED ACCOUNT</h3><p class="sub" id="auraBreachSub"></p><div class="aura-breach-grid" id="auraBreachGrid"></div><div class="aura-breach-reason" id="auraBreachReason"></div><button type="button" class="aura-breach-close">Close</button></div>';
+      modal.querySelector('.aura-breach-close').addEventListener('click',()=>modal.classList.remove('open'));
+      modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});
+      document.body.appendChild(modal);
+    }
+    const id=accountId(account), balance=Number(account?.balance??0), equity=Number(account?.equity??balance), pnl=Number(account?.pnl??0);
+    const grid=modal.querySelector('#auraBreachGrid');
+    grid.innerHTML='';
+    const rows=[
+      ['Account',id||'—'],
+      ['Challenge',String(account?.challenge||account?.name||'—')],
+      ['Starting Balance',money(account?.startingBalance??account?.accountSize??0)],
+      ['Balance',money(balance)],
+      ['Equity',money(equity)],
+      ['P&L',(pnl>=0?'+':'-')+money(Math.abs(pnl))],
+      ['Phase',String(account?.phase||account?.stage||'—')],
+      ['Status','BREACHED']
+    ];
+    rows.forEach(([k,v])=>{const row=document.createElement('div');row.className='aura-breach-row';const sm=document.createElement('small');sm.textContent=k;const b=document.createElement('b');b.textContent=v;row.append(sm,b);grid.appendChild(row)});
+    modal.querySelector('#auraBreachSub').textContent='Read-only account data · Terminal access revoked';
+    modal.querySelector('#auraBreachReason').textContent='Breach reason: '+String(account?.breachReason||'Account breached');
+    modal.classList.add('open');
+  }
 
   async function selectAccount(account){
     const id=accountId(account);
     if(!id)return;
+    if(isBreached(account)){
+      showBreachData(account);
+      return;
+    }
     localStorage.setItem(KEY,id);
     const user=typeof ceAuth!=='undefined'?ceAuth.currentUser:null;
     if(user){
@@ -96,18 +146,19 @@
       return;
     }
 
-    const selected=localStorage.getItem(KEY)||accountId(accounts[0]);
-    if(!localStorage.getItem(KEY))localStorage.setItem(KEY,selected);
+    const selected=localStorage.getItem(KEY)||accountId(accounts.find(a=>!isBreached(a))||accounts[0]);
+    if(!localStorage.getItem(KEY)&&selected)localStorage.setItem(KEY,selected);
 
     accounts.forEach((a,i)=>{
       const id=accountId(a); if(!id)return;
+      const breached=isBreached(a);
       const b=document.createElement('button');
       b.type='button';
-      b.className='aura-account-switcher-item'+(id===selected?' selected':'');
+      b.className='aura-account-switcher-item'+(id===selected&&!breached?' selected':'')+(breached?' breached':'');
       const name=String(a.challenge||a.name||('Account '+(i+1)));
       b.innerHTML='<strong></strong><span></span>';
       b.querySelector('strong').textContent=id;
-      b.querySelector('span').textContent=name+' · '+accountSize(a);
+      b.querySelector('span').textContent=breached?'BREACHED · Tap to view data':name+' · '+accountSize(a);
       b.addEventListener('click',()=>selectAccount(a));
       list.appendChild(b);
     });
