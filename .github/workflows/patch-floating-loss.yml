@@ -1,0 +1,106 @@
+name: Configure 1% Floating Loss
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Patch floating loss controls and account setting
+        shell: python
+        run: |
+          from pathlib import Path
+
+          server = Path('backend/server.js')
+          s = server.read_text()
+
+          old = '''      ...(x.phase2Profit ? { phase2Profit:String(x.phase2Profit) } : {}),
+      ...(x.evaluation ? { evaluation:String(x.evaluation) } : {})'''
+          new = '''      ...(x.phase2Profit ? { phase2Profit:String(x.phase2Profit) } : {}),
+      ...(x.evaluation ? { evaluation:String(x.evaluation) } : {}),
+      floatingLossEnabled: Boolean(x.floatingLossEnabled)'''
+          if old in s and 'floatingLossEnabled: Boolean(x.floatingLossEnabled)' not in s:
+              s = s.replace(old, new, 1)
+
+          old = '''function accountRules(account) {
+  return {
+    dailyDrawdownPct: parsePercent(account.dailyDrawdown, 4),
+    maxDrawdownPct: parsePercent(account.maxDrawdown, 8)
+  };
+}'''
+          new = '''function accountRules(account) {
+  return {
+    dailyDrawdownPct: parsePercent(account.dailyDrawdown, 4),
+    maxDrawdownPct: parsePercent(account.maxDrawdown, 8),
+    floatingLossEnabled: account.floatingLossEnabled === true,
+    floatingLossPct: parsePercent(account.floatingLossPct, 1)
+  };
+}'''
+          if old in s and 'floatingLossPct: parsePercent(account.floatingLossPct, 1)' not in s:
+              s = s.replace(old, new, 1)
+
+          old = '''        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active",'''
+          new = '''        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
+        sourcePaymentId:req.params.id, status:"active",
+        floatingLossEnabled: challenge.floatingLossEnabled === true,
+        floatingLossPct: challenge.floatingLossEnabled === true ? 1 : 0,'''
+          if old in s and 'floatingLossEnabled: challenge.floatingLossEnabled === true' not in s:
+              s = s.replace(old, new, 1)
+
+          old = '''        accountSize:Number(challenge.accountSize), status:"active",
+        terminalCredentialId:credentialBundle.id,'''
+          new = '''        accountSize:Number(challenge.accountSize), status:"active",
+        floatingLossEnabled: challenge.floatingLossEnabled === true,
+        floatingLossPct: challenge.floatingLossEnabled === true ? 1 : 0,
+        terminalCredentialId:credentialBundle.id,'''
+          if old in s and s.count('floatingLossEnabled: challenge.floatingLossEnabled === true') < 2:
+              s = s.replace(old, new, 1)
+
+          server.write_text(s)
+
+          admin = Path('admin-challenges.html')
+          a = admin.read_text()
+          old = '<div class="row"><div class="field"><label>Phase 1 Profit</label><input id="phase1" placeholder="8%"></div><div class="field"><label>Phase 2 Profit</label><input id="phase2" placeholder="6%"></div></div>'
+          new = old + '<div class="row"><div class="field"><label>Floating Loss</label><label class="check"><input id="floatingLoss" type="checkbox"> Enable 1% floating loss</label></div><div class="field"></div></div>'
+          if old in a and 'id="floatingLoss"' not in a:
+              a = a.replace(old, new, 1)
+
+          old = "$('phase1').value=x.phase1Profit||'';$('phase2').value=x.phase2Profit||'';$('enabled').checked=enabledOf(x);"
+          new = "$('phase1').value=x.phase1Profit||'';$('phase2').value=x.phase2Profit||'';$('floatingLoss').checked=x.floatingLossEnabled===true;$('enabled').checked=enabledOf(x);"
+          if old in a and "$('floatingLoss').checked" not in a:
+              a = a.replace(old, new, 1)
+
+          old = "$('phase1').value='';$('phase2').value='';$('enabled').checked=true;"
+          new = "$('phase1').value='';$('phase2').value='';$('floatingLoss').checked=false;$('enabled').checked=true;"
+          if old in a and "$('floatingLoss').checked=false" not in a:
+              a = a.replace(old, new, 1)
+
+          old = "phase1Profit:$('phase1').value.trim(),phase2Profit:$('phase2').value.trim(),enabled:$('enabled').checked"
+          new = "phase1Profit:$('phase1').value.trim(),phase2Profit:$('phase2').value.trim(),floatingLossEnabled:$('floatingLoss').checked,enabled:$('enabled').checked"
+          if old in a and 'floatingLossEnabled:$' not in a:
+              a = a.replace(old, new, 1)
+
+          admin.write_text(a)
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js admin-challenges.html
+          if git diff --cached --quiet; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git commit -m "Add per-challenge 1% floating loss toggle"
+          git push
