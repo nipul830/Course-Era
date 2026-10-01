@@ -149,3 +149,40 @@ const firebase = { auth: ceFirebaseAuth };
   if(!/\/position(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
   const s=document.createElement('script'); s.src='position-tab-fix.js?v=1'; s.async=false; document.head.appendChild(s);
 })();
+
+// Terminal logout confirmation. This file loads before terminal.html's inline script,
+// so the capture-phase handler prevents the old immediate logout action from firing.
+(function(){
+  if(!/\/terminal(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
+  const style=document.createElement('style');
+  style.textContent='.terminal-logout-modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:20px;z-index:10000;font-family:Arial,Helvetica,sans-serif}.terminal-logout-modal.open{display:flex}.terminal-logout-card{width:min(360px,92vw);background:#fff;border-radius:18px;padding:22px;box-shadow:0 18px 55px #0006}.terminal-logout-card h3{margin:0 0 8px;color:#182332;font-size:20px}.terminal-logout-card p{margin:0 0 18px;color:#687786;font-size:13px;line-height:1.45}.terminal-logout-actions{display:flex;gap:10px}.terminal-logout-actions button{flex:1;height:44px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer}.terminal-logout-cancel{border:1px solid #dce2e7;background:#f7f8fa;color:#344252}.terminal-logout-confirm{border:0;background:#e6b83f;color:#101010}';
+  document.head.appendChild(style);
+  function closeModal(modal){ if(modal)modal.classList.remove('open'); }
+  function openModal(){
+    let modal=document.getElementById('terminalLogoutModal');
+    if(!modal){
+      modal=document.createElement('div');
+      modal.id='terminalLogoutModal';
+      modal.className='terminal-logout-modal';
+      modal.innerHTML='<div class="terminal-logout-card" role="dialog" aria-modal="true" aria-labelledby="terminalLogoutTitle"><h3 id="terminalLogoutTitle">Logout?</h3><p>Are you sure you want to logout from the terminal?</p><div class="terminal-logout-actions"><button type="button" class="terminal-logout-cancel" id="terminalLogoutCancel">❌ Cancel</button><button type="button" class="terminal-logout-confirm" id="terminalLogoutConfirm">✅ Logout</button></div></div>';
+      document.body.appendChild(modal);
+      modal.querySelector('#terminalLogoutCancel').addEventListener('click',()=>closeModal(modal));
+      modal.querySelector('#terminalLogoutConfirm').addEventListener('click',()=>{
+        closeModal(modal);
+        sessionStorage.removeItem('auraTerminalSession');
+        sessionStorage.removeItem('auraTerminalRole');
+        sessionStorage.removeItem('auraTerminalAccount');
+        window.location.href='index.html';
+      });
+      modal.addEventListener('click',e=>{if(e.target===modal)closeModal(modal)});
+    }
+    modal.classList.add('open');
+  }
+  document.addEventListener('click',function(e){
+    const button=e.target.closest?.('#terminalLogout');
+    if(!button)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openModal();
+  },true);
+})();
