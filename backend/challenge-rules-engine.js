@@ -1,4 +1,5 @@
 import "dotenv/config";
+import express from "express";
 import admin from "firebase-admin";
 import { readFileSync } from "node:fs";
 import { getMongoDb } from "./mongodb.js";
@@ -10,10 +11,129 @@ export const CHALLENGE_RULES = Object.freeze({
   phaseFloatingHitsToBreach: 2, fundedFloatingHitsToBreach: 3,
   fundedSecondHitProfitSplit: 70, breachRetentionDays: 7, resetHourIST: 6
 });
+
 const n = (v,d=0) => Number.isFinite(Number(v)) ? Number(v) : d;
 const model = a => String(a.model || a.challengeModel || a.accountModel || "").toLowerCase();
 const funded = a => a.funded === true || /funded/i.test(String(a.stage || a.phase || ""));
 const phase = a => funded(a) ? "Funded" : /phase\s*2|step\s*2/i.test(String(a.phase || a.stage || "")) ? "Phase 2" : "Phase 1";
+
+let firebaseReady = false;
+let adminRulesCache = null;
+let adminRulesCacheAt = 0;
+const ADMIN_RULES_CACHE_MS = 10000;
+
+function initFirebaseForRiskMonitor() {
+  if (firebaseReady || admin.apps.length) { firebaseReady = true; return; }
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const file = process.env.GOOGLE_APPLICATION_CREDENTIALS || "/etc/secrets/firebase-service-account.json";
+  try {
+    if (raw) {
+      admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
+    } else {
+      const serviceAccount = JSON.parse(readFileSync(file, "utf8"));
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    }
+    firebaseReady = true;
+  } catch (e) {
+    console.error("FLOATING_RISK_FIREBASE_INIT_ERROR", e?.message || e);
+  }
+}
+
+function primaryAdmin(req) {
+  const email = String(req.user?.email || "").toLowerCase();
+  const allowed = (process.env.ADMIN_EMAILS || "")
+    .split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  return req.user?.admin === true || (email && (email === "lipupoddar@gmail.com" || allowed.includes(email)));
+}
+
+async function verifyAdmin(req, res, next) {
+  try {
+    initFirebaseForRiskMonitor();
+    const header = req.headers.authorization || "";
+    if (!header.startsWith("Bearer ")) return res.status(401).json({ error: "Authentication required" });
+    req.user = await admin.auth().verifyIdToken(header.slice(7));
+    if (!primaryAdmin(req)) return res.status(403).json({ error: "Admin access required" });
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: "Invalid or expired Firebase ID token" });
+  }
+}
+
+function normalizeRuleStage(value, stage) {
+  let raw = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { raw = {}; }
+  }
+  raw = raw && typeof raw === "object" ? raw : {};
+  const enabled = raw.floatingLossEnabled !== false;
+  const percent = Math.min(2.5, Math.max(0.25, n(raw.floatingLossPercent, 1)));
+  const days = Math.min(10, Math.max(0, Math.round(n(raw.minimumTradingDays, 5))));
+  return {
+    stage: String(raw.stage || stage),
+    floatingLossEnabled: enabled,
+    floatingLossPercent: percent,
+    minimumTradingDays: days
+  };
+}
+
+function normalizeRulesPayload(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const models = {
+    "1 Step": ["Phase 1", "Funded"],
+    "2 Step": ["Phase 1", "Phase 2", "Funded"],
+    "Instant": ["Funded"]
+  };
+  const out = {};
+  for (const [name, stages] of Object.entries(models)) {
+    out[name] = {};
+    for (const stage of stages) {
+      const modelData = source[name] || {};
+      const value = Array.isArray(modelData)
+        ? modelData.find(v => String(v?.stage || "") === stage) || modelData.find(v => { try { return JSON.parse(v)?.stage === stage; } catch { return false; } })
+        : modelData[stage];
+      out[name][stage] = normalizeRuleStage(value, stage);
+    }
+  }
+  return out;
+}
+
+async function getStoredChallengeRules(force = false) {
+  initFirebaseForRiskMonitor();
+  if (!firebaseReady) return {};
+  if (!force && adminRulesCache && Date.now() - adminRulesCacheAt < ADMIN_RULES_CACHE_MS) return adminRulesCache;
+  const snap = await admin.firestore().collection("challengeRules").doc("global").get();
+  adminRulesCache = snap.exists ? (snap.data()?.rules || {}) : {};
+  adminRulesCacheAt = Date.now();
+  return adminRulesCache;
+}
+
+function ruleModelName(account) {
+  const m = model(account);
+  if (/2\s*step|two\s*step|2step/.test(m)) return "2 Step";
+  if (/1\s*step|one\s*step|1step/.test(m)) return "1 Step";
+  if (/instant/.test(m)) return "Instant";
+  return "";
+}
+
+function storedStageRule(stored, account) {
+  const name = ruleModelName(account);
+  const stageName = phase(account);
+  const config = name && stored?.[name]?.[stageName] ? stored[name][stageName] : null;
+  return config ? normalizeRuleStage(config, stageName) : null;
+}
+
+async function effectiveRules(account) {
+  const stored = await getStoredChallengeRules();
+  const stageRule = storedStageRule(stored, account);
+  if (!stageRule) return { ...CHALLENGE_RULES };
+  return {
+    ...CHALLENGE_RULES,
+    floatingLoss: stageRule.floatingLossPercent / 100,
+    floatingLossEnabled: stageRule.floatingLossEnabled,
+    minTradingDays: stageRule.minimumTradingDays
+  };
+}
+
 const rules = a => ({ ...CHALLENGE_RULES, ...(a.challengeRules || a.rules || {}) });
 const dayStart = () => {
   const now = new Date(), ist = new Date(now.getTime()+330*60000);
@@ -26,10 +146,11 @@ const dayKey = d => d.toISOString().slice(0,10);
 async function evaluate(col, doc) {
   const a = { ...doc };
   if (!a.accountId || String(a.status || "active") === "deleted") return;
-  const r = rules(a), size = Math.max(0,n(a.accountSize,n(a.startingBalance,n(a.balance))));
+  const r = await effectiveRules(a);
+  const size = Math.max(0,n(a.accountSize,n(a.startingBalance,n(a.balance))));
   const balance = n(a.balance,n(a.startingBalance,size));
   const equity = n(a.equity,balance+n(a.openPnl));
-  const start = dayStart(), key = dayKey(start), set = { challengeRules: CHALLENGE_RULES };
+  const start = dayStart(), key = dayKey(start), set = { challengeRules: r };
   if (!a.staticDrawdownBase) set.staticDrawdownBase=n(a.startingBalance,size);
   if (!a.phaseStartBalance) set.phaseStartBalance=balance;
   if (!a.dailyDayKey || a.dailyDayKey!==key) {
@@ -46,15 +167,15 @@ async function evaluate(col, doc) {
     set.breachDeleteAt=new Date(Date.now()+r.breachRetentionDays*86400000);
   }
 
-  const floatingHit=size>0 && n(a.openPnl)<=-(size*r.floatingLoss);
+  const floatingHit=r.floatingLossEnabled !== false && size>0 && n(a.openPnl)<=-(size*r.floatingLoss);
   let hits=n(a.floatingLossHits);
   if (floatingHit && !a.floatingLossActive) {
     hits++; set.floatingLossHits=hits; set.floatingLossActive=true; set.lastFloatingLossAt=new Date();
-    set.lastFloatingLossWarning=`1% floating loss hit #${hits}`;
+    set.lastFloatingLossWarning=`${(r.floatingLoss*100).toFixed(2)}% floating loss hit #${hits}`;
     if (funded(a) && hits===2) set.profitSplitPercent=r.fundedSecondHitProfitSplit;
     const limit=funded(a)?r.fundedFloatingHitsToBreach:r.phaseFloatingHitsToBreach;
     if (hits>=limit) {
-      set.status="breached"; set.breachReason=`1% floating loss hit ${hits} time(s)`; set.breachedAt=new Date();
+      set.status="breached"; set.breachReason=`${(r.floatingLoss*100).toFixed(2)}% floating loss hit ${hits} time(s)`; set.breachedAt=new Date();
       set.breachDeleteAt=new Date(Date.now()+r.breachRetentionDays*86400000);
     }
   } else if (!floatingHit && a.floatingLossActive) set.floatingLossActive=false;
@@ -95,24 +216,6 @@ async function evaluate(col, doc) {
 async function cleanup(col) {
   const old=await col.find({status:"breached",breachDeleteAt:{$lte:new Date()}}).toArray();
   for(const a of old) await col.deleteOne({_id:a._id});
-}
-
-let firebaseReady = false;
-function initFirebaseForRiskMonitor() {
-  if (firebaseReady || admin.apps.length) { firebaseReady = true; return; }
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  const file = process.env.GOOGLE_APPLICATION_CREDENTIALS || "/etc/secrets/firebase-service-account.json";
-  try {
-    if (raw) {
-      admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
-    } else {
-      const serviceAccount = JSON.parse(readFileSync(file, "utf8"));
-      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    }
-    firebaseReady = true;
-  } catch (e) {
-    console.error("FLOATING_RISK_FIREBASE_INIT_ERROR", e?.message || e);
-  }
 }
 
 const MARKET = {
@@ -162,6 +265,7 @@ async function closeFloatingLossAccounts() {
       const account=accountDoc.data()||{};
       const size=Math.max(0,n(account.startingBalance,n(account.accountSize,n(account.balance))));
       if (!size || accountDoc.id!=="account") continue;
+      const accountRules = await effectiveRules(account);
       const posSnap=await accountDoc.ref.collection("positions").where("status","==","open").get();
       if (posSnap.empty) {
         if (account.floatingLossActive) await accountDoc.ref.update({floatingLossActive:false});
@@ -171,13 +275,11 @@ async function closeFloatingLossAccounts() {
       const prices={};
       await Promise.all(symbols.map(async s=>{ prices[s]=await livePrice(s); }));
       const positions=posSnap.docs.map(d=>({id:d.id,...d.data()}));
-      // Never partially close an account when a live quote is missing.
-      // Wait for all position prices so the 1% rule closes the entire basket atomically.
       if (symbols.some(s=>!Number.isFinite(Number(prices[s])) || Number(prices[s])<=0)) continue;
       let openPnl=0;
       for(const p of positions) openPnl+=positionPnl(p,prices[p.symbol]);
-      const threshold=-(size*CHALLENGE_RULES.floatingLoss);
-      const hit=openPnl<=threshold;
+      const threshold=-(size*accountRules.floatingLoss);
+      const hit=accountRules.floatingLossEnabled !== false && openPnl<=threshold;
       if(!hit) {
         if(account.floatingLossActive) await accountDoc.ref.update({floatingLossActive:false,openPnl:Number(openPnl.toFixed(2)),equity:n(account.balance)+openPnl});
         continue;
@@ -191,14 +293,14 @@ async function closeFloatingLossAccounts() {
         const pnl=positionPnl(p,price);
         balance+=pnl;
         await accountDoc.ref.collection("positions").doc(p.id).update({
-          status:"closed", closePrice:price, realizedPnl:pnl, closeReason:"1% floating loss limit",
+          status:"closed", closePrice:price, realizedPnl:pnl, closeReason:`${(accountRules.floatingLoss*100).toFixed(2)}% floating loss limit`,
           closedAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
         });
       }
 
       const hits=n(account.floatingLossHits)+1;
       const isFunded=funded(account);
-      const limit=isFunded?CHALLENGE_RULES.fundedFloatingHitsToBreach:CHALLENGE_RULES.phaseFloatingHitsToBreach;
+      const limit=isFunded?accountRules.fundedFloatingHitsToBreach:accountRules.phaseFloatingHitsToBreach;
       const update={
         balance,
         equity:balance,
@@ -207,15 +309,15 @@ async function closeFloatingLossAccounts() {
         floatingLossHits:hits,
         floatingLossActive:true,
         lastFloatingLossAt:admin.firestore.FieldValue.serverTimestamp(),
-        lastFloatingLossWarning:`1% floating loss hit #${hits}`,
+        lastFloatingLossWarning:`${(accountRules.floatingLoss*100).toFixed(2)}% floating loss hit #${hits}`,
         updatedAt:admin.firestore.FieldValue.serverTimestamp()
       };
-      if(isFunded && hits===2) update.profitSplitPercent=CHALLENGE_RULES.fundedSecondHitProfitSplit;
+      if(isFunded && hits===2) update.profitSplitPercent=accountRules.fundedSecondHitProfitSplit;
       if(hits>=limit) {
         update.status="breached";
-        update.breachReason=`1% floating loss hit ${hits} time(s)`;
+        update.breachReason=`${(accountRules.floatingLoss*100).toFixed(2)}% floating loss hit ${hits} time(s)`;
         update.breachedAt=admin.firestore.FieldValue.serverTimestamp();
-        update.breachDeleteAt=new Date(Date.now()+CHALLENGE_RULES.breachRetentionDays*86400000);
+        update.breachDeleteAt=new Date(Date.now()+accountRules.breachRetentionDays*86400000);
       }
       await accountDoc.ref.update(update);
       console.log("FLOATING_RISK_CLOSE",account.accountId,"hit",hits,"openPnl",openPnl.toFixed(2));
@@ -224,6 +326,48 @@ async function closeFloatingLossAccounts() {
     console.error("FLOATING_RISK_ERROR",e?.message||e);
   }
 }
+
+function installChallengeRuleRoutes(app) {
+  if (app.__auraChallengeRulesRoutesInstalled) return;
+  app.__auraChallengeRulesRoutesInstalled = true;
+
+  app.get("/api/challenge-rules", verifyAdmin, async (req, res) => {
+    try {
+      const rules = await getStoredChallengeRules(true);
+      res.set("Cache-Control", "no-store");
+      res.json({ rules });
+    } catch (e) {
+      console.error("CHALLENGE_RULES_GET_ERROR", e?.message || e);
+      res.status(500).json({ error: "Could not load challenge rules" });
+    }
+  });
+
+  app.put("/api/challenge-rules", verifyAdmin, async (req, res) => {
+    try {
+      const rules = normalizeRulesPayload(req.body?.rules || {});
+      await admin.firestore().collection("challengeRules").doc("global").set({
+        rules,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: req.user?.email || req.user?.uid || "admin"
+      }, { merge: true });
+      adminRulesCache = rules;
+      adminRulesCacheAt = Date.now();
+      res.json({ ok: true, rules });
+    } catch (e) {
+      console.error("CHALLENGE_RULES_SAVE_ERROR", e?.message || e);
+      res.status(500).json({ error: "Could not save challenge rules" });
+    }
+  });
+}
+
+// The backend already preloads this file with Node's --import flag. Install
+// the two authenticated rules endpoints on the actual Express app without
+// touching the main server.js routing, preserving all existing server code.
+const originalUse = express.application.use;
+express.application.use = function (...args) {
+  installChallengeRuleRoutes(this);
+  return originalUse.apply(this, args);
+};
 
 async function tick() {
   try {
@@ -235,5 +379,6 @@ async function tick() {
     }
   } catch(e) { console.error("CHALLENGE_ENGINE_ERROR",e?.message||e); }
 }
+
 setTimeout(()=>{tick();setInterval(tick,5000)},1500);
 setTimeout(()=>{closeFloatingLossAccounts();setInterval(closeFloatingLossAccounts,1000)},2000);
