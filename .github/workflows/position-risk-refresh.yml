@@ -37,14 +37,152 @@ jobs:
           print('Changed:', changed)
           PY
 
+      - name: Patch breached-account retention and terminal account list
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('backend/server.js')
+          s = p.read_text()
+          marker = '// BREACHED_ACCOUNT_RETENTION_V1'
+
+          if marker not in s:
+              admin_old = '''    await accountRef.update({
+      status:"breached",
+      breachReason:reason,
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });'''
+              admin_new = '''    await accountRef.update({
+      status:"breached",
+      breachReason:reason,
+      breachedAt:admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    });'''
+              if admin_old not in s:
+                  raise SystemExit('admin breach marker not found')
+              s = s.replace(admin_old, admin_new, 1)
+
+              risk_old = '''    status, breachReason:breach,
+    updatedAt:admin.firestore.FieldValue.serverTimestamp()
+  });'''
+              risk_new = '''    status, breachReason:breach,
+    breachedAt: (status === "breached" && data.status !== "breached")
+      ? admin.firestore.FieldValue.serverTimestamp()
+      : (data.breachedAt || null),
+    updatedAt:admin.firestore.FieldValue.serverTimestamp()
+  });'''
+              if risk_old not in s:
+                  raise SystemExit('risk breach marker not found')
+              s = s.replace(risk_old, risk_new, 1)
+
+              api_old = '''    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(5).get();
+    const accounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));'''
+              api_new = '''    const snap = await base.collection("tradingAccounts").orderBy("createdAt", "desc").limit(25).get();
+    const allAccounts = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+    const view = String(req.query?.view || "terminal").toLowerCase();
+    const accounts = view === "dashboard"
+      ? allAccounts
+      : allAccounts.filter(a => String(a.status || "active").toLowerCase() === "active");'''
+              if api_old not in s:
+                  raise SystemExit('trading accounts API marker not found')
+              s = s.replace(api_old, api_new, 1)
+
+              cleanup = r'''// BREACHED_ACCOUNT_RETENTION_V1
+const BREACHED_ACCOUNT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const BREACHED_ACCOUNT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+
+async function deleteFirestoreQueryDocs(query) {
+  const snap = await query.get();
+  if (!snap.size) return;
+  let batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    count++;
+    if (count >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      count = 0;
+    }
+  }
+  if (count) await batch.commit();
+}
+
+async function cleanupExpiredBreachedAccounts() {
+  try {
+    initFirebase();
+    const cutoff = Date.now() - BREACHED_ACCOUNT_RETENTION_MS;
+    const snap = await db.collectionGroup("tradingAccounts")
+      .where("status", "==", "breached")
+      .get();
+
+    for (const doc of snap.docs) {
+      const data = doc.data() || {};
+      const breachedAt = data.breachedAt?.toDate?.()?.getTime?.()
+        || (data.breachedAt?._seconds ? Number(data.breachedAt._seconds) * 1000 : 0);
+      if (!breachedAt || breachedAt > cutoff) continue;
+
+      const accountId = String(data.accountId || doc.id);
+      const userDoc = doc.ref.parent.parent;
+      const uid = String(userDoc?.id || "");
+      if (!uid) continue;
+
+      await deleteFirestoreQueryDocs(doc.ref.collection("positions"));
+      const credentialId = String(data.terminalCredentialId || "").trim();
+      if (credentialId) {
+        await db.collection("terminalCredentials").doc(credentialId).delete().catch(() => {});
+      }
+      await db.collection("users").doc(uid).collection("challengeAccounts").doc(accountId).delete().catch(() => {});
+
+      const selectedRef = db.collection("users").doc(uid).collection("trading").doc("account");
+      const selectedSnap = await selectedRef.get();
+      if (selectedSnap.exists && String(selectedSnap.data()?.accountId || "") === accountId) {
+        await selectedRef.delete().catch(() => {});
+      }
+      await doc.ref.delete();
+    }
+  } catch (e) {
+    console.warn("Breached account cleanup failed:", e?.message || e);
+  }
+}
+
+setTimeout(() => cleanupExpiredBreachedAccounts(), 5000);
+setInterval(() => cleanupExpiredBreachedAccounts(), BREACHED_ACCOUNT_CLEANUP_INTERVAL_MS);
+
+'''
+              needle = 'async function requireTerminalAuth(req, res, next) {'
+              if needle not in s:
+                  raise SystemExit('terminal auth insertion point not found')
+              s = s.replace(needle, cleanup + needle, 1)
+              p.write_text(s)
+          else:
+              print('Breached-account retention already installed')
+
+          # Dashboard explicitly requests history; terminal/default lists only active accounts.
+          p = Path('account-switcher.js')
+          s = p.read_text()
+          old = "API+'/api/trading-accounts',{headers:{Authorization:'Bearer '+token},cache:'no-store'}"
+          new = "API+'/api/trading-accounts?view=dashboard',{headers:{Authorization:'Bearer '+token},cache:'no-store'}"
+          if old in s:
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('courses.html')
+          s = p.read_text().replace('account-switcher.js?v=2', 'account-switcher.js?v=3')
+          p.write_text(s)
+          PY
+
+      - name: Validate
+        run: node --check backend/server.js
+
       - name: Commit patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add position.html
+          git add position.html backend/server.js account-switcher.js courses.html
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Make position updates immediate"
+            git commit -m "Enforce 7-day breached account retention"
             git push
           fi
