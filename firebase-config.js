@@ -186,3 +186,114 @@ const firebase = { auth: ceFirebaseAuth };
     openModal();
   },true);
 })();
+
+// Challenge rule controls are stored inside the existing evaluation field so the
+// current backend remains backward-compatible. The dashboard decodes them by
+// challengeId and displays the exact settings for the purchased challenge.
+(function(){
+  const MARKER='||AF_RULES||';
+  const FLOATING_PCTS=[0.25,0.50,0.75,1,1.25,1.50,1.75,2,2.25,2.50];
+  const clampDays=v=>Math.max(0,Math.min(10,Number(v)||0));
+  const clampPct=v=>{const n=Number(v);return Number.isFinite(n)?Math.max(.25,Math.min(2.5,n)):1};
+  function b64Encode(value){try{return btoa(unescape(encodeURIComponent(value)))}catch{return btoa(value)}}
+  function b64Decode(value){try{return decodeURIComponent(escape(atob(value)))}catch{return atob(value)}}
+  function decodeEvaluation(value){
+    const raw=String(value||'');
+    const i=raw.indexOf(MARKER);
+    if(i<0)return {evaluation:raw,config:null};
+    try{return {evaluation:raw.slice(0,i),config:JSON.parse(b64Decode(raw.slice(i+MARKER.length)))}}catch{return {evaluation:raw.slice(0,i),config:null}}
+  }
+  function encodeEvaluation(evaluation,config){
+    return String(evaluation||'').split(MARKER)[0]+MARKER+b64Encode(JSON.stringify(config||{}));
+  }
+  function modelOf(model){return String(model||'')}
+  function stagesFor(model){return modelOf(model)==='2 Step'?[['phase1','Phase 1'],['phase2','Phase 2'],['funded','Funded']]:modelOf(model)==='1 Step'?[['phase1','Phase 1'],['funded','Funded']]:[['funded','Funded']]}
+  function dayOptions(value){let out='';for(let i=0;i<=10;i++)out+='<option value="'+i+'"'+(Number(value||0)===i?' selected':'')+'>'+i+' day'+(i===1?'':'s')+'</option>';return out}
+
+  function setupAdmin(){
+    if(!/\/admin-challenges(?:\.html)?(?:\/|$)/i.test(location.pathname))return;
+    const boot=()=>{
+      if(window.__auraChallengeControlsAdmin)return;
+      if(!document.getElementById('form')||typeof window.formData!=='function'||typeof window.fill!=='function')return;
+      window.__auraChallengeControlsAdmin=true;
+      const form=document.getElementById('form');
+      const anchor=form.querySelector('.rules');
+      const box=document.createElement('div');
+      box.className='rules';
+      box.id='auraChallengeRuleControls';
+      box.innerHTML='<div class="ruleshead"><span>Floating Loss</span></div><div class="row"><div class="field"><label>Enable</label><label class="check"><input id="auraFloatingLossEnabled" type="checkbox"> Enable floating loss</label></div><div class="field"><label>Floating Loss %</label><select id="auraFloatingLossPct">'+FLOATING_PCTS.map(x=>'<option value="'+x+'">'+x.toFixed(2).replace(/0+$/,'').replace(/\.$/,'')+'%</option>').join('')+'</select></div></div><div class="ruleshead" style="margin-top:8px"><span>Minimum Trading Days</span></div><div id="auraMinTradingDays"></div>';
+      anchor?.parentNode?.insertBefore(box,anchor);
+      const renderDays=(model,values={})=>{const root=document.getElementById('auraMinTradingDays');if(!root)return;root.innerHTML='<div class="row">'+stagesFor(model).map(x=>'<div class="field"><label>'+x[1]+'</label><select class="aura-min-day" data-stage="'+x[0]+'">'+dayOptions(values[x[0]])+'</select></div>').join('')+'</div>'};
+      const collect=()=>{const minTradingDays={};document.querySelectorAll('.aura-min-day').forEach(x=>minTradingDays[x.dataset.stage]=clampDays(x.value));return minTradingDays};
+      const originalFill=window.fill;
+      window.fill=function(x){
+        const d=decodeEvaluation(x?.evaluation||'');
+        originalFill({...x,evaluation:d.evaluation});
+        const cfg=d.config||{};
+        const en=document.getElementById('auraFloatingLossEnabled'),pct=document.getElementById('auraFloatingLossPct'),model=document.getElementById('model');
+        if(en)en.checked=cfg.floatingLossEnabled===true;
+        if(pct)pct.value=String(clampPct(cfg.floatingLossPct||1));
+        renderDays(model?.value||x?.model||'1 Step',cfg.minTradingDays||{});
+      };
+      const originalFormData=window.formData;
+      window.formData=function(){
+        const x=originalFormData();
+        x.evaluation=encodeEvaluation(x.evaluation,{floatingLossEnabled:document.getElementById('auraFloatingLossEnabled')?.checked===true,floatingLossPct:clampPct(document.getElementById('auraFloatingLossPct')?.value||1),minTradingDays:collect()});
+        return x;
+      };
+      document.getElementById('model')?.addEventListener('change',()=>renderDays(document.getElementById('model').value,{}));
+      renderDays(document.getElementById('model')?.value||'1 Step',{});
+    };
+    const t=setInterval(()=>{boot();if(window.__auraChallengeControlsAdmin)clearInterval(t)},50);
+    setTimeout(()=>clearInterval(t),10000);
+  }
+
+  async function loadChallengeConfig(account){
+    try{
+      const challengeId=String(account?.challengeId||'').trim();
+      if(!challengeId)return null;
+      const r=await fetch('/api/challenges',{cache:'no-store'});
+      const d=await r.json().catch(()=>({}));
+      const challenge=(Array.isArray(d.challenges)?d.challenges:[]).find(x=>String(x?.id||'')===challengeId);
+      if(!challenge)return null;
+      const decoded=decodeEvaluation(challenge.evaluation||'');
+      return {...challenge,evaluation:decoded.evaluation,ruleConfig:decoded.config||{}};
+    }catch(e){return null}
+  }
+
+  function renderDashboardRules(account,challenge){
+    const box=document.getElementById('accountRules');
+    if(!box||!challenge)return;
+    const model=String(challenge.model||'');
+    const cfg=challenge.ruleConfig||{};
+    const days=cfg.minTradingDays||{};
+    const items=[['Challenge Type',account?.challenge||challenge.model+' '+challenge.size],['Account Size',auraMoney(account?.startingBalance||challenge.accountSize)],['Daily Drawdown',String(challenge.dailyDrawdown||'4%')],['Max Drawdown',String(challenge.totalDrawdown||'8%')]];
+    if(challenge.profitTarget)items.push(['Profit Target',String(challenge.profitTarget)]);
+    if(challenge.phase1Profit)items.push(['Phase 1 Target',String(challenge.phase1Profit)]);
+    if(challenge.phase2Profit)items.push(['Phase 2 Target',String(challenge.phase2Profit)]);
+    items.push(['Floating Loss',cfg.floatingLossEnabled===true?clampPct(cfg.floatingLossPct||1).toFixed(2)+'%':'OFF']);
+    for(const [key,label] of stagesFor(model))items.push(['Min Days — '+label,String(clampDays(days[key]))]);
+    box.innerHTML=items.map(x=>'<div class="rule-item"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
+    const daily=document.getElementById('dailyDrawdown'),max=document.getElementById('maxDrawdown');
+    if(daily)daily.textContent=Number(account?.dailyDrawdownPct||0).toFixed(2)+'% / '+String(challenge.dailyDrawdown||'4%');
+    if(max)max.textContent=Number(account?.maxDrawdownPct||0).toFixed(2)+'% / '+String(challenge.totalDrawdown||'8%');
+  }
+
+  function setupDashboard(){
+    if(!/\/courses(?:\.html)?(?:\/|$)/i.test(location.pathname))return;
+    const run=async()=>{
+      if(typeof window.auraAccount!=='function'||!ceAuth?.currentUser)return;
+      try{
+        const account=await window.auraAccount();
+        if(!account||account.__error)return;
+        const challenge=await loadChallengeConfig(account);
+        if(challenge)renderDashboardRules(account,challenge);
+      }catch(e){console.warn('Challenge rule dashboard update failed:',e)}
+    };
+    const t=setInterval(()=>{if(document.getElementById('accountRules'))run();},1000);
+    setTimeout(()=>clearInterval(t),15000);
+    setTimeout(run,1200);
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setupAdmin();setupDashboard()},{once:true});else{setupAdmin();setupDashboard()}
+})();
