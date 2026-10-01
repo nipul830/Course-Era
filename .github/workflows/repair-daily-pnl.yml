@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - 'aura-account.js'
       - '.github/workflows/repair-daily-pnl.yml'
+      - '.github/repair-daily-pnl.trigger'
 
 permissions:
   contents: write
