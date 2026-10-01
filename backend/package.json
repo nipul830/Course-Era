@@ -1,10 +1,10 @@
 {
   "name": "course-era-backend",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
-  "scripts": { "start": "node --import ./challenge-rules-engine.js server.js" },
+  "scripts": { "start": "node --import ./challenge-rules-engine.js --import ./breach-retention.mjs server.js" },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
