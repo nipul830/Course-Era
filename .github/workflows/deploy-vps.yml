@@ -56,6 +56,11 @@ jobs:
             node ensure-password-reset.mjs
             node --check server.js
 
+            echo "===== APPLY TRADING RISK ENGINE ====="
+            node --check apply-trading-risk-engine.mjs
+            node apply-trading-risk-engine.mjs
+            node --check server.js
+
             if [ -f /root/Course-Era/backend/.env ]; then
               set -a
               . /root/Course-Era/backend/.env
@@ -105,8 +110,8 @@ jobs:
             echo "===== AUTH CONFIG SMOKE CHECK ====="
             CONFIG=$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/config)
             echo "$CONFIG"
-            echo "$CONFIG" | grep -q '"mongoConfigured":true'
-            echo "$CONFIG" | grep -q '"firebaseConfigured":false'
+            echo "$CONFIG" | grep -q '\"mongoConfigured\":true'
+            echo "$CONFIG" | grep -q '\"firebaseConfigured\":false'
 
             pm2 save
             pm2 status
