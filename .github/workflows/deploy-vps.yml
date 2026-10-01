@@ -43,6 +43,13 @@ jobs:
             node prepare-all-mongo.mjs
             node --check server.js
 
+            echo "===== FORCE CHALLENGE PAYMENT ROUTE REPAIR ====="
+            node --check repair-challenge-payments.mjs
+            node repair-challenge-payments.mjs
+            node --check server.js
+            grep -q 'CHALLENGE_PAYMENT_MONGO_ROUTE_V3' server.js
+            echo "CHALLENGE_PAYMENT_ROUTE_V3=OK"
+
             echo "===== SANITIZE LEGACY FIREBASE ENV REFERENCES ====="
             node --input-type=module -e 'import {readFileSync,writeFileSync} from "node:fs"; const p="server.js"; let s=readFileSync(p,"utf8"); s=s.replace(/process\\.env\\.FIREBASE_[A-Z0-9_]+/g,"undefined").replace(/process\\.env\\.GOOGLE_APPLICATION_CREDENTIALS/g,"undefined").replace(/FIREBASE_SERVICE_ACCOUNT_JSON/g,"LEGACY_FIREBASE_SERVICE_ACCOUNT_DISABLED").replace(/FIREBASE_STORAGE_BUCKET/g,"LEGACY_FIREBASE_STORAGE_DISABLED").replace(/FIREBASE_PROJECT_ID/g,"LEGACY_FIREBASE_PROJECT_DISABLED"); writeFileSync(p,s); console.log("LEGACY_FIREBASE_ENV_SANITIZED=OK");'
             node --check server.js
