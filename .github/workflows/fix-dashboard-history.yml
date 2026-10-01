@@ -1,0 +1,93 @@
+name: Fix dashboard trade history
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Patch dashboard trade data
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('backend/server.js')
+          s=p.read_text()
+          marker='// DASHBOARD_TRADING_DATA_V1'
+          if marker not in s:
+              needle='app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {'
+              route=r'''// DASHBOARD_TRADING_DATA_V1
+app.get("/api/dashboard/trading-data", requireAuth, async (req,res) => {
+  try {
+    initFirebase();
+    const accountId=String(req.query.accountId||"").trim();
+    if(!accountId) return res.status(400).json({error:"accountId is required"});
+    const {ref,data}=await loadTradingAccount(req.user.uid,accountId);
+    const snap=await ref.collection("positions").get();
+    const toIso=v=>v?.toDate?.()?.toISOString?.() || (v?._seconds?new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString():null);
+    const all=snap.docs.map(d=>{const p={id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol};p.openedAt=toIso(p.openedAt);p.closedAt=toIso(p.closedAt);p.createdAt=toIso(p.createdAt);p.updatedAt=toIso(p.updatedAt);return p;});
+    const open=all.filter(p=>p.status==="open"),pending=all.filter(p=>p.status==="pending"),closed=all.filter(p=>p.status==="closed").sort((a,b)=>String(b.closedAt||"").localeCompare(String(a.closedAt||"")));
+    let realized=0,winning=0,losing=0;
+    for(const p of closed){const v=Number(p.realizedPnl??p.pnl??0)||0;realized+=v;if(v>0)winning++;else if(v<0)losing++;}
+    res.json({account:{id:data.accountId||accountId,balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),pnl:Number(data.pnl??realized??0),openPnl:Number(data.openPnl??0),startingBalance:Number(data.startingBalance??data.balance??0),challenge:data.challenge||data.accountType||data.plan||"",status:data.status||"active",dailyDrawdownPct:Number(data.dailyDrawdownPct||0),dailyDrawdownLimit:Number(data.dailyDrawdownLimit||4),maxDrawdownPct:Number(data.maxDrawdownPct||0),maxDrawdownLimit:Number(data.maxDrawdownLimit||8)},open,pending,closed,stats:{realizedPnl:realized,wins:winning,losses:losing,total:closed.length}});
+  } catch(e) {
+    res.status(500).json({error:"Could not load dashboard trading data",detail:e.message||"Unknown error"});
+  }
+});
+'''
+              if needle not in s: raise SystemExit('server insertion point not found')
+              s=s.replace(needle,route+needle,1)
+              p.write_text(s)
+          
+          js=Path('dashboard-fix.js')
+          if not js.exists():
+              js.write_text(r'''(function(){
+  const API='https://aurafirming.in';
+  const KEY='auraSelectedDashboardAccountV2';
+  let timer=null;
+  const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  async function load(){
+    if(!document.querySelector('.dashboard')||typeof ceAuth==='undefined'||!ceAuth.currentUser)return;
+    const id=localStorage.getItem(KEY); if(!id)return;
+    try{
+      const token=await ceAuth.currentUser.getIdToken(false);
+      const r=await fetch(API+'/api/dashboard/trading-data?accountId='+encodeURIComponent(id),{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+      if(!r.ok)return;
+      const d=await r.json(),a=d.account||{},stats=d.stats||{},closed=Array.isArray(d.closed)?d.closed:[],open=Array.isArray(d.open)?d.open:[],pending=Array.isArray(d.pending)?d.pending:[];
+      const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+      set('accountBalance',money(a.balance));set('accountEquity',money(a.equity));set('accountPnl',(Number(a.pnl||0)>=0?'+':'-')+money(Math.abs(a.pnl||0)));
+      set('openPositionsCount',open.length);set('dailyDrawdown',Number(a.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(a.dailyDrawdownLimit||4).toFixed(2)+'%');set('maxDrawdown',Number(a.maxDrawdownPct||0).toFixed(2)+'% / '+Number(a.maxDrawdownLimit||8).toFixed(2)+'%');
+      const pct=a.startingBalance?((Number(a.equity)-Number(a.startingBalance))/Number(a.startingBalance))*100:0;set('profitPercent',(pct>=0?'+':'')+pct.toFixed(2)+'%');
+      const empty=document.getElementById('tradeEmpty'),tabs=[...document.querySelectorAll('.trade-tabs button')];if(!empty||!tabs.length)return;
+      const render=(mode)=>{let rows=mode==='open'?open:closed; if(mode==='pending')rows=pending; empty.className='trade-list';empty.style.cssText='display:grid;gap:7px;max-height:260px;overflow:auto'; if(!rows.length){empty.className='trade-empty';empty.style.cssText='';empty.textContent=mode==='open'?'No open trades':mode==='pending'?'No pending trades':'No trade history';return;} empty.innerHTML=rows.slice(0,50).map(p=>{const pnl=Number(p.realizedPnl??p.pnl??0)||0;const side=String(p.side||'').toUpperCase();const time=p.closedAt||p.openedAt||p.createdAt||'';return '<div style="padding:9px 10px;border:1px solid #302713;border-radius:9px;background:#090806;display:flex;justify-content:space-between;gap:8px;align-items:center"><div><strong style="display:block;color:#fff;font-size:11px">'+esc(p.name||p.symbol||'Trade')+' · '+esc(side)+'</strong><small style="display:block;color:#7f6d43;margin-top:2px">'+esc(time?new Date(time).toLocaleString():'—')+'</small></div><strong style="color:'+(pnl>=0?'#55d58a':'#ff5b86')+'">'+(pnl>=0?'+':'-')+money(Math.abs(pnl))+'</strong></div>'}).join('')};
+      tabs.forEach((b,i)=>{b.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));b.classList.add('active');render(i===0?'open':i===1?'closed':'pending')}}); if(tabs.length===2){tabs[0].onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));tabs[0].classList.add('active');render('open')};tabs[1].onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));tabs[1].classList.add('active');render('closed')}} render(tabs[0].classList.contains('active')?'open':'closed');
+      set('profitPercent',(pct>=0?'+':'')+pct.toFixed(2)+'%');
+    }catch(e){console.warn('Dashboard trading data:',e)}
+  }
+  function start(){load();clearInterval(timer);timer=setInterval(load,10000);window.addEventListener('storage',e=>{if(e.key===KEY)load()})}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();
+''')
+          
+          p=Path('courses.html')
+          s=p.read_text()
+          tag='<script src="dashboard-fix.js?v=1"></script>'
+          if tag not in s:
+              needle='<script src="firebase-config.js?v=7"></script>'
+              if needle not in s: raise SystemExit('courses script insertion point not found')
+              s=s.replace(needle,needle+tag,1)
+              p.write_text(s)
+          PY
+          node --check backend/server.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/server.js courses.html dashboard-fix.js
+          git diff --cached --quiet || git commit -m 'Fix dashboard trade history and P&L'
+          git push
