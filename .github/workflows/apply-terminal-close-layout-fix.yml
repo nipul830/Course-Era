@@ -21,13 +21,9 @@ jobs:
           s=p.read_text(encoding='utf-8')
           old="new_style='.aura-chart-live{margin-left:auto;margin-right:0}.chart-toolbar-close{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;height:30px;padding:0 9px;border:1px solid #e6004d;border-radius:8px;background:#fff;color:#e6004d;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer;touch-action:manipulation}.chart-toolbar-close:active{transform:scale(.96)}'"
           new="new_style='.aura-chart-live{margin-left:auto;margin-right:0;order:2}.chart-toolbar-close{display:inline-flex;align-items:center;justify-content:center;order:1;margin-left:4px;height:28px;min-width:44px;padding:0 8px;border:1px solid #e6004d;border-radius:6px;background:#e6004d;color:#fff;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer;touch-action:manipulation}.chart-toolbar-close:active{transform:scale(.96)}'"
-          if old not in s:
-              raise SystemExit('Expected deploy toolbar style rule not found')
+          if old not in s: raise SystemExit('Expected deploy toolbar style rule not found')
           s=s.replace(old,new,1)
-          old_text="closeTradeBtn.textContent='Close Trade';"
-          if old_text not in s:
-              raise SystemExit('Expected Close Trade label not found')
-          s=s.replace(old_text,"closeTradeBtn.textContent='Close';",1)
+          s=s.replace("closeTradeBtn.textContent='Close Trade';","closeTradeBtn.textContent='Close';",1)
           marker="            PY\n            grep -q \"chartToolbarCloseTrade\" terminal.html"
           insert="""            PY
             python3 - <<'PY'
@@ -40,8 +36,7 @@ jobs:
             p.write_text(s,encoding='utf-8')
             PY
             grep -q \"chartToolbarCloseTrade\" terminal.html"""
-          if marker not in s:
-              raise SystemExit('Deploy workflow insertion point not found')
+          if marker not in s: raise SystemExit('Deploy workflow insertion point not found')
           s=s.replace(marker,insert,1)
           p.write_text(s,encoding='utf-8')
       - name: Commit patch and remove this workflow
@@ -53,3 +48,5 @@ jobs:
           git add .github/workflows/deploy-vps.yml .github/workflows/apply-terminal-close-layout-fix.yml
           git commit -m "patch deploy toolbar close layout"
           git push
+
+# retrigger deployment after the patch workflow commits
