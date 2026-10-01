@@ -42,7 +42,6 @@
     return true;
   }
 
-  // If the website user changes, never keep the previous user's terminal session.
   const originalSignIn=window.ceAuth?.signInWithEmailAndPassword;
   if(typeof originalSignIn==='function'){
     window.ceAuth.signInWithEmailAndPassword=async function(email,password){
@@ -58,12 +57,42 @@
     };
   }
 
-  // Bind terminal login to the current website account and verify that the
-  // signed terminal token belongs to that same account before accepting it.
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,init){
     const url=typeof input==='string'?input:(input?.url||'');
-    if(!/\/api\/terminal\/login(?:\?|$)/i.test(url)) return nativeFetch(input,init);
+
+    // Terminal account switcher must never receive breached accounts.
+    // The dashboard uses its own account-switcher.js and is allowed to show history.
+    if(/\/api\/trading-accounts(?:\?|$)/i.test(url)){
+      const response=await nativeFetch(input,init);
+      try{
+        const data=await response.clone().json();
+        if(response.ok&&Array.isArray(data?.accounts)){
+          const current=String(sessionStorage.getItem(ACCOUNT)||'');
+          const breachedCurrent=data.accounts.some(a=>String(a?.status||'').toLowerCase()==='breached' && String(a?.accountId||a?.id||'')===current);
+          if(breachedCurrent) clearTerminalSession();
+          const activeAccounts=data.accounts.filter(a=>String(a?.status||'active').toLowerCase()!=='breached');
+          return new Response(JSON.stringify({...data,accounts:activeAccounts}),{
+            status:response.status,
+            statusText:response.statusText,
+            headers:response.headers
+          });
+        }
+      }catch{}
+      return response;
+    }
+
+    if(!/\/api\/terminal\/login(?:\?|$)/i.test(url)){
+      const response=await nativeFetch(input,init);
+      // If a currently logged-in account becomes breached, revoke the terminal session immediately.
+      if(!response.ok && /\/api\/(?:terminal|trading|positions|orders)/i.test(url)){
+        try{
+          const data=await response.clone().json();
+          if(String(data?.status||'').toLowerCase()==='breached' || /breach/i.test(String(data?.error||data?.detail||''))) clearTerminalSession();
+        }catch{}
+      }
+      return response;
+    }
 
     const uid=currentUid();
     if(!uid){
@@ -96,8 +125,6 @@
     return response;
   };
 
-  // The main page script runs before this guard when it is injected at the end
-  // of the document. Reload once if an old user's session was found.
   const boot=()=>{
     if(!validateStoredSession()) location.reload();
   };
