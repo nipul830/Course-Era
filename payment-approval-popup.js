@@ -46,33 +46,6 @@
     return '';
   }
 
-  async function compactScreenshot(file){
-    if(file.size<=420000)return file;
-    const img=await new Promise((resolve,reject)=>{
-      const url=URL.createObjectURL(file);
-      const image=new Image();
-      image.onload=()=>{URL.revokeObjectURL(url);resolve(image)};
-      image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Could not read payment screenshot'))};
-      image.src=url;
-    });
-    const max=1280;
-    const scale=Math.min(1,max/Math.max(img.width,img.height));
-    const canvas=document.createElement('canvas');
-    canvas.width=Math.max(1,Math.round(img.width*scale));
-    canvas.height=Math.max(1,Math.round(img.height*scale));
-    const ctx=canvas.getContext('2d');
-    if(!ctx)throw new Error('Could not prepare payment screenshot');
-    ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    let quality=.78;
-    let blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
-    while(blob&&blob.size>420000&&quality>.35){
-      quality-=.08;
-      blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
-    }
-    if(!blob)throw new Error('Could not prepare payment screenshot');
-    return new File([blob],'payment-screenshot.jpg',{type:'image/jpeg'});
-  }
-
   async function loadSelectedChallenge(){
     const selectedId=localStorage.getItem('auraSelectedChallengeId');
     if(!selectedId)throw new Error('Selected challenge is missing. Please choose the challenge again.');
@@ -101,9 +74,12 @@
     if(window.__auraPaymentSubmitFixed)return;
     window.__auraPaymentSubmitFixed=true;
 
-    // The original checkout listener forced a Firebase token refresh on every submit.
-    // Replace only the button node so the existing checkout UI stays exactly the same,
-    // while the new handler uses the current cached token and gives the real server error.
+    // Replace only the button node so the existing checkout UI stays exactly the same.
+    // IMPORTANT: do not decode/re-encode the uploaded image in the browser. Some Android
+    // gallery images are valid image files but cannot be decoded by the browser's Image API.
+    // The backend already accepts the original multipart image and Firebase Storage keeps
+    // the proof, so client-side image decoding is unnecessary and was causing the
+    // "Could not read payment screenshot" failure.
     const submit=original.cloneNode(true);
     original.replaceWith(submit);
 
@@ -128,24 +104,35 @@
         return;
       }
 
+      const file=screenshot.files[0];
+      if(!String(file.type||'').startsWith('image/')){
+        status.textContent='Please choose a valid payment image.';
+        status.classList.add('error');
+        return;
+      }
+      if(file.size>8*1024*1024){
+        status.textContent='Payment screenshot must be 8MB or smaller.';
+        status.classList.add('error');
+        return;
+      }
+
       submit.disabled=true;
       submit.textContent='Submitting…';
-      status.textContent='Preparing screenshot…';
+      status.textContent='Submitting payment…';
       try{
         const challenge=await loadSelectedChallenge();
         const amount=challengeAmount(challenge);
-        const compact=await compactScreenshot(screenshot.files[0]);
         const authToken=await token();
         if(!authToken)throw new Error('Your login session expired. Please login again.');
 
-        status.textContent='Submitting payment…';
         const form=new FormData();
         form.append('challengeId',String(challenge.id));
         form.append('currency','INR');
         form.append('amount',String(amount));
         form.append('method','UPI');
         form.append('transactionId',transaction);
-        form.append('screenshot',compact);
+        // Send the original image. No OCR and no browser-side Image decoding.
+        form.append('screenshot',file,file.name||'payment-screenshot');
 
         const response=await fetch('/api/challenge-payments',{method:'POST',headers:{Authorization:'Bearer '+authToken},body:form,cache:'no-store'});
         const text=await response.text();
@@ -153,8 +140,6 @@
         try{data=text?JSON.parse(text):{}}catch{}
         if(!response.ok)throw new Error(data.detail||data.error||('Payment request failed (HTTP '+response.status+')'));
 
-        // From this point onward the payment is already accepted by the backend.
-        // UI/localStorage errors must never turn a successful payment into a failure message.
         status.textContent=data.message||'Payment submitted successfully. Waiting for admin approval.';
         status.classList.add('success');
         submit.textContent='Payment Submitted';
