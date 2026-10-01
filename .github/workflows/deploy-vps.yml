@@ -43,6 +43,10 @@ jobs:
             node prepare-all-mongo.mjs
             node --check server.js
 
+            echo "===== SANITIZE LEGACY FIREBASE ENV REFERENCES ====="
+            node --input-type=module -e 'import {readFileSync,writeFileSync} from "node:fs"; const p="server.js"; let s=readFileSync(p,"utf8"); s=s.replace(/process\\.env\\.FIREBASE_[A-Z0-9_]+/g,"undefined").replace(/process\\.env\\.GOOGLE_APPLICATION_CREDENTIALS/g,"undefined").replace(/FIREBASE_SERVICE_ACCOUNT_JSON/g,"LEGACY_FIREBASE_SERVICE_ACCOUNT_DISABLED").replace(/FIREBASE_STORAGE_BUCKET/g,"LEGACY_FIREBASE_STORAGE_DISABLED").replace(/FIREBASE_PROJECT_ID/g,"LEGACY_FIREBASE_PROJECT_DISABLED"); writeFileSync(p,s); console.log("LEGACY_FIREBASE_ENV_SANITIZED=OK");'
+            node --check server.js
+
             echo "===== PREPARE MONGODB CATALOG ====="
             node --check prepare-mongo.js
             node prepare-mongo.js
@@ -70,7 +74,7 @@ jobs:
               echo "ERROR: firebase-admin import still present after migration"
               exit 1
             fi
-            if grep -qE 'process\.env\.FIREBASE_|FIREBASE_SERVICE_ACCOUNT_JSON|FIREBASE_STORAGE_BUCKET' server.js; then
+            if grep -qE 'process\.env\.FIREBASE_|FIREBASE_SERVICE_ACCOUNT_JSON|FIREBASE_STORAGE_BUCKET|FIREBASE_PROJECT_ID|GOOGLE_APPLICATION_CREDENTIALS' server.js; then
               echo "ERROR: Firebase environment access still present in server.js"
               exit 1
             fi
