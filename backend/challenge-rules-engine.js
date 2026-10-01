@@ -170,8 +170,11 @@ async function closeFloatingLossAccounts() {
       const symbols=[...new Set(posSnap.docs.map(d=>d.data()?.symbol).filter(Boolean))];
       const prices={};
       await Promise.all(symbols.map(async s=>{ prices[s]=await livePrice(s); }));
-      let openPnl=0;
       const positions=posSnap.docs.map(d=>({id:d.id,...d.data()}));
+      // Never partially close an account when a live quote is missing.
+      // Wait for all position prices so the 1% rule closes the entire basket atomically.
+      if (symbols.some(s=>!Number.isFinite(Number(prices[s])) || Number(prices[s])<=0)) continue;
+      let openPnl=0;
       for(const p of positions) openPnl+=positionPnl(p,prices[p.symbol]);
       const threshold=-(size*CHALLENGE_RULES.floatingLoss);
       const hit=openPnl<=threshold;
