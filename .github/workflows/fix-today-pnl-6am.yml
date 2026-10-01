@@ -1,0 +1,77 @@
+name: Fix Today P&L 6AM IST
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/workflows/fix-today-pnl-6am.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch daily P&L logic
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('backend/server.js')
+          s = p.read_text()
+          old = 'const todayKey = new Date().toISOString().slice(0,10);'
+          new = '''const indiaNow = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Kolkata" }));
+          const resetDay = new Date(indiaNow);
+          if (indiaNow.getHours() < 6) resetDay.setDate(resetDay.getDate() - 1);
+          const todayKey = resetDay.getFullYear()+"-"+String(resetDay.getMonth()+1).padStart(2,"0")+"-"+String(resetDay.getDate()).padStart(2,"0");'''
+          if old not in s:
+              raise SystemExit('server reset target not found')
+          s = s.replace(old, new, 1)
+
+          old = 'account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),challenge:data.challenge||data.accountType||data.plan||""},'
+          new = 'account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),dailyStartEquity:Number(data.dailyStartEquity??data.startingBalance??data.balance??0),dailyResetDate:data.dailyResetDate||"",challenge:data.challenge||data.accountType||data.plan||""},'
+          if old not in s:
+              raise SystemExit('history account target not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('aura-account.js')
+          s = p.read_text()
+          old = '''      const closed=Array.isArray(data?.closed)?data.closed:[];
+      const today=positionDailyKey(new Date());
+      let total=0;
+      for(const trade of closed){
+        const when=trade?.closedAt||trade?.closeTime||trade?.closed_at||trade?.updatedAt||trade?.updated_at;
+        if(!when||positionDailyKey(new Date(when))!==today)continue;
+        total+=Number(trade?.realizedPnl??trade?.pnl??0)||0;
+      }'''
+          new = '''      const closed=Array.isArray(data?.closed)?data.closed:[];
+      const today=positionDailyKey(new Date());
+      let total=0;
+      const dailyStart=Number(data?.account?.dailyStartEquity);
+      if(Number.isFinite(dailyStart) && Number.isFinite(Number(data?.account?.balance)) && data?.account?.dailyResetDate===today){
+        total=Number(data.account.balance)-dailyStart;
+      }else{
+        for(const trade of closed){
+          const when=trade?.closedAt||trade?.closeTime||trade?.closed_at||trade?.updatedAt||trade?.updated_at;
+          if(!when||positionDailyKey(new Date(when))!==today)continue;
+          total+=Number(trade?.realizedPnl??trade?.pnl??0)||0;
+        }
+      }'''
+          if old not in s:
+              raise SystemExit('frontend P&L target not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: node --check backend/server.js
+      - name: Commit fix and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/server.js aura-account.js .github/workflows/fix-today-pnl-6am.yml
+          git commit -m 'Fix Today P&L 6AM IST reset and account baseline'
+          git push
