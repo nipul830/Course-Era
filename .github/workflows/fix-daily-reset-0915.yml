@@ -32,7 +32,7 @@ jobs:
               s = s.replace(old, new, 1)
               p.write_text(s, encoding='utf-8')
 
-          # Risk engine: use the exact same 09:15 IST trading-day boundary.
+          # Risk engine: same 09:15 IST boundary. Max drawdown is unchanged.
           p = Path('backend/challenge-rules-engine.js')
           s = p.read_text(encoding='utf-8')
           if 'AURA_DAILY_RESET_0915_IST' not in s:
