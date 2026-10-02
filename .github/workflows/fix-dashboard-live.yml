@@ -1,0 +1,51 @@
+name: Fix Dashboard Live Stats
+
+on:
+  workflow_run:
+    workflows: ["Deploy to VPS"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  patch:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
+          chmod 600 "$RUNNER_TEMP/vps_key"
+
+      - name: Patch dashboard live data
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key_path: ${{ runner.temp }}/vps_key
+          command_timeout: 2m
+          script: |
+            set -e
+            cd /root/Course-Era
+            git fetch origin main
+            git reset --hard origin/main
+            python3 - <<'PY'
+            from pathlib import Path
+            p=Path('/root/Course-Era/courses.html')
+            s=p.read_text(encoding='utf-8')
+            tag='<script src="dashboard-live-fix.js?v=1"></script>'
+            if tag not in s:
+                marker='</body>'
+                if marker not in s:
+                    raise SystemExit('courses.html body marker not found')
+                s=s.replace(marker,tag+'\n'+marker,1)
+                p.write_text(s,encoding='utf-8')
+                print('DASHBOARD_LIVE_FIX=INSTALLED')
+            else:
+                print('DASHBOARD_LIVE_FIX=ALREADY_INSTALLED')
+            PY
+            grep -q 'dashboard-live-fix.js?v=1' /root/Course-Era/courses.html
+            systemctl reload nginx || true
+            echo 'DASHBOARD_LIVE_FIX=OK'
