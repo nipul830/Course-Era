@@ -4,12 +4,16 @@
   const API='https://aurafirming.in';
   let timer=null,countdownTimer=null,busy=false;
   const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const pct=v=>Number(v||0).toFixed(2)+'%';
+  const num=v=>Number(v||0)||0;
+  const pct=v=>num(v).toFixed(2)+'%';
   const byId=id=>document.getElementById(id);
   const set=(id,value,color)=>{const el=byId(id);if(!el)return;el.textContent=value;if(color)el.style.color=color;};
+  const pnlOf=p=>num(p?.realizedPnl??p?.pnl??0);
+  function tradeDate(p){const raw=p?.closedAt||p?.closeTime||p?.closed_at||p?.updatedAt||p?.updated_at||p?.createdAt;if(!raw)return null;const d=new Date(raw);return Number.isNaN(d.getTime())?null:d;}
+  function tradeTime(p){const d=tradeDate(p)||new Date(p?.openedAt||p?.createdAt||'');return Number.isNaN(d.getTime())?'—':d.toLocaleString();}
   function row(label){return [...document.querySelectorAll('.metric-row')].find(r=>(r.querySelector('span')?.textContent||'').trim().toLowerCase()===label.toLowerCase())}
   function setRow(label,value){const r=row(label);if(r){const s=r.querySelector('strong');if(s)s.textContent=value}}
-  function renderList(selector,items,empty){const el=document.querySelector(selector);if(!el)return;if(!items?.length){el.innerHTML='<div class="empty-chart">'+empty+'</div>';return}el.innerHTML=items.map(x=>{const v=Number(x.value||0);return '<div class="metric-row"><span>'+String(x.label||x.day||x.symbol)+'</span><strong style="color:'+(v<0?'#ff5b70':'#68d58a')+'">'+(v>=0?'+':'-')+money(Math.abs(v))+'</strong></div>'}).join('')}
+
   function nextReset(){
     const now=new Date();
     const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now);
@@ -25,39 +29,65 @@
     const paint=()=>{const {target,now}=nextReset();const total=Math.max(0,Math.floor((target-now)/1000));const hh=Math.floor(total/3600),mm=Math.floor((total%3600)/60),ss=total%60;el.textContent='Daily reset in '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0')+' · 09:15 IST';};
     paint();countdownTimer=setInterval(paint,1000);
   }
+
+  async function getHistory(user){
+    const firebaseToken=await user.getIdToken(false);
+    const credRes=await fetch(API+'/api/trading-credentials',{headers:{Authorization:'Bearer '+firebaseToken},cache:'no-store'});
+    if(!credRes.ok)throw new Error('Trading credentials '+credRes.status);
+    const cred=await credRes.json();
+    if(!cred.loginId||!cred.tradingPassword)throw new Error('Trading credentials unavailable');
+    const loginRes=await fetch(API+'/api/terminal/login',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+firebaseToken},body:JSON.stringify({loginId:cred.loginId,password:cred.tradingPassword,mode:'trader'})});
+    if(!loginRes.ok)throw new Error('Trading session '+loginRes.status);
+    const session=await loginRes.json();
+    if(!session.token)throw new Error('Trading session token unavailable');
+    const historyRes=await fetch(API+'/api/trading/history',{headers:{Authorization:'Bearer '+session.token},cache:'no-store'});
+    if(!historyRes.ok)throw new Error('Trading history '+historyRes.status);
+    return await historyRes.json();
+  }
+
+  function renderAnalytics(closed){
+    const wins=closed.filter(p=>pnlOf(p)>0),losses=closed.filter(p=>pnlOf(p)<0),be=closed.filter(p=>pnlOf(p)===0);
+    const grossWin=wins.reduce((s,p)=>s+pnlOf(p),0),grossLoss=Math.abs(losses.reduce((s,p)=>s+pnlOf(p),0));
+    setRow('Avg. Win',wins.length?money(grossWin/wins.length):'—');
+    setRow('Avg. Loss',losses.length?'-'+money(grossLoss/losses.length):'—');
+    setRow('Profit Factor',grossLoss>0?(grossWin/grossLoss).toFixed(2):(grossWin>0?'∞':'—'));
+    const streaks=[...document.querySelectorAll('.streaks em')];
+    let ws=0,ls=0;
+    for(let i=closed.length-1;i>=0;i--){const v=pnlOf(closed[i]);if(v>0)ws++;else break;}
+    for(let i=closed.length-1;i>=0;i--){const v=pnlOf(closed[i]);if(v<0)ls++;else break;}
+    if(streaks[0])streaks[0].textContent=String(ws);
+    if(streaks[1])streaks[1].textContent=String(ls);
+    if(streaks[2])streaks[2].textContent=String(be.length);
+    const wr=closed.length?(wins.length/closed.length)*100:0;
+    const winEl=document.querySelector('.ring-win strong');if(winEl)winEl.textContent=pct(wr);
+    const dayMap={},symbolMap={};
+    closed.forEach(p=>{const d=tradeDate(p);if(d){const key=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(d);dayMap[key]=(dayMap[key]||0)+pnlOf(p);}const s=String(p?.symbol||p?.name||'Unknown');symbolMap[s]=(symbolMap[s]||0)+pnlOf(p);});
+    const cards=[...document.querySelectorAll('.analytics-card')];
+    const render=(label,map)=>{const card=cards.find(c=>(c.querySelector('.analytics-label')?.textContent||'').trim().toLowerCase()===label.toLowerCase());if(!card)return;const holder=card.querySelector('.empty-chart,.performance-list');if(!holder)return;const entries=Object.entries(map).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,10);holder.className=entries.length?'performance-list':'empty-chart';holder.innerHTML=entries.length?entries.map(([k,v])=>'<div class="metric-row"><span>'+String(k).replace(/[&<>]/g,'')+'</span><strong style="color:'+(v<0?'#ff5b70':'#68d58a')+'">'+(v>=0?'+':'-')+money(Math.abs(v))+'</strong></div>').join(''):'No closed trade data available';};
+    render('Performance by Day',dayMap);render('Performance by Symbol',symbolMap);
+  }
+
+  function renderTrades(open,pending,closed){
+    const box=byId('tradeEmpty'),tabs=[...document.querySelectorAll('.trade-tabs button')];if(!box||!tabs.length)return;
+    const paint=mode=>{const rows=mode==='open'?open:mode==='pending'?pending:closed;if(!rows.length){box.className='trade-empty';box.style.cssText='';box.textContent=mode==='open'?'No open trades':mode==='pending'?'No pending trades':'No trade history';return;}box.className='trade-list';box.style.cssText='display:grid;gap:7px;max-height:270px;overflow:auto';box.innerHTML=rows.slice(0,100).map(p=>{const v=pnlOf(p),side=String(p.side||'').toUpperCase();return '<div style="padding:9px 10px;border:1px solid #302713;border-radius:9px;background:#090806;display:flex;justify-content:space-between;gap:8px;align-items:center"><div><strong style="display:block;color:#fff;font-size:11px">'+String(p.symbol||p.name||'Trade')+' · '+side+'</strong><small style="display:block;color:#7f6d43;margin-top:2px">'+tradeTime(p)+'</small></div><strong style="color:'+(v<0?'#ff5b70':'#68d58a')+'">'+(v>=0?'+':'-')+money(Math.abs(v))+'</strong></div>';}).join('');};
+    tabs.forEach((b,i)=>{b.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));b.classList.add('active');paint(tabs.length===2?(i===0?'open':'closed'):(i===0?'open':i===1?'closed':'pending'));};});
+    const active=tabs.findIndex(b=>b.classList.contains('active'));paint(tabs.length===2?(active===1?'closed':'open'):(active===1?'closed':active===2?'pending':'open'));
+  }
+
   async function load(){
     if(busy)return;busy=true;
     try{
       const user=window.ceAuth?.currentUser;if(!user)return;
-      const token=await user.getIdToken(false);
-      const r=await fetch(API+'/api/dashboard-stats',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
-      const d=await r.json().catch(()=>({}));
-      if(!r.ok||!d.account)throw new Error(d.error||('Dashboard API '+r.status));
-      const a=d.account,starting=Number(a.startingBalance||0),balance=Number(a.balance??starting),equity=Number(a.equity??balance),pnl=Number(a.pnl??(balance-starting));
-      const daily=Number(a.dailyDrawdownPct||0),max=Number(a.maxDrawdownPct||0),dailyLimit=Number(a.dailyDrawdownLimit??a.dailyDrawdown??4),maxLimit=Number(a.maxDrawdownLimit??a.maxDrawdown??10),profit=starting?(pnl/starting)*100:0;
-      set('accountBalance',money(balance));
-      set('accountEquity',money(equity));
-      set('accountPnl',(pnl>=0?'+':'-')+money(Math.abs(pnl)),pnl<0?'#ff5b70':'#68d58a');
-      set('dailyDrawdown',pct(daily)+' / '+pct(dailyLimit));
-      set('maxDrawdown',pct(max)+' / '+pct(maxLimit));
-      set('profitPercent',(profit>=0?'+':'')+profit.toFixed(2)+'%');
-      set('accountStatus',String(a.status||'ACTIVE').toUpperCase(),String(a.status||'').toLowerCase()==='breached'?'#ff6b96':null);
-      set('openPositionsCount',String(a.openPositionsCount??0));
-      setRow('Avg. Win',a.avgWin==null?'—':money(a.avgWin));
-      setRow('Avg. Loss',a.avgLoss==null?'—':money(a.avgLoss));
-      setRow('Profit Factor',a.profitFactor==null?'—':Number(a.profitFactor).toFixed(2));
-      const streaks=[...document.querySelectorAll('.streaks em')];
-      if(streaks[0])streaks[0].textContent=String(a.currentWinStreak??0);
-      if(streaks[1])streaks[1].textContent=String(a.currentLossStreak??0);
-      if(streaks[2])streaks[2].textContent=String(a.breakevenTrades??0);
-      const winEl=document.querySelector('.ring-win strong');if(winEl)winEl.textContent=pct(a.winRate||0);
-      const cards=[...document.querySelectorAll('.analytics-card')];
-      const dayCard=cards.find(c=>(c.querySelector('.analytics-label')?.textContent||'').trim()==='Performance by Day');
-      const symbolCard=cards.find(c=>(c.querySelector('.analytics-label')?.textContent||'').trim()==='Performance by Symbol');
-      if(dayCard){const list=(a.performanceByDay||[]).map(x=>({label:x.day,value:x.value}));const holder=dayCard.querySelector('.empty-chart');if(holder){holder.className='performance-list';holder.innerHTML=list.length?list.map(x=>'<div class="metric-row"><span>'+x.label+'</span><strong style="color:'+(Number(x.value)<0?'#ff5b70':'#68d58a')+'">'+(Number(x.value)>=0?'+':'-')+money(Math.abs(x.value))+'</strong></div>').join(''):'<div class="empty-chart">No closed trade data available</div>';}}
-      if(symbolCard){const list=(a.performanceBySymbol||[]).map(x=>({label:x.symbol,value:x.value}));const holder=symbolCard.querySelector('.empty-chart');if(holder){holder.className='performance-list';holder.innerHTML=list.length?list.map(x=>'<div class="metric-row"><span>'+x.label+'</span><strong style="color:'+(Number(x.value)<0?'#ff5b70':'#68d58a')+'">'+(Number(x.value)>=0?'+':'-')+money(Math.abs(x.value))+'</strong></div>').join(''):'<div class="empty-chart">No closed trade data available</div>';}}
-      const tradeEmpty=byId('tradeEmpty');if(tradeEmpty)tradeEmpty.textContent=Number(a.openPositionsCount||0)?'Open positions: '+a.openPositionsCount:'No open trades';
-      startCountdown();
+      const data=await getHistory(user);
+      const open=Array.isArray(data.open)?data.open:[],pending=Array.isArray(data.pending)?data.pending:[],closed=Array.isArray(data.closed)?data.closed:[];
+      const a=data.account||{};
+      const starting=num(a.startingBalance||a.accountSize||a.initialBalance),balance=num(a.balance||starting),equity=num(a.equity||balance),pnl=Number.isFinite(Number(a.pnl))?Number(a.pnl):(balance-starting);
+      const daily=num(a.dailyDrawdownPct),dailyLimit=num(a.dailyDrawdownLimit??a.dailyDrawdown??4),max=num(a.maxDrawdownPct),maxLimit=num(a.maxDrawdownLimit??a.maxDrawdown??10);
+      set('accountBalance',money(balance));set('accountEquity',money(equity));set('accountPnl',(pnl>=0?'+':'-')+money(Math.abs(pnl)),pnl<0?'#ff5b70':'#68d58a');
+      set('dailyDrawdown',pct(daily)+' / '+pct(dailyLimit));set('maxDrawdown',pct(max)+' / '+pct(maxLimit));set('openPositionsCount',String(open.length));
+      set('profitPercent',(starting?((pnl/starting)*100):0).toFixed(2)+'%');
+      const status=String(a.status||'ACTIVE').toUpperCase();set('accountStatus',status,status==='BREACHED'?'#ff6b96':'#68d58a');
+      renderAnalytics(closed);renderTrades(open,pending,closed);startCountdown();
     }catch(e){console.warn('Dashboard live data:',e?.message||e)}finally{busy=false}
   }
   function init(){if(!byId('accountBalance'))return;load();clearInterval(timer);timer=setInterval(load,5000);startCountdown()}
