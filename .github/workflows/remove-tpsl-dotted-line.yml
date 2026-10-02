@@ -1,0 +1,36 @@
+name: Remove TP SL dotted line
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove dotted TP SL line styling
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('terminal.html')
+          s=p.read_text(encoding='utf-8')
+          marker='AURA_REMOVE_TPSL_DOTTED_LINE_V1'
+          if marker in s:
+              raise SystemExit(0)
+          css='''\n/* AURA_REMOVE_TPSL_DOTTED_LINE_V1 */\n.chart-risk-handle[data-risk-type="stopLoss"],.chart-risk-handle[data-risk-type="takeProfit"]{border-top:0!important;border-bottom:0!important;background-image:none!important;box-shadow:none!important}\n'''
+          s=s.replace('</style>',css+'</style>',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add terminal.html
+          git commit -m 'Remove dotted TP SL line' || exit 0
+          git push
