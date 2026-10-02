@@ -1,0 +1,36 @@
+name: Fix daily drawdown reset
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[auto-drawdown]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch daily drawdown reset and countdown
+        shell: python
+        run: |
+          from pathlib import Path
+
+          server = Path('backend/server.js')
+          text = server.read_text()
+          old = '''  const todayKey = new Date().toISOString().slice(0,10);\n  const dayChanged = data.dailyResetDate !== todayKey;\n  const dailyStart = dayChanged ? equity : Number(data.dailyStartEquity || starting);'''
+          new = '''  // Daily drawdown trading day resets every day at 09:15 Asia/Kolkata.\n  // Before 09:15, the account remains on the previous trading day.\n  function dailyDrawdownTradingDayKey(now = new Date()) {\n    const parts = new Intl.DateTimeFormat('en-GB', {\n      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',\n      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'\n    }).formatToParts(now);\n    const get = type => parts.find(p => p.type === type)?.value || '';\n    let y = Number(get('year')), m = Number(get('month')), d = Number(get('day'));\n    const h = Number(get('hour')), min = Number(get('minute'));\n    if (h < 9 || (h === 9 && min < 15)) {\n      const previous = new Date(Date.UTC(y, m - 1, d) - 86400000);\n      y = previous.getUTCFullYear(); m = previous.getUTCMonth() + 1; d = previous.getUTCDate();\n    }\n    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;\n  }\n  const todayKey = dailyDrawdownTradingDayKey(new Date());\n  const dayChanged = data.dailyResetDate !== todayKey;\n  const dailyStart = dayChanged ? equity : Number(data.dailyStartEquity || starting);'''
+          if old not in text:
+              raise SystemExit('Expected server drawdown block not found')
+          server.write_text(text.replace(old, new, 1))
+
+          courses = Path('courses.html')
+          text = courses.read_text()
+          marker = '<strong id="dailyDrawdown">—</strong>'
+          replacement = '''<strong id="dailyDrawdown">—</strong>\n    <small id="dailyDrawdownResetCountdown" style="display:block;margin-top:5px;color:#9b8552;font-size:10px;font-weight:800;"></small>'''
+          if marker in text and 'dailyDrawdownResetCountdown' not in text:
+              text = text.replace(marker, replacement, 1)
+          script_marker = '</body>'
+          script = '''<script>\n(function(){\n  const el=document.getElementById('dailyDrawdownResetCountdown');\n  if(!el)return;\n  function istParts(){\n    const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());\n    const g=t=>Number(p.find(x=>x.type===t)?.value||0);\n    return {y:g('year'),m:g('month'),d:g('day'),h:g('hour'),min:g('minute'),s:g('second')};\n  }\n  function tick(){\n    const now=istParts();\n    let target=new Date(Date.UTC(now.y,now.m-1,now.d,3,45,0));\n    const nowUtcMs=Date.now();\n    if(target.getTime()<=nowUtcMs)target=new Date(target.getTime()+86400000);\n    const diff=Math.max(0,target.getTime()-nowUtcMs);\n    const total=Math.floor(diff/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;\n    el.textContent='Daily reset in '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' (9:15 AM IST)';\n  }\n  tick();setInterval(tick,1000);\n})();\n</script>\n'''
+          if 'id="dailyDrawdownResetCountdown"' in text and 'Daily reset in' not in text:
+              text = text.replace(script_marker, script + script_marker, 1)
+          courses.write_text(text)
