@@ -27,22 +27,60 @@ jobs:
           rm -rf www
           mkdir -p www
           cp *.html *.js *.css www/
+          rm -f www/aura-account.js
 
       - name: Isolate terminal APK authentication
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('www/terminal.html')
           s = p.read_text(encoding='utf-8')
-          s = s.replace('<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>\n', '')
-          s = s.replace('<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>\n', '')
-          s = s.replace('<script src="firebase-config.js?v=7"></script>\n', '')
-          s = s.replace('<script src="aura-account.js"></script>\n', '')
+          # The APK must authenticate directly with Terminal ID + Terminal Password.
+          # Remove every external website/Firebase auth bridge from the terminal page.
+          s = re.sub(r'<script[^>]+(?:firebase-app-compat|firebase-auth-compat|firebase-config\.js|aura-account\.js)[^>]*></script>\s*', '', s, flags=re.I)
+          # Remove any stale website-auth fetch wrapper if it is present in the page.
+          marker = "if(url.includes('/api/terminal/login'))"
+          while marker in s:
+              start = s.index(marker)
+              brace = s.rfind('{', 0, start)
+              if brace < 0:
+                  break
+              depth = 0
+              end = None
+              quote = None
+              escape = False
+              i = brace
+              while i < len(s):
+                  ch = s[i]
+                  if quote:
+                      if escape:
+                          escape = False
+                      elif ch == '\\':
+                          escape = True
+                      elif ch == quote:
+                          quote = None
+                  else:
+                      if ch in "'\"`":
+                          quote = ch
+                      elif ch == '{':
+                          depth += 1
+                      elif ch == '}':
+                          depth -= 1
+                          if depth == 0:
+                              end = i + 1
+                              break
+                  i += 1
+              if end is None:
+                  break
+              s = s[:brace] + s[end:]
+          s = s.replace('2026-09-26-order-lines-fix-2', '2026-10-02-terminal-apk-direct-auth-v2')
           p.write_text(s, encoding='utf-8')
-          print('Terminal APK: removed website/Firebase auth bridge')
+          print('Terminal APK: direct terminal authentication enabled')
           PY
-          grep -q "aura-account.js" www/terminal.html && exit 1 || true
-          grep -q "Website login required before terminal login" www/terminal.html && exit 1 || true
+          test ! -e www/aura-account.js
+          ! grep -qi "aura-account.js" www/terminal.html
+          ! grep -qi "Website login required before terminal login" www/terminal.html
 
       - name: Add Android platform
         run: npx cap add android
@@ -68,6 +106,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: aura-farming-terminal-debug-apk
+          name: aura-farming-terminal-direct-auth-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
