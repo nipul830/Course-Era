@@ -1,15 +1,23 @@
 function logout(){
   try{
-    // Clear terminal session as well as the main Firebase login.
-    // Terminal credentials are stored in sessionStorage and otherwise can
-    // survive when Dashboard and Terminal are opened in different tabs.
-    sessionStorage.removeItem('auraTerminalSession');
-    sessionStorage.removeItem('auraTerminalRole');
-    sessionStorage.removeItem('auraTerminalAccount');
-    sessionStorage.removeItem('auraTerminalOwnerUid');
-    try{ceAuth.signOut().then(()=>location.href='index.html')}
-    catch(e){location.href='index.html'}
-  }catch(e){location.href='index.html'}
+    // Fully clear dashboard/account/terminal session state before leaving.
+    // Firebase sign-out is completed before redirect so another page cannot
+    // reuse the previous authenticated user automatically.
+    const sessionKeys=['auraTerminalSession','auraTerminalRole','auraTerminalAccount','auraTerminalOwnerUid','auraTerminalUnlocked:'+((typeof ceAuth!=='undefined'&&ceAuth.currentUser&&ceAuth.currentUser.uid)||'')];
+    sessionKeys.forEach(k=>{if(k)sessionStorage.removeItem(k)});
+    localStorage.removeItem('auraSelectedDashboardAccountV2');
+    localStorage.removeItem('auraSelectedAccount');
+    localStorage.removeItem('auraTerminalAccount');
+    localStorage.removeItem('auraTerminalSession');
+    const finish=()=>{try{location.replace('index.html')}catch(e){location.href='index.html'}};
+    if(typeof ceAuth!=='undefined'&&ceAuth){
+      ceAuth.signOut().then(finish).catch(finish);
+    }else finish();
+  }catch(e){
+    try{sessionStorage.clear()}catch(_e){}
+    try{localStorage.removeItem('auraSelectedDashboardAccountV2');localStorage.removeItem('auraSelectedAccount');localStorage.removeItem('auraTerminalAccount');localStorage.removeItem('auraTerminalSession')}catch(_e){}
+    location.replace('index.html');
+  }
 }
 
 // Keep the five-account selector in the exact 1/2/3/4/5 arrangement
