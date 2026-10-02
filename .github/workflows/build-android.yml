@@ -28,6 +28,22 @@ jobs:
           mkdir -p www
           cp *.html *.js *.css www/
 
+      - name: Isolate terminal APK authentication
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('www/terminal.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>\n', '')
+          s = s.replace('<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>\n', '')
+          s = s.replace('<script src="firebase-config.js?v=7"></script>\n', '')
+          s = s.replace('<script src="aura-account.js"></script>\n', '')
+          p.write_text(s, encoding='utf-8')
+          print('Terminal APK: removed website/Firebase auth bridge')
+          PY
+          grep -q "aura-account.js" www/terminal.html && exit 1 || true
+          grep -q "Website login required before terminal login" www/terminal.html && exit 1 || true
+
       - name: Add Android platform
         run: npx cap add android
 
@@ -52,6 +68,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: course-era-debug-apk
+          name: aura-farming-terminal-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
