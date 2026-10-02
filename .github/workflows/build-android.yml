@@ -73,10 +73,10 @@ jobs:
               if end is None:
                   break
               s = s[:brace] + s[end:]
-          s = s.replace('2026-09-26-order-lines-fix-2', '2026-10-02-terminal-apk-local-v5')
+          s = s.replace('2026-09-26-order-lines-fix-2', '2026-10-02-terminal-apk-local-v6')
           s = s.replace('href="index.html"', 'href="terminal-home.html"')
           p.write_text(s, encoding='utf-8')
-          print('Terminal APK: local terminal + direct auth + Home watchlist enabled')
+          print('Terminal APK: local terminal + direct auth + simplified Watchlist enabled')
           PY
           cp www/terminal.html www/index.html
           test ! -e www/aura-account.js
@@ -110,6 +110,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: aura-farming-terminal-local-v5-apk
+          name: aura-farming-terminal-local-v6-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
