@@ -1,0 +1,103 @@
+name: Fix Daily Drawdown 09:15 IST
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply 09:15 IST daily reset and countdown
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Backend server: trading day rolls at 09:15 IST.
+          p = Path('backend/server.js')
+          s = p.read_text(encoding='utf-8')
+          if '// AURA_DAILY_RESET_0915_IST' not in s:
+              old = '  const todayKey = new Date().toISOString().slice(0,10);'
+              new = '''  // AURA_DAILY_RESET_0915_IST
+              // Trading day rolls at 09:15 Asia/Kolkata (UTC+05:30).
+              const todayKey = new Date(Date.now() - (3 * 60 + 45) * 60 * 1000).toISOString().slice(0,10);'''
+              if old not in s:
+                  raise SystemExit('Daily reset anchor not found in backend/server.js')
+              s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8')
+
+          # Risk engine: use the exact same 09:15 IST trading-day boundary.
+          p = Path('backend/challenge-rules-engine.js')
+          s = p.read_text(encoding='utf-8')
+          if 'AURA_DAILY_RESET_0915_IST' not in s:
+              old = '''const dayStart=()=>{\n  const now=new Date(),ist=new Date(now.getTime()+330*60000);\n  ist.setUTCHours(0,30,0,0);\n  return new Date(ist.getTime()-330*60000);\n};'''
+              new = '''const AURA_DAILY_RESET_0915_IST = 9 * 60 + 15;\nconst dayStart=()=>{\n  const now=new Date();\n  const istMs=now.getTime()+330*60000;\n  const shiftedMs=istMs-AURA_DAILY_RESET_0915_IST*60000;\n  const shifted=new Date(shiftedMs);\n  const y=shifted.getUTCFullYear(),m=shifted.getUTCMonth(),d=shifted.getUTCDate();\n  const resetUtc=Date.UTC(y,m,d)-330*60000+AURA_DAILY_RESET_0915_IST*60000;\n  return new Date(resetUtc);\n};'''
+              if old not in s:
+                  raise SystemExit('Daily reset anchor not found in backend/challenge-rules-engine.js')
+              s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8')
+
+          # Dashboard: countdown is visible only from 09:00:00 to 09:14:59 IST.
+          p = Path('courses.html')
+          s = p.read_text(encoding='utf-8')
+          if '<!-- AURA_DAILY_DRAWDOWN_COUNTDOWN -->' not in s:
+              old_card = '  <div class="stat"><span>Daily Drawdown</span><strong id="dailyDrawdown">—</strong></div>'
+              new_card = '''  <div class="stat" id="dailyDrawdownStat"><span>Daily Drawdown</span><strong id="dailyDrawdown">—</strong><small id="dailyDrawdownCountdown" style="display:none;margin-top:5px;color:#e6004d;font-size:11px;font-weight:900;letter-spacing:.2px;"></small></div>'''
+              if old_card not in s:
+                  raise SystemExit('Daily Drawdown card anchor not found in courses.html')
+              s = s.replace(old_card, new_card, 1)
+              script = '''
+<!-- AURA_DAILY_DRAWDOWN_COUNTDOWN -->
+<script>
+(function(){
+  const countdown=document.getElementById('dailyDrawdownCountdown');
+  if(!countdown)return;
+  const IST_OFFSET_MS=330*60000;
+  const START_MINUTES=9*60;
+  const RESET_MINUTES=9*60+15;
+  function tick(){
+    const now=new Date();
+    const ist=new Date(now.getTime()+IST_OFFSET_MS);
+    const minutes=ist.getUTCHours()*60+ist.getUTCMinutes();
+    const seconds=ist.getUTCSeconds();
+    if(minutes>=START_MINUTES && minutes<RESET_MINUTES){
+      const remaining=(RESET_MINUTES-minutes-1)*60+(60-seconds);
+      const mm=String(Math.floor(remaining/60)).padStart(2,'0');
+      const ss=String(remaining%60).padStart(2,'0');
+      countdown.textContent='Reset in '+mm+':'+ss;
+      countdown.style.display='block';
+    }else{
+      countdown.textContent='';
+      countdown.style.display='none';
+    }
+  }
+  tick();
+  setInterval(tick,1000);
+})();
+</script>'''
+              if '</body>' not in s:
+                  raise SystemExit('Body anchor not found in courses.html')
+              s = s.replace('</body>', script + '\n</body>', 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+
+          node --check backend/server.js
+          node --check backend/challenge-rules-engine.js
+
+      - name: Commit patched source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js backend/challenge-rules-engine.js courses.html
+          if git diff --cached --quiet; then
+            echo "DAILY_RESET_PATCH=ALREADY_PRESENT"
+            exit 0
+          fi
+          git commit -m "Fix daily drawdown reset at 09:15 IST"
+          git push
