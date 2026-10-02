@@ -28,8 +28,6 @@
     for(const raw of existing){
       if(!raw||typeof raw!=='object')continue;
       const x={...raw};
-      // Do NOT stamp old history with the current time. Those trades have no
-      // reliable close timestamp and must not be counted in today's P&L.
       const i=out.findIndex(y=>sameTrade(y,x));
       if(i<0)out.push(x);else out[i]={...out[i],...x};
     }
@@ -48,7 +46,7 @@
   function isAfterDailyReset(x){const t=parseTime(closedTime(x));return Number.isFinite(t)&&t>=dailyStart();}
   function getDailyPnl(){const list=memory[activeKey]?.closed||[];return list.filter(isAfterDailyReset).reduce((s,x)=>s+pnl(x),0);}
   function renderDailyPnl(){
-    const positions=document.getElementById('positions'),tabs=document.querySelector('.tabs');if(!positions||!tabs)return;
+    const positions=document.getElementById('positions');if(!positions)return;
     let box=document.getElementById('dailyPnlBox');
     if(!box){box=document.createElement('div');box.id='dailyPnlBox';box.innerHTML='<div class="daily-pnl-label">Daily P&L</div><div class="daily-pnl-value" id="dailyPnlValue">$0.00</div>';positions.parentNode.insertBefore(box,positions);}
     const closedTab=document.querySelector('.tab[data-tab="closed"]');const show=closedTab?.classList.contains('active');box.style.display=show?'flex':'none';
@@ -66,16 +64,21 @@
     data.closed=closed;data.open=Object.values(openMap);setDailyPnl();return data;
   }
   function rememberClosedFromClose(id,data){
-    const m=memory[activeKey]||{},original=(m.open||{})[String(id)];if(!original)return;
-    const closed={...original,status:'closed',closePrice:Number(data?.closePrice||original.currentPrice||original.entryPrice||0),realizedPnl:Number(data?.realizedPnl??data?.pnl??0),closedAt:data?.closedAt||data?.closeTime||new Date().toISOString()};
-    mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});setDailyPnl();
+    const m=memory[activeKey]||{},original=(m.open||{})[String(id)];
+    const result=data?.position||data?.trade||data?.closedTrade||data||{};
+    const realized=Number(result?.realizedPnl??result?.pnl??result?.profit??result?.profitLoss);
+    if(original){
+      const closed={...original,status:'closed',closePrice:Number(result?.closePrice||original.currentPrice||original.entryPrice||0),realizedPnl:Number.isFinite(realized)?realized:0,closedAt:result?.closedAt||result?.closeTime||new Date().toISOString()};
+      mergeClosed(activeKey,[closed]);if(m.open)delete m.open[String(id)];write(OPEN_KEY+activeKey,m.open||{});setDailyPnl();
+    }else if(Number.isFinite(realized)){
+      mergeClosed(activeKey,[{id:String(id),realizedPnl:realized,closedAt:new Date().toISOString()}]);setDailyPnl();
+    }
   }
   function install(){
     const k=String(sessionStorage.getItem('auraTerminalAccountId')||'default');activeKey=k;mergeClosed(k,[]);window.auraUpdateDailyPnl=setDailyPnl;
     const wire=()=>{document.querySelectorAll('.tab[data-tab]').forEach(tab=>tab.addEventListener('click',()=>setTimeout(renderDailyPnl,0)));renderDailyPnl();scheduleDailyRefresh();};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();
   }
-  // Prevent HTTP 429 rate limiting while keeping position refresh fast.
   const nativeSetInterval=window.setInterval.bind(window);window.setInterval=function(fn,delay,...args){try{const source=String(fn);if(Number(delay)===3000&&source.includes('loadPositions()'))delay=1000;}catch(e){}return nativeSetInterval(fn,delay,...args);};
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,init){
@@ -89,4 +92,60 @@
   };
   const style=document.createElement('style');style.textContent='#dailyPnlBox{display:none;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;padding:7px 12px;border:1px solid #e0e5e9;border-radius:10px;background:#fff;box-shadow:0 2px 8px #0000000b;min-height:0}.daily-pnl-label{font-size:11px;font-weight:800;color:#687786;line-height:1.2}.daily-pnl-value{font-size:16px;font-weight:900;line-height:1.2;color:#008a5b}.daily-pnl-value.negative{color:#e6004d}';document.head.appendChild(style);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+
+  // Reliable client-side daily ledger. This is intentionally separate from
+  // the historical cache so a newly closed trade is counted immediately even
+  // if the backend history response is briefly stale or the timestamp has not
+  // propagated from Firestore yet. The ledger automatically starts a fresh
+  // bucket at 06:00 Asia/Kolkata.
+  const LEDGER_PREFIX='auraDailyPnl:v2:';
+  function istDayKey(){
+    const now=new Date();
+    const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hour12:false}).formatToParts(now);
+    const p={};parts.forEach(x=>p[x.type]=x.value);
+    let y=Number(p.year),m=Number(p.month),d=Number(p.day),h=Number(p.hour);
+    if(h<6){const prev=new Date(Date.UTC(y,m-1,d)-86400000);y=prev.getUTCFullYear();m=prev.getUTCMonth()+1;d=prev.getUTCDate();}
+    return String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  }
+  function ledgerKey(){return LEDGER_PREFIX+String(sessionStorage.getItem('auraTerminalAccountId')||activeKey||'default');}
+  function readLedger(){
+    const key=ledgerKey(),today=istDayKey(),raw=read(key,null);
+    if(!raw||raw.date!==today)return {date:today,trades:{}};
+    return {date:today,trades:{...(raw.trades||{})}};
+  }
+  function writeLedger(ledger){write(ledgerKey(),ledger);}
+  function ledgerTotal(){return Object.values(readLedger().trades).reduce((s,v)=>s+Number(v||0),0);}
+  function syncLedgerFromHistory(data){
+    const ledger=readLedger();
+    for(const t of (Array.isArray(data?.closed)?data.closed:[])){
+      const id=idOf(t);if(!id||!isAfterDailyReset(t))continue;
+      const value=Number(pnl(t));if(Number.isFinite(value))ledger.trades[id]=value;
+    }
+    writeLedger(ledger);setLedgerUi();
+  }
+  function setLedgerUi(){
+    const tab=document.querySelector('.tab[data-tab="closed"]');
+    if(!tab?.classList.contains('active'))return;
+    const el=document.getElementById('dailyPnlValue');if(!el)return;
+    const v=ledgerTotal();el.textContent=(v>=0?'+':'')+money(v);el.classList.toggle('positive',v>=0);el.classList.toggle('negative',v<0);
+  }
+  const fetchBeforeLedger=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input?.url||''),method=String(init?.method||input?.method||'GET').toUpperCase();
+    const response=await fetchBeforeLedger(input,init);
+    try{
+      const data=await response.clone().json();
+      if(/\/api\/trading\/history(?:\?|$)/.test(url)){syncLedgerFromHistory(data);}
+      const m=url.match(/\/api\/trading\/positions\/([^/?]+)\/close(?:\?|$)/);
+      if(m&&method==='POST'){
+        const result=data?.position||data?.trade||data?.closedTrade||data||{};
+        const value=Number(result?.realizedPnl??result?.pnl??result?.profit??result?.profitLoss);
+        if(Number.isFinite(value)){
+          const ledger=readLedger();ledger.trades[String(m[1])]=value;writeLedger(ledger);setLedgerUi();
+        }
+      }
+    }catch(e){}
+    return response;
+  };
+  const oldSetInterval=window.setInterval.bind(window);oldSetInterval(setLedgerUi,1000);
 })();
