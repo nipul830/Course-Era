@@ -76,6 +76,9 @@ body{background:#fff}
 .chart-risk-handle[data-risk-type="stopLoss"]::after,.chart-risk-handle[data-risk-type="takeProfit"]::after{content:"";position:absolute;left:0;right:0;top:24px;height:.5px;pointer-events:none}
 .chart-risk-handle[data-risk-type="stopLoss"]::after{background:#e6004d}
 .chart-risk-handle[data-risk-type="takeProfit"]::after{background:#00a875}
+
+/* AURA_REMOVE_TPSL_DOTTED_LINE_V1 */
+.chart-risk-handle[data-risk-type="stopLoss"],.chart-risk-handle[data-risk-type="takeProfit"]{border-top:0!important;border-bottom:0!important;background-image:none!important;box-shadow:none!important}
 </style>
 <link rel="preconnect" href="https://aurafirming.in" crossorigin><link rel="preconnect" href="https://s3.tradingview.com" crossorigin><link rel="preconnect" href="https://www.gstatic.com" crossorigin></head>
 <body>
