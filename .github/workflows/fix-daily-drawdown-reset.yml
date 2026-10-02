@@ -1,4 +1,5 @@
 name: Fix daily drawdown reset
+# Re-trigger the 09:15 IST patch after the latest main changes.
 on:
   push:
     branches: [main]
