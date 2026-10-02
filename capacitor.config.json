@@ -2,10 +2,6 @@
   "appId": "com.aurafarming.terminal",
   "appName": "Aura Farming Terminal",
   "webDir": "www",
-  "server": {
-    "url": "https://aurafirming.in/terminal.html",
-    "cleartext": false
-  },
   "android": {
     "backgroundColor": "#03100d"
   }
