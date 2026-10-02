@@ -72,7 +72,8 @@
   <div class="stat"><span>Balance</span><strong id="accountBalance">Loading…</strong></div>
   <div class="stat"><span>Equity</span><strong id="accountEquity">Loading…</strong></div>
   <div class="stat"><span>P&amp;L</span><strong id="accountPnl">—</strong></div>
-  <div class="stat"><span>Daily Drawdown</span><strong id="dailyDrawdown">—</strong></div>
+  <div class="stat"><span>Daily Drawdown</span><strong id="dailyDrawdown">—</strong>
+    <small id="dailyDrawdownResetCountdown" style="display:block;margin-top:5px;color:#9b8552;font-size:10px;font-weight:800;"></small></div>
   <div class="stat"><span>Max Drawdown</span><strong id="maxDrawdown">—</strong></div>
   <div class="stat"><span>Open Positions</span><strong id="openPositionsCount">0</strong></div>
 </section>
@@ -251,6 +252,27 @@ ceAuth.onAuthStateChanged(function(user){
 });
 
 if(ceAuth.currentUser)loadDashboard(ceAuth.currentUser);
+</script>
+<script>
+(function(){
+  const el=document.getElementById('dailyDrawdownResetCountdown');
+  if(!el)return;
+  function istParts(){
+    const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+    const g=t=>Number(p.find(x=>x.type===t)?.value||0);
+    return {y:g('year'),m:g('month'),d:g('day'),h:g('hour'),min:g('minute'),s:g('second')};
+  }
+  function tick(){
+    const now=istParts();
+    let target=new Date(Date.UTC(now.y,now.m-1,now.d,3,45,0));
+    const nowUtcMs=Date.now();
+    if(target.getTime()<=nowUtcMs)target=new Date(target.getTime()+86400000);
+    const diff=Math.max(0,target.getTime()-nowUtcMs);
+    const total=Math.floor(diff/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
+    el.textContent='Daily reset in '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' (9:15 AM IST)';
+  }
+  tick();setInterval(tick,1000);
+})();
 </script>
 </body>
 </html>

@@ -1891,7 +1891,23 @@ async function refreshTradingAccount(uid, quotes) {
   const equity = balance + openPnl;
   const starting = Number(data.startingBalance || balance);
   const peak = Math.max(Number(data.peakEquity || starting), equity);
-  const todayKey = new Date().toISOString().slice(0,10);
+  // Daily drawdown trading day resets every day at 09:15 Asia/Kolkata.
+  // Before 09:15, the account remains on the previous trading day.
+  function dailyDrawdownTradingDayKey(now = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(now);
+    const get = type => parts.find(p => p.type === type)?.value || '';
+    let y = Number(get('year')), m = Number(get('month')), d = Number(get('day'));
+    const h = Number(get('hour')), min = Number(get('minute'));
+    if (h < 9 || (h === 9 && min < 15)) {
+      const previous = new Date(Date.UTC(y, m - 1, d) - 86400000);
+      y = previous.getUTCFullYear(); m = previous.getUTCMonth() + 1; d = previous.getUTCDate();
+    }
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  const todayKey = dailyDrawdownTradingDayKey(new Date());
   const dayChanged = data.dailyResetDate !== todayKey;
   const dailyStart = dayChanged ? equity : Number(data.dailyStartEquity || starting);
   const dailyDd = dailyStart > 0 ? Math.max(0, (dailyStart-equity)/dailyStart*100) : 0;
