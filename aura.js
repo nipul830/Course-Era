@@ -1,6 +1,15 @@
 function logout(){
-  try{ceAuth.signOut().then(()=>location.href='index.html')}
-  catch(e){location.href='index.html'}
+  try{
+    // Clear terminal session as well as the main Firebase login.
+    // Terminal credentials are stored in sessionStorage and otherwise can
+    // survive when Dashboard and Terminal are opened in different tabs.
+    sessionStorage.removeItem('auraTerminalSession');
+    sessionStorage.removeItem('auraTerminalRole');
+    sessionStorage.removeItem('auraTerminalAccount');
+    sessionStorage.removeItem('auraTerminalOwnerUid');
+    try{ceAuth.signOut().then(()=>location.href='index.html')}
+    catch(e){location.href='index.html'}
+  }catch(e){location.href='index.html'}
 }
 
 // Keep the five-account selector in the exact 1/2/3/4/5 arrangement
