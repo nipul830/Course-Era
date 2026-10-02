@@ -2068,7 +2068,7 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
     if (profitPct >= rules.profitTargetPct && daysOk) {
       phasePassed = true;
       const model = String(data.model || data.challengeModel || data.challenge || "").toLowerCase();
-      if (/2\\s*step|two\\s*step|2-step/i.test(model) && /phase\\s*1/i.test(phase)) {
+      if (/2\s*step|two\s*step|2-step/i.test(model) && /phase\s*1/i.test(phase)) {
         // Promote Phase 1 -> Phase 2
         newPhase = "Phase 2";
         newPhaseStartBalance = equity; // reset base for next target
@@ -2213,6 +2213,9 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
 
 app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
   try {
+    if (!req.terminal?.uid || !req.terminal?.accountId || !req.terminal?.accountRef) {
+      return res.status(401).json({ error: "Valid terminal session is required" });
+    }
     const symbol=String(req.body.symbol||"").trim();
     const side=String(req.body.side||"").toUpperCase();
     const lot=Number(req.body.lot);
@@ -2604,6 +2607,7 @@ app.post("/api/auth/password-reset/confirm", async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
   if (err?.message === "Origin not allowed") {
     return res.status(403).json({ error: "Origin not allowed" });
   }
