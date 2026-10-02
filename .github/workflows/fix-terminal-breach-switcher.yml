@@ -15,6 +15,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Apply terminal TP SL and refresh patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('terminal.html')
+          s = p.read_text(encoding='utf-8')
+          marker = 'AURA_5MS_REFRESH_TPSL_05PX_V1'
+          if marker not in s:
+              css = '''\n/* AURA_5MS_REFRESH_TPSL_05PX_V1 */\n.chart-risk-handle[data-risk-type="stopLoss"]::after,.chart-risk-handle[data-risk-type="takeProfit"]::after{content:"";position:absolute;left:0;right:0;top:24px;height:.5px;pointer-events:none}\n.chart-risk-handle[data-risk-type="stopLoss"]::after{background:#e6004d}\n.chart-risk-handle[data-risk-type="takeProfit"]::after{background:#00a875}\n'''
+              s = s.replace('</style>', css + '</style>', 1)
+              js = '''\n<script>window.AURA_CHART_REFRESH_MS=5;window.dispatchEvent(new CustomEvent('aura-chart-refresh-rate',{detail:{ms:5}}));</script>\n'''
+              s = s.replace('</body>', js + '</body>', 1)
+              s = s.replace('content="2026-09-26-order-lines-fix-2"','content="2026-10-02-refresh-5ms-tpsl-05px"',1)
+              p.write_text(s,encoding='utf-8')
+          PY
+
       - name: Remove revoked accounts from terminal switcher
         shell: bash
         run: |
@@ -144,10 +161,11 @@ jobs:
           PY
 
           node --check aura-account.js
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add aura-account.js
+          git add terminal.html aura-account.js .github/workflows/fix-terminal-breach-switcher.yml
           if ! git diff --cached --quiet; then
-            git commit -m 'Remove revoked accounts from terminal switcher [skip ci]'
+            git commit -m 'Set 5ms chart refresh and 0.5px TP SL lines [skip ci]'
             git push
           fi
