@@ -1,0 +1,33 @@
+name: Apply challenge rules
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update challenge rules
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('challenge.html')
+          s=p.read_text(encoding='utf-8')
+          marker='AURA_CHALLENGE_RULES_20261002'
+          if marker in s:
+              raise SystemExit('already applied')
+          s=s.replace("dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'", "dailyDrawdown:'3%',totalDrawdown:'7%',profitTarget:'8%',evaluation:'40% Consistency | 1% Floating Loss | 3 Profitable Days ≥0.5%'")
+          s=s.replace("dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'", "dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%',evaluation:'Phase 1 & 2: 2 Profitable Days ≥1% | Funded Floating Loss 2%'")
+          s=s.replace("dailyDrawdown:'3%',evaluation:'None'", "dailyDrawdown:'2%',totalDrawdown:'4%',evaluation:'30% Consistency | 1% Floating Loss'")
+          s=s.replace("<style>", "<style>\n/* AURA_CHALLENGE_RULES_20261002 */\n", 1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add challenge.html
+          git commit -m 'Set challenge rules for 2-step 1-step and instant'
+          git push
