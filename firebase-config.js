@@ -87,6 +87,18 @@ ceFirebaseAuth.getInstance = () => ceAuth;
 // Do not redeclare the global Firebase identifier when legacy Firebase SDK
 // scripts are present on older pages. Keep the compatibility bridge on window.
 window.firebase = { auth: ceFirebaseAuth };
+(function(){
+  if(!/\/terminal(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
+  try{
+    const token=sessionStorage.getItem('auraTerminalSession')||'';
+    if(token && !token.startsWith('AF1.')){
+      sessionStorage.removeItem('auraTerminalSession');
+      sessionStorage.removeItem('auraTerminalRole');
+      sessionStorage.removeItem('auraTerminalAccount');
+    }
+  }catch(e){}
+})();
+
 
 (function(){
   if(!/\/courses(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
@@ -127,19 +139,7 @@ window.firebase = { auth: ceFirebaseAuth };
   },50);
 })();
 
-(function(){
-  if(!/\/courses(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
-  function bootstrapDashboardTerminalSession(){
-    try{
-      const token=ceStoredToken();
-      if(token && !sessionStorage.getItem('auraTerminalSession')){
-        sessionStorage.setItem('auraTerminalSession',token);
-      }
-    }catch(e){ console.warn('Dashboard terminal session bootstrap failed:',e); }
-  }
-  bootstrapDashboardTerminalSession();
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootstrapDashboardTerminalSession,{once:true});
-})();
+;
 
 (function(){
   function applyChallengeHome(){
