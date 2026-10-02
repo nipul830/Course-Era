@@ -153,4 +153,18 @@ replaceOnce(
 );
 
 writeFileSync(target, source);
+
+// The dashboard page is served as a static HTML file. Install a small live-data
+// bridge during the normal VPS deployment so balance, equity, P&L, drawdown and
+// performance always read the Mongo-backed trading account, and the 09:15 IST
+// daily-reset countdown is present beside Daily Drawdown.
+const dashboardTarget = new URL("../courses.html", import.meta.url);
+let dashboard = readFileSync(dashboardTarget, "utf8");
+const dashboardTag = '<script src="dashboard-live-fix.js?v=1"></script>';
+if (!dashboard.includes(dashboardTag)) {
+  if (!dashboard.includes("</body>")) throw new Error("Dashboard body marker not found");
+  dashboard = dashboard.replace("</body>", dashboardTag + "\n</body>");
+  writeFileSync(dashboardTarget, dashboard);
+}
 console.log("ALL_MONGO_RUNTIME_PATCH=OK");
+console.log("DASHBOARD_LIVE_FIX=OK");
