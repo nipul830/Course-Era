@@ -73,7 +73,7 @@ writeFileSync(serverTarget,source);
 
 const dashboardTarget=new URL("../courses.html",import.meta.url);
 let dashboard=readFileSync(dashboardTarget,"utf8");
-dashboard=dashboard.replace(/<script src="dashboard-live-fix\\.js\\?v=[^"]+"><\\/script>\\s*/g,"");
+dashboard=dashboard.replace(/<script src="dashboard-live-fix\.js\?v=[^"]+"><\/script>\s*/g,"");
 const tag='<script src="dashboard-live-fix.js?v=3"></script>';
 if(!dashboard.includes(tag)){
   if(!dashboard.includes("</body>"))throw new Error("Dashboard body marker not found");
