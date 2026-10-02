@@ -84,7 +84,9 @@ const ceAuth = {
 function ceFirebaseAuth(){ return ceAuth; }
 ceFirebaseAuth.Auth = { Persistence: { LOCAL: "local" } };
 ceFirebaseAuth.getInstance = () => ceAuth;
-const firebase = { auth: ceFirebaseAuth };
+// Do not redeclare the global Firebase identifier when legacy Firebase SDK
+// scripts are present on older pages. Keep the compatibility bridge on window.
+window.firebase = { auth: ceFirebaseAuth };
 
 (function(){
   if(!/\/courses(?:\.html)?(?:\/|$)/i.test(location.pathname)) return;
