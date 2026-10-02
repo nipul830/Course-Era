@@ -1470,45 +1470,33 @@ app.patch("/api/admin/payments/:id", requireAuth, requireAdmin, async (req, res)
     });
 
     if (status === "approved" && payment.type === "challenge") {
-      const accountRef = db.collection("users").doc(payment.userId).collection("trading").doc("account");
       const catalog = await getChallengeCatalog();
       const challenge = catalog.find(x => x.id === payment.challengeId);
+      if (!challenge) return res.status(400).json({ error: "Challenge is no longer available" });
       const accountId = "AF-ACC-" + new Date().getFullYear() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase();
-      await accountRef.set({
-        accountId, startingBalance:Number(challenge.accountSize), balance:Number(challenge.accountSize),
-        equity:Number(challenge.accountSize), pnl:0, currency:"USD",
-        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
-        sourcePaymentId:req.params.id, status:"active",
-        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
-      });
+      const accountRef = db.collection("users").doc(payment.userId).collection("trading").doc("account");
+      // Create full payload first (without terminalCredentialId), then issue credentials
+      const basePayload = buildChallengeAccountPayload(challenge, req.params.id, accountId);
+      await accountRef.set(basePayload);
       const credentialBundle = await createTerminalCredentials(accountRef, payment.userId, {
-        accountId, status:"active"
+        accountId, status: "active"
       });
+      const fullPayload = buildChallengeAccountPayload(challenge, req.params.id, accountId, credentialBundle.id);
+      await accountRef.set(fullPayload);
       await db.collection("users").doc(payment.userId).collection("challengeAccounts").doc(accountId).set({
-        accountId, paymentId:req.params.id, challengeId:challenge.id, model:challenge.model, size:challenge.size,
-        accountSize:Number(challenge.accountSize), status:"active",
-        terminalCredentialId:credentialBundle.id,
-        createdAt:admin.firestore.FieldValue.serverTimestamp()
+        accountId, paymentId: req.params.id, challengeId: challenge.id, model: challenge.model, size: challenge.size,
+        accountSize: Number(challenge.accountSize), status: "active",
+        phase: fullPayload.phase, funded: fullPayload.funded,
+        terminalCredentialId: credentialBundle.id,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      await db.collection("users").doc(payment.userId).collection("tradingAccounts").doc(accountId).set({
-        accountId, startingBalance:Number(challenge.accountSize), balance:Number(challenge.accountSize),
-        equity:Number(challenge.accountSize), pnl:0, currency:"USD",
-        challenge:challenge.model+" "+challenge.size, challengeId:challenge.id,
-        sourcePaymentId:req.params.id, status:"active", terminalCredentialId:credentialBundle.id,
-        createdAt:admin.firestore.FieldValue.serverTimestamp(), updatedAt:admin.firestore.FieldValue.serverTimestamp()
-      });
+      await db.collection("users").doc(payment.userId).collection("tradingAccounts").doc(accountId).set(fullPayload);
       await ref.update({
         accountId,
-        terminalCredentialId:credentialBundle.id,
-        ...(credentialBundle.credentials ? {
-          terminalLoginId:credentialBundle.credentials.loginId
-        } : {})
+        terminalCredentialId: credentialBundle.id,
+        ...(credentialBundle.credentials ? { terminalLoginId: credentialBundle.credentials.loginId } : {}),
+        ...(credentialBundle.credentials ? { terminalCredentialsIssued: true } : {})
       });
-      if (credentialBundle.credentials) {
-        await ref.update({
-          terminalCredentialsIssued: true
-        });
-      }
     } else if (status === "approved") {
       await db.collection("users").doc(payment.userId).collection("courses").doc(payment.courseId).set({
         courseId: payment.courseId, paymentId: req.params.id, grantedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1842,14 +1830,84 @@ async function loadTradingAccount(uid, accountId = "") {
 }
 
 function accountRules(account) {
+  const model = String(account.model || account.challengeModel || account.challenge || "").toLowerCase();
+  const isInstant = model.includes("instant");
+  const dailyDefault = isInstant ? 3 : 4;
+  const maxDefault = isInstant ? 100 : 8; // Instant often has no hard total DD in catalog
   return {
-    dailyDrawdownPct: parsePercent(account.dailyDrawdown, 4),
-    maxDrawdownPct: parsePercent(account.maxDrawdown, 8)
+    dailyDrawdownPct: parsePercent(account.dailyDrawdown ?? account.dailyDrawdownLimit, dailyDefault),
+    maxDrawdownPct: parsePercent(account.maxDrawdown ?? account.maxDrawdownLimit ?? account.totalDrawdown, maxDefault),
+    profitTargetPct: (() => {
+      const phase = String(account.phase || account.stage || "").toLowerCase();
+      if (phase.includes("funded") || account.funded === true) return null;
+      if (phase.includes("phase 2") || phase.includes("step 2")) {
+        return parsePercent(account.phase2Profit ?? account.profitTarget, 6);
+      }
+      // Phase 1 or 1-Step
+      if (model.includes("1 step") || model.includes("1-step") || model.includes("one step")) {
+        return parsePercent(account.profitTarget ?? account.phase1Profit, 10);
+      }
+      return parsePercent(account.phase1Profit ?? account.profitTarget, 8);
+    })(),
+    minTradingDays: Number(account.minTradingDays) > 0 ? Number(account.minTradingDays) : 5
   };
 }
 
-async function refreshTradingAccount(uid, quotes) {
-  const { ref, data } = await loadTradingAccount(uid);
+function buildChallengeAccountPayload(challenge, paymentId, accountId, terminalCredentialId = null) {
+  const size = Number(challenge.accountSize);
+  const model = String(challenge.model || "").trim();
+  const isInstant = /instant/i.test(model);
+  const phase = isInstant ? "Funded" : "Phase 1";
+  const dailyDd = parsePercent(challenge.dailyDrawdown, isInstant ? 3 : 4);
+  const maxDd = parsePercent(challenge.totalDrawdown, isInstant ? 100 : 8);
+  let profitTarget = null;
+  if (!isInstant) {
+    if (/1\s*step|one\s*step|1-step/i.test(model)) {
+      profitTarget = parsePercent(challenge.profitTarget, 10);
+    } else {
+      profitTarget = parsePercent(challenge.phase1Profit, 8);
+    }
+  }
+  const payload = {
+    accountId,
+    startingBalance: size,
+    balance: size,
+    equity: size,
+    pnl: 0,
+    openPnl: 0,
+    currency: "USD",
+    challenge: model + " " + String(challenge.size || ""),
+    challengeId: challenge.id,
+    model,
+    challengeModel: model,
+    phase,
+    stage: phase,
+    funded: isInstant,
+    status: "active",
+    dailyDrawdown: dailyDd,
+    maxDrawdown: maxDd,
+    dailyDrawdownLimit: dailyDd,
+    maxDrawdownLimit: maxDd,
+    profitTarget: profitTarget,
+    phase1Profit: challenge.phase1Profit ? parsePercent(challenge.phase1Profit, 8) : null,
+    phase2Profit: challenge.phase2Profit ? parsePercent(challenge.phase2Profit, 6) : null,
+    phaseStartBalance: size,
+    staticDrawdownBase: size,
+    peakEquity: size,
+    floatingLossHits: 0,
+    floatingLossActive: false,
+    tradingDays: 0,
+    tradingDayKeys: [],
+    sourcePaymentId: paymentId,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+  if (terminalCredentialId) payload.terminalCredentialId = terminalCredentialId;
+  return payload;
+}
+
+async function refreshTradingAccount(uid, quotes, accountId = "") {
+  const { ref, data } = await loadTradingAccount(uid, accountId);
   const positionSnap = await ref.collection("positions").where("status","==","open").get();
   const missingSymbols=[...new Set(positionSnap.docs.map(d=>d.data()?.symbol).filter(s=>s && !quotes?.[s]))];
   if(missingSymbols.length){
@@ -1859,17 +1917,18 @@ async function refreshTradingAccount(uid, quotes) {
   let balance = Number(data.balance ?? data.startingBalance ?? 0);
   let openPnl = 0;
   let realizedFromStops = 0;
-  const positions = [];
+  let positions = [];
+
   for (const d of positionSnap.docs) {
     const p = { id:d.id, ...d.data() };
-    const q = Number(quotes[p.symbol]?.price || 0);
+    const q = Number(quotes?.[p.symbol]?.price || 0);
     let exitPrice = null;
     let closeReason = "";
     if (q && p.stopLoss != null) {
       if (p.side === "BUY" && q <= Number(p.stopLoss)) { exitPrice=Number(p.stopLoss); closeReason="Stop Loss"; }
       if (p.side === "SELL" && q >= Number(p.stopLoss)) { exitPrice=Number(p.stopLoss); closeReason="Stop Loss"; }
     }
-    if (q && !exitPrice && p.takeProfit != null) {
+    if (q && exitPrice === null && p.takeProfit != null) {
       if (p.side === "BUY" && q >= Number(p.takeProfit)) { exitPrice=Number(p.takeProfit); closeReason="Take Profit"; }
       if (p.side === "SELL" && q <= Number(p.takeProfit)) { exitPrice=Number(p.takeProfit); closeReason="Take Profit"; }
     }
@@ -1888,11 +1947,69 @@ async function refreshTradingAccount(uid, quotes) {
     openPnl += pnl;
     positions.push({ ...p, currentPrice:q || p.entryPrice, pnl });
   }
+
+  // 1% floating loss basket protection (from original account size)
+  const starting = Number(data.startingBalance ?? data.accountSize ?? balance);
+  const staticBase = Number(data.staticDrawdownBase ?? data.startingBalance ?? starting);
+  const phaseStart = Number(data.phaseStartBalance ?? data.startingBalance ?? starting);
+  const floatingLimit = starting > 0 ? starting * 0.01 : 0;
+  let floatingLossHits = Number(data.floatingLossHits || 0);
+  let floatingLossActive = data.floatingLossActive === true;
+  let riskWarning = "";
+  let profitSplitPct = data.profitSplitPct == null ? null : Number(data.profitSplitPct);
+  let status = data.status || "active";
+  let breach = data.breachReason || "";
+  let phase = String(data.phase || data.stage || "Phase 1");
+  let funded = data.funded === true || /funded/i.test(phase);
+  let phaseStartBalance = phaseStart;
+
+  if (floatingLimit > 0 && openPnl <= -floatingLimit && positions.length) {
+    // Close all open positions
+    let realized = 0;
+    for (const p of positions) {
+      const q = Number(quotes?.[p.symbol]?.price || p.currentPrice || 0);
+      if (!q) continue;
+      const pnl = tradePnl(p, q);
+      realized += pnl;
+      await ref.collection("positions").doc(p.id).update({
+        status: "closed", closePrice: q, realizedPnl: pnl, closeReason: "1% floating loss limit",
+        closedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    balance += realized;
+    realizedFromStops += realized;
+    openPnl = 0;
+    positions = [];
+    floatingLossHits += 1;
+    floatingLossActive = true;
+    const isFundedStage = funded || /funded/i.test(phase);
+    if (isFundedStage) {
+      if (floatingLossHits >= 3) {
+        status = "breached";
+        breach = "Funded account breached after 3 floating-loss hits";
+      } else if (floatingLossHits === 2) {
+        profitSplitPct = 70;
+        riskWarning = "Second 1% floating-loss warning. Profit split set to 70%.";
+      } else {
+        riskWarning = "First 1% floating-loss warning.";
+      }
+    } else {
+      if (floatingLossHits >= 2) {
+        status = "breached";
+        breach = "Challenge account breached after 2 floating-loss hits";
+      } else {
+        riskWarning = "First 1% floating-loss warning.";
+      }
+    }
+  } else if (openPnl > -floatingLimit) {
+    floatingLossActive = false;
+  }
+
   const equity = balance + openPnl;
-  const starting = Number(data.startingBalance || balance);
   const peak = Math.max(Number(data.peakEquity || starting), equity);
-  // Daily drawdown trading day resets every day at 09:15 Asia/Kolkata.
-  // Before 09:15, the account remains on the previous trading day.
+
+  // Daily drawdown trading day resets at 09:15 Asia/Kolkata
   function dailyDrawdownTradingDayKey(now = new Date()) {
     const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -1910,27 +2027,106 @@ async function refreshTradingAccount(uid, quotes) {
   const todayKey = dailyDrawdownTradingDayKey(new Date());
   const dayChanged = data.dailyResetDate !== todayKey;
   const dailyStart = dayChanged ? equity : Number(data.dailyStartEquity || starting);
-  const dailyDd = dailyStart > 0 ? Math.max(0, (dailyStart-equity)/dailyStart*100) : 0;
-  const maxDd = peak > 0 ? Math.max(0, (peak-equity)/peak*100) : 0;
+  const dailyDd = dailyStart > 0 ? Math.max(0, (dailyStart - equity) / dailyStart * 100) : 0;
+  // Static maximum drawdown measured from original account size / static base
+  const maxDd = staticBase > 0 ? Math.max(0, (staticBase - equity) / staticBase * 100) : 0;
   const rules = accountRules(data);
-  let status = data.status || "active";
-  let breach = data.breachReason || "";
-  if (status === "active" && (dailyDd >= rules.dailyDrawdownPct || maxDd >= rules.maxDrawdownPct)) {
+
+  if (status === "active" && dailyDd >= rules.dailyDrawdownPct) {
     status = "breached";
-    breach = dailyDd >= rules.dailyDrawdownPct ? "Daily drawdown limit reached" : "Maximum drawdown limit reached";
+    breach = `Daily drawdown limit reached (${rules.dailyDrawdownPct}%)`;
   }
+  if (status === "active" && maxDd >= rules.maxDrawdownPct) {
+    status = "breached";
+    breach = `Maximum drawdown limit reached (${rules.maxDrawdownPct}%)`;
+  }
+
+  // --- Trading days tracking (unique calendar days with at least one closed trade) ---
+  let tradingDayKeys = Array.isArray(data.tradingDayKeys) ? [...data.tradingDayKeys] : [];
+  try {
+    const closedSnap = await ref.collection("positions").where("status", "==", "closed").limit(200).get();
+    const daySet = new Set(tradingDayKeys);
+    for (const d of closedSnap.docs) {
+      const c = d.data() || {};
+      const ts = c.closedAt?.toDate?.() || (c.closedAt ? new Date(c.closedAt) : null);
+      if (!ts || Number.isNaN(ts.getTime())) continue;
+      const key = dailyDrawdownTradingDayKey(ts);
+      daySet.add(key);
+    }
+    tradingDayKeys = [...daySet].slice(-60);
+  } catch (_) {}
+  const tradingDays = tradingDayKeys.length;
+
+  // --- Profit target / phase progression ---
+  let phasePassed = false;
+  let newPhase = phase;
+  let newFunded = funded;
+  let newPhaseStartBalance = phaseStartBalance;
+  if (status === "active" && !funded && rules.profitTargetPct != null && phaseStartBalance > 0) {
+    const profitPct = ((equity - phaseStartBalance) / phaseStartBalance) * 100;
+    const daysOk = tradingDays >= (rules.minTradingDays || 5);
+    if (profitPct >= rules.profitTargetPct && daysOk) {
+      phasePassed = true;
+      const model = String(data.model || data.challengeModel || data.challenge || "").toLowerCase();
+      if (/2\\s*step|two\\s*step|2-step/i.test(model) && /phase\\s*1/i.test(phase)) {
+        // Promote Phase 1 -> Phase 2
+        newPhase = "Phase 2";
+        newPhaseStartBalance = equity; // reset base for next target
+        riskWarning = riskWarning || `Phase 1 passed (${profitPct.toFixed(2)}%). Moved to Phase 2.`;
+      } else {
+        // 1-Step or Phase 2 -> Funded
+        newPhase = "Funded";
+        newFunded = true;
+        newPhaseStartBalance = equity;
+        riskWarning = riskWarning || `Challenge passed (${profitPct.toFixed(2)}%). Account is now Funded.`;
+      }
+    }
+  }
+
   if (status === "breached" && data.status !== "breached") {
-    await revokeTerminalCredentials({ ...data, terminalCredentialId:data.terminalCredentialId }, breach || "Account breached");
+    await revokeTerminalCredentials({ ...data, terminalCredentialId: data.terminalCredentialId }, breach || "Account breached");
   }
-  await ref.update({
-    balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
-    dailyStartEquity:dailyStart, dailyResetDate:todayKey, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
-    status, breachReason:breach,
-    updatedAt:admin.firestore.FieldValue.serverTimestamp()
-  });
-  return { ...data, balance, equity, pnl:balance-starting, openPnl, peakEquity:peak,
-    dailyStartEquity:dailyStart, dailyDrawdownPct:dailyDd, maxDrawdownPct:maxDd,
-    status, breachReason:breach, positions, realizedFromStops };
+
+  const updatePayload = {
+    balance, equity, pnl: balance - starting, openPnl, peakEquity: peak,
+    dailyStartEquity: dailyStart, dailyResetDate: todayKey,
+    dailyDrawdownPct: Number(dailyDd.toFixed(4)),
+    maxDrawdownPct: Number(maxDd.toFixed(4)),
+    floatingLossHits, floatingLossActive,
+    tradingDays, tradingDayKeys,
+    phase: newPhase, stage: newPhase, funded: newFunded,
+    phaseStartBalance: newPhaseStartBalance,
+    status, breachReason: breach,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+  if (profitSplitPct != null) updatePayload.profitSplitPct = profitSplitPct;
+  if (riskWarning) {
+    updatePayload.lastRiskWarning = riskWarning;
+    updatePayload.lastRiskWarningAt = admin.firestore.FieldValue.serverTimestamp();
+  }
+  if (phasePassed) {
+    updatePayload.phasePassedAt = admin.firestore.FieldValue.serverTimestamp();
+  }
+
+  await ref.update(updatePayload);
+
+  // Keep selected account mirror in sync when this is a tradingAccounts doc
+  try {
+    const accId = String(data.accountId || accountId || "").trim();
+    if (accId && ref.path.includes("tradingAccounts")) {
+      const selected = db.collection("users").doc(uid).collection("trading").doc("account");
+      const selSnap = await selected.get();
+      if (selSnap.exists && String(selSnap.data()?.accountId || "") === accId) {
+        await selected.set(updatePayload, { merge: true });
+      }
+    }
+  } catch (_) {}
+
+  return {
+    ...data, ...updatePayload,
+    accountId: data.accountId || accountId || "account",
+    positions, realizedFromStops, riskWarning, phasePassed
+  };
 }
 
 async function fetchMarketCandles(symbol, interval="15m"){
@@ -1996,7 +2192,7 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
     let positions=[];
     try {
       const quotes=await getMarketQuotes(symbols);
-      const refreshed=await refreshTradingAccount(req.user.uid,quotes);
+      const refreshed=await refreshTradingAccount(req.terminal.uid, quotes, req.terminal.accountId);
       account={id:refreshed.accountId || data.accountId || "account",balance:refreshed.balance,equity:refreshed.equity,pnl:refreshed.pnl,openPnl:refreshed.openPnl,status:refreshed.status,dailyDrawdownPct:refreshed.dailyDrawdownPct||0,maxDrawdownPct:refreshed.maxDrawdownPct||0};
       positions=refreshed.positions.map(p=>({id:p.id,symbol:p.symbol,name:MARKET_SYMBOLS[p.symbol]?.name||p.symbol,side:p.side,lot:p.lot,entryPrice:p.entryPrice,currentPrice:p.currentPrice,pnl:p.pnl,stopLoss:p.stopLoss||null,takeProfit:p.takeProfit||null,openedAt:p.openedAt||null}));
     } catch (refreshError) {
@@ -2098,7 +2294,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
       position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice,stopLoss,takeProfit},
       account:fastAccount
     });
-    refreshTradingAccount(req.user.uid,quotes).catch(()=>{});
+    refreshTradingAccount(req.terminal.uid, quotes, req.terminal.accountId).catch(()=>{});
   } catch(e) {
     console.error("TRADING_ORDER_ERROR", e);
     res.status(500).json({error:"Could not execute order",detail:e.message || "Unknown server error"});
