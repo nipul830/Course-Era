@@ -1,11 +1,61 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Aura Farming Terminal — Home</title><style>
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#182332;font-family:Arial,Helvetica,sans-serif}.home{min-height:100dvh;padding:18px 14px 92px}.head{display:flex;align-items:center;justify-content:space-between;padding:4px 10px 18px}.brand{font-size:23px;font-weight:900}.live{border:1px solid #00a875;border-radius:999px;color:#00a875;padding:8px 13px;font-size:11px;font-weight:900}.title{padding:4px 10px 12px}.title h1{margin:0;font-size:25px}.title p{margin:5px 0;color:#7b8793;font-size:12px}.account{margin:0 0 12px;padding:14px;border:1px solid #e1e6ea;border-radius:16px;background:#f8f9fa;display:flex;justify-content:space-between}.account small{display:block;color:#7b8793;font-size:10px;text-transform:uppercase;font-weight:800}.account b{font-size:17px}.section{border:1px solid #e1e6ea;border-radius:18px;overflow:hidden;background:#fff}.section-head{padding:15px 16px;border-bottom:1px solid #edf0f2;font-size:15px;font-weight:900}.watch{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:0;border-bottom:1px solid #edf0f2;background:#fff;width:100%;text-align:left}.watch:last-child{border-bottom:0}.sym strong{display:block;font-size:15px}.sym span{display:block;margin-top:4px;color:#84909c;font-size:10px}.quote{text-align:right}.quote b{display:block;font-size:14px}.quote span{font-size:10px;color:#00a875;font-weight:800}.open{margin-top:14px;width:100%;height:48px;border:0;border-radius:12px;background:#d6b35a;color:#080808;font-size:14px;font-weight:900}.status{padding:14px 16px;color:#7b8793;font-size:11px;text-align:center}.bottom{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom a.active{color:#182332}.icon{font-size:27px;line-height:1}
-</style></head><body><main class="home"><header class="head"><div class="brand">Aura Farming</div><div class="live">LIVE</div></header><section class="title"><h1>Market Watchlist</h1><p>Live symbols — tap any symbol to open its chart</p></section><section class="account"><div><small>Balance</small><b id="balance">—</b></div><div><small>Equity</small><b id="equity">—</b></div></section><section class="section"><div class="section-head">Symbols</div><div id="watchlist"><div class="status">Loading live market data…</div></div></section><button class="open" onclick="location.href='terminal.html'">Open Trading Charts</button></main><nav class="bottom"><a href="terminal-home.html" class="active"><span class="icon">⌂</span><span>Home</span></a><a href="terminal.html"><span class="icon">▱</span><span>Charts</span></a><a href="position.html"><span class="icon">♮</span><span>Position</span></a></nav><script>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Aura Farming Terminal — Watchlist</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#182332;font-family:Arial,Helvetica,sans-serif}
+.home{min-height:100dvh;padding:22px 14px 92px}
+.head{display:flex;align-items:center;justify-content:space-between;padding:4px 10px 20px}
+.brand{font-size:23px;font-weight:900}
+.live{border:1px solid #00a875;border-radius:999px;color:#00a875;padding:8px 13px;font-size:11px;font-weight:900}
+.title{padding:4px 10px 16px}
+.title h1{margin:0;font-size:28px}
+.title p{margin:6px 0 0;color:#7b8793;font-size:12px}
+.section{border:1px solid #e1e6ea;border-radius:18px;overflow:hidden;background:#fff}
+.section-head{padding:16px;border-bottom:1px solid #edf0f2;font-size:15px;font-weight:900}
+.watch{display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border:0;border-bottom:1px solid #edf0f2;background:#fff;width:100%;text-align:left;color:#182332;cursor:pointer}
+.watch:last-child{border-bottom:0}
+.watch:active{background:#f5f7f8}
+.sym strong{display:block;font-size:16px}
+.sym span{display:block;margin-top:4px;color:#84909c;font-size:11px}
+.quote{text-align:right}.quote b{display:block;font-size:15px}.quote span{font-size:10px;color:#00a875;font-weight:800}
+.status{padding:18px 16px;color:#7b8793;font-size:12px;text-align:center}
+.bottom{position:fixed;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid #e0e5e9;display:grid;grid-template-columns:repeat(3,1fr);padding-bottom:env(safe-area-inset-bottom)}
+.bottom a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom a.active{color:#182332}.icon{font-size:27px;line-height:1}
+</style>
+</head>
+<body>
+<main class="home">
+<header class="head"><div class="brand">Aura Farming</div><div class="live">LIVE</div></header>
+<section class="title"><h1>Watchlist</h1><p>Tap a symbol to open its chart</p></section>
+<section class="section">
+<div class="section-head">Symbols</div>
+<div id="watchlist"><div class="status">Loading live prices…</div></div>
+</section>
+</main>
+<nav class="bottom">
+<a href="terminal-home.html" class="active"><span class="icon">⌂</span><span>Watchlist</span></a>
+<a href="terminal.html"><span class="icon">▱</span><span>Charts</span></a>
+<a href="position.html"><span class="icon">♮</span><span>Position</span></a>
+</nav>
+<script>
 const symbols=[['OANDA:XAUUSD','GOLD','XAUUSD'],['FX:EURUSD','EUR/USD','EURUSD'],['FX:GBPUSD','GBP/USD','GBPUSD'],['FX:USDJPY','USD/JPY','USDJPY'],['BINANCE:BTCUSDT','BTC/USD','BTCUSDT'],['BINANCE:ETHUSDT','ETH/USD','ETHUSDT'],['INDEX:NAS100','NAS100','NAS100'],['INDEX:US30','US30','US30']];
-const token=sessionStorage.getItem('auraTerminalSession')||'';const api=(p)=>fetch('https://aurafirming.in'+p,{headers:{Authorization:'Bearer '+token}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.detail||'Request failed');return d});
+const token=sessionStorage.getItem('auraTerminalSession')||'';
+const api=(p)=>fetch('https://aurafirming.in'+p,{headers:{Authorization:'Bearer '+token}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.detail||'Request failed');return d});
 function esc(s){return s.replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function openChart(s){localStorage.setItem('auraTerminalSymbol',s);location.href='terminal.html?symbol='+encodeURIComponent(s)}
-async function load(){if(!token){document.getElementById('watchlist').innerHTML='<div class="status">Login required — open Charts to sign in.</div>';return}try{const q=await api('/api/market/quotes?symbols='+encodeURIComponent(symbols.map(x=>x[0]).join(',')));const box=document.getElementById('watchlist');box.innerHTML='';symbols.forEach(([s,n,code])=>{const x=q.quotes?.[s]||{};const p=Number(x.price||x.bid||0);const row=document.createElement('button');row.className='watch';row.onclick=()=>openChart(s);row.innerHTML='<div class="sym"><strong>'+esc(n)+'</strong><span>'+esc(code)+'</span></div><div class="quote"><b>'+(p?p.toLocaleString('en-US',{minimumFractionDigits:p<10?4:2,maximumFractionDigits:p<10?4:2}):'—')+'</b><span>LIVE</span></div>';box.appendChild(row)});const a=await api('/api/terminal/account');if(a){document.getElementById('balance').textContent='$'+Number(a.balance||0).toLocaleString('en-US',{minimumFractionDigits:2});document.getElementById('equity').textContent='$'+Number(a.equity||0).toLocaleString('en-US',{minimumFractionDigits:2})}}catch(e){document.getElementById('watchlist').innerHTML='<div class="status">Live data unavailable. Open Charts to reconnect.</div>'}}
+async function load(){
+if(!token){document.getElementById('watchlist').innerHTML='<div class="status">Login required</div>';return}
+try{
+const q=await api('/api/market/quotes?symbols='+encodeURIComponent(symbols.map(x=>x[0]).join(',')));
+const box=document.getElementById('watchlist');box.innerHTML='';
+symbols.forEach(([s,n,code])=>{const x=q.quotes?.[s]||{};const p=Number(x.price||x.bid||0);const row=document.createElement('button');row.className='watch';row.onclick=()=>openChart(s);row.innerHTML='<div class="sym"><strong>'+esc(n)+'</strong><span>'+esc(code)+'</span></div><div class="quote"><b>'+(p?p.toLocaleString('en-US',{minimumFractionDigits:p<10?4:2,maximumFractionDigits:p<10?4:2}):'—')+'</b><span>LIVE</span></div>';box.appendChild(row)});
+}catch(e){document.getElementById('watchlist').innerHTML='<div class="status">Live data unavailable</div>'}
+}
 load();setInterval(load,5000);
-</script></body></html>
+</script>
+</body>
+</html>
