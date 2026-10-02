@@ -10,6 +10,13 @@ jobs:
   repair:
     runs-on: ubuntu-latest
     steps:
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
+          chmod 600 "$RUNNER_TEMP/vps_key"
+
       - name: Repair Mongo auth runtime on VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
