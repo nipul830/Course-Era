@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Terminal — Aura Farming</title><meta name="aura-terminal-build" content="2026-09-26-order-lines-fix-2">
+<title>Terminal — Aura Farming</title><meta name="aura-terminal-build" content="2026-10-02-refresh-5ms-tpsl-05px">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 
 <link rel="stylesheet" href="aura.css">
@@ -71,7 +71,12 @@ body{background:#fff}
  .bottom-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#68798a;text-decoration:none;font-size:14px;font-weight:600}.bottom-nav a.active{color:#60768a}
  .bn-icon{font-size:28px;line-height:1}.bn-label{font-size:14px}
 .terminal-login-screen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;font-family:Arial,Helvetica,sans-serif}.terminal-login-card{width:min(430px,92vw);background:#fff;border:1px solid #e0e5e9;border-radius:22px;padding:28px;box-shadow:0 18px 50px #00000012}.terminal-login-card h1{margin:0 0 7px;color:#182332;font-size:28px}.terminal-login-card p{margin:0 0 20px;color:#7b8793;font-size:13px}.terminal-field{display:block;margin:12px 0}.terminal-field span{display:block;color:#536273;font-size:12px;font-weight:800;margin-bottom:6px}.terminal-field input{width:100%;height:48px;border:1px solid #dce2e7;border-radius:11px;padding:0 13px;font-size:15px;outline:0}.terminal-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.terminal-mode button{height:42px;border:1px solid #dce2e7;border-radius:10px;background:#f7f8fa;color:#596879;font-weight:800;cursor:pointer}.terminal-mode button.active{background:#182839;color:#fff;border-color:#182839}.terminal-login-btn{width:100%;height:48px;border:0;border-radius:11px;background:#d6b35a;color:#080808;font-weight:900;font-size:15px;cursor:pointer}.terminal-login-status{min-height:20px;margin-top:12px;color:#e6004d;font-size:12px;font-weight:700}.terminal-security-note{margin-top:16px!important;color:#9b8552!important;font-size:11px!important}.terminal-logout{border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;cursor:pointer}.terminal-role-badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;background:#eef2f5;color:#526274;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.read-only .quote{opacity:.45;pointer-events:none}.read-only .risk-input,.read-only .lot-control{opacity:.55;pointer-events:none}
-.aura-chart-toolbar{position:relative}.aura-chart-canvas{position:relative}.aura-chart-countdown{display:inline-flex;align-items:center;margin-left:4px;padding:3px 7px;border-radius:7px;background:#f7f8fa;border:1px solid #dce2e7;color:#182332;font-size:11px;font-weight:900;line-height:20px;white-space:nowrap;pointer-events:none}.aura-chart-live{margin-left:auto;margin-right:0}</style>
+.aura-chart-toolbar{position:relative}.aura-chart-canvas{position:relative}.aura-chart-countdown{display:inline-flex;align-items:center;margin-left:4px;padding:3px 7px;border-radius:7px;background:#f7f8fa;border:1px solid #dce2e7;color:#182332;font-size:11px;font-weight:900;line-height:20px;white-space:nowrap;pointer-events:none}.aura-chart-live{margin-left:auto;margin-right:0}
+/* AURA_5MS_REFRESH_TPSL_05PX_V1 */
+.chart-risk-handle[data-risk-type="stopLoss"]::after,.chart-risk-handle[data-risk-type="takeProfit"]::after{content:"";position:absolute;left:0;right:0;top:24px;height:.5px;pointer-events:none}
+.chart-risk-handle[data-risk-type="stopLoss"]::after{background:#e6004d}
+.chart-risk-handle[data-risk-type="takeProfit"]::after{background:#00a875}
+</style>
 <link rel="preconnect" href="https://aurafirming.in" crossorigin><link rel="preconnect" href="https://s3.tradingview.com" crossorigin><link rel="preconnect" href="https://www.gstatic.com" crossorigin></head>
 <body>
 
@@ -1175,6 +1180,12 @@ function startTerminalPolling(){
 }
 
 startTerminalPolling();
+</script>
+
+<script>
+/* AURA chart refresh target: 5ms */
+window.AURA_CHART_REFRESH_MS=5;
+window.dispatchEvent(new CustomEvent('aura-chart-refresh-rate',{detail:{ms:5}}));
 </script>
 </body>
 </html>
