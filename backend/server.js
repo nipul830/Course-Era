@@ -2068,7 +2068,7 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
     if (profitPct >= rules.profitTargetPct && daysOk) {
       phasePassed = true;
       const model = String(data.model || data.challengeModel || data.challenge || "").toLowerCase();
-      if (/2\s*step|two\s*step|2-step/i.test(model) && /phase\s*1/i.test(phase)) {
+      if (/2\\s*step|two\\s*step|2-step/i.test(model) && /phase\\s*1/i.test(phase)) {
         // Promote Phase 1 -> Phase 2
         newPhase = "Phase 2";
         newPhaseStartBalance = equity; // reset base for next target
@@ -2213,9 +2213,6 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
 
 app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
   try {
-    if (!req.terminal?.uid || !req.terminal?.accountId || !req.terminal?.accountRef) {
-      return res.status(401).json({ error: "Valid terminal session is required" });
-    }
     const symbol=String(req.body.symbol||"").trim();
     const side=String(req.body.side||"").toUpperCase();
     const lot=Number(req.body.lot);
@@ -2353,22 +2350,65 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
 app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
   try {
     const {ref,data}=await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
+    // Refresh risk metrics so daily/max drawdown are current for the dashboard
+    try {
+      const openSnap = await ref.collection("positions").where("status","==","open").get();
+      const symbols = [...new Set(openSnap.docs.map(d=>d.data()?.symbol).filter(Boolean))];
+      const quotes = symbols.length ? await getMarketQuotes(symbols) : {};
+      await refreshTradingAccount(req.terminal.uid, quotes, req.terminal.accountId);
+    } catch (refreshErr) {
+      console.warn("HISTORY_REFRESH_WARN", refreshErr?.message || refreshErr);
+    }
+    const { data: latest } = await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
     const snap=await ref.collection("positions").get();
-    const all=snap.docs.map(d=>{ const p={id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol}; const toIso=v=>v?.toDate?.()?.toISOString?.() || (v?._seconds?new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString():null); p.openedAt=toIso(p.openedAt); p.closedAt=toIso(p.closedAt); p.createdAt=toIso(p.createdAt); p.updatedAt=toIso(p.updatedAt); return p; });
+    const toIso=v=>v?.toDate?.()?.toISOString?.() || (v?._seconds?new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString(): (typeof v==="string"?v:null));
+    const all=snap.docs.map(d=>{
+      const p={id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol};
+      p.openedAt=toIso(p.openedAt); p.closedAt=toIso(p.closedAt); p.createdAt=toIso(p.createdAt); p.updatedAt=toIso(p.updatedAt);
+      if(p.realizedPnl==null && p.pnl!=null) p.realizedPnl=Number(p.pnl);
+      return p;
+    });
     const open=all.filter(p=>p.status==="open");
     const pending=all.filter(p=>p.status==="pending");
     const closed=all.filter(p=>p.status==="closed").sort((a,b)=>{
-      const at=a.closedAt?.toMillis?.()||0,bt=b.closedAt?.toMillis?.()||0;return bt-at;
+      const at=Date.parse(a.closedAt||a.updatedAt||0)||0;
+      const bt=Date.parse(b.closedAt||b.updatedAt||0)||0;
+      return bt-at;
     });
     const symbols=[...new Set(open.map(p=>p.symbol).filter(Boolean))];
     if(symbols.length){
       try {
         const quotes=await getMarketQuotes(symbols);
-        for(const p of open) p.currentPrice=Number(quotes[p.symbol]?.price||p.currentPrice||p.entryPrice||0);
+        for(const p of open){
+          p.currentPrice=Number(quotes[p.symbol]?.price||p.currentPrice||p.entryPrice||0);
+          p.pnl=tradePnl(p, p.currentPrice);
+        }
       } catch(e) {}
     }
+    const rules = accountRules(latest);
+    const starting = Number(latest.startingBalance ?? latest.accountSize ?? 0);
+    const balance = Number(latest.balance ?? starting);
+    const equity = Number(latest.equity ?? balance);
     res.json({
-      account:{id:data.accountId||"account",balance:Number(data.balance??data.startingBalance??0),equity:Number(data.equity??data.balance??data.startingBalance??0),challenge:data.challenge||data.accountType||data.plan||""},
+      account:{
+        id: latest.accountId || data.accountId || "account",
+        startingBalance: starting,
+        balance,
+        equity,
+        pnl: Number(latest.pnl ?? (balance - starting)),
+        openPnl: Number(latest.openPnl ?? 0),
+        status: latest.status || "active",
+        challenge: latest.challenge || data.challenge || "",
+        challengeId: latest.challengeId || "",
+        phase: latest.phase || latest.stage || "",
+        funded: latest.funded === true,
+        dailyDrawdownPct: Number(latest.dailyDrawdownPct || 0),
+        maxDrawdownPct: Number(latest.maxDrawdownPct || 0),
+        dailyDrawdownLimit: Number(latest.dailyDrawdownLimit ?? rules.dailyDrawdownPct ?? 4),
+        maxDrawdownLimit: Number(latest.maxDrawdownLimit ?? rules.maxDrawdownPct ?? 8),
+        dailyDrawdown: Number(latest.dailyDrawdown ?? rules.dailyDrawdownPct ?? 4),
+        maxDrawdown: Number(latest.maxDrawdown ?? rules.maxDrawdownPct ?? 8)
+      },
       open,pending,closed
     });
   } catch(e) {
@@ -2607,7 +2647,6 @@ app.post("/api/auth/password-reset/confirm", async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  if (res.headersSent) return next(err);
   if (err?.message === "Origin not allowed") {
     return res.status(403).json({ error: "Origin not allowed" });
   }
