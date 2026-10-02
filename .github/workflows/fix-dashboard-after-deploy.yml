@@ -1,0 +1,42 @@
+name: Fix Dashboard After VPS Deploy
+
+on:
+  workflow_run:
+    workflows: ["Deploy to VPS"]
+    types: [completed]
+
+jobs:
+  dashboard-fix:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
+          chmod 600 "$RUNNER_TEMP/vps_key"
+
+      - name: Apply dashboard runtime fix
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key_path: ${{ runner.temp }}/vps_key
+          command_timeout: 5m
+          script: |
+            set -e
+            cd /root/Course-Era
+            git fetch origin main
+            git reset --hard origin/main
+            cd backend
+            node --check dashboard-stats-patch.mjs
+            node dashboard-stats-patch.mjs
+            node --check server.js
+            pm2 restart course-era-api --update-env
+            sleep 5
+            curl -fsS --max-time 10 http://127.0.0.1:3000/health
+            echo
+            echo "DASHBOARD_RUNTIME_FIX=OK"
+            pm2 save
