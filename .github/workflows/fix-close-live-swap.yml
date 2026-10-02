@@ -9,6 +9,53 @@ permissions:
   contents: write
 
 jobs:
+  mongo-repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/vps_key"
+          chmod 600 "$RUNNER_TEMP/vps_key"
+      - name: Repair Mongo admin authentication on VPS
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key_path: ${{ runner.temp }}/vps_key
+          command_timeout: 5m
+          script: |
+            set -e
+            cd /root/Course-Era
+            git fetch origin main
+            git reset --hard origin/main
+            cd backend
+            npm install
+            node --check prepare-all-mongo.mjs
+            node prepare-all-mongo.mjs
+            node --check server.js
+            if grep -q 'from "firebase-admin"' server.js; then
+              echo 'ERROR: Firebase Admin import remains after Mongo migration'
+              exit 1
+            fi
+            if [ -f /root/Course-Era/backend/.env ]; then
+              set -a
+              . /root/Course-Era/backend/.env
+              set +a
+            fi
+            export MONGO_URI="${MONGO_URI:-mongodb://127.0.0.1:27017/courseera}"
+            export MONGO_DB_NAME="${MONGO_DB_NAME:-courseera}"
+            if [ -n "${ADMIN_PASSWORD:-}" ]; then
+              node ensure-admin-mongo.mjs
+            fi
+            pm2 restart course-era-api --update-env
+            sleep 4
+            curl -fsS --max-time 10 http://127.0.0.1:3000/health
+            echo
+            echo 'MONGO_ADMIN_AUTH_REPAIR=OK'
+
   patch:
     if: ${{ github.event.head_commit.message != 'apply exact close live toolbar swap' }}
     runs-on: ubuntu-latest
