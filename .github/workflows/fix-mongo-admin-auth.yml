@@ -54,3 +54,5 @@ jobs:
             curl -fsS --max-time 10 http://127.0.0.1:3000/health
             echo
             echo 'MONGO_ADMIN_AUTH_REPAIR=OK'
+
+# Retrigger VPS deployment without changing application code.
