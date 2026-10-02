@@ -1,0 +1,56 @@
+name: Fix terminal session bootstrap once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove invalid dashboard terminal-session bootstrap
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('firebase-config.js')
+          s = p.read_text()
+          pattern = re.compile(r'\n\(function\(\)\{\n  if\(!/\\/courses\(\?:\\\\\.html\)\?\(?:\\/\|\$\)/i\.test\(location\.pathname\)\) return;\n  function bootstrapDashboardTerminalSession\(\)\{.*?\n\}\)\(\);\n', re.S)
+          old = s
+          s = pattern.sub('\n', s, count=1)
+          if s == old:
+              marker = "  function bootstrapDashboardTerminalSession(){"
+              start = s.find("(function(){", s.find("/courses"))
+              if marker in s:
+                  start = s.rfind("(function(){", 0, s.find(marker))
+                  end = s.find("})();", s.find(marker))
+                  if start >= 0 and end >= 0:
+                      s = s[:start] + s[end+4:]
+          guard = '''\n(function(){\n  if(!/\\/terminal(?:\\.html)?(?:\\/|$)/i.test(location.pathname)) return;\n  try{\n    const token=sessionStorage.getItem('auraTerminalSession')||'';\n    if(token && !token.startsWith('AF1.')){\n      sessionStorage.removeItem('auraTerminalSession');\n      sessionStorage.removeItem('auraTerminalRole');\n      sessionStorage.removeItem('auraTerminalAccount');\n    }\n  }catch(e){}\n})();\n'''
+          anchor = "window.firebase = { auth: ceFirebaseAuth };"
+          if "token.startsWith('AF1.')" not in s:
+              pos = s.find(anchor)
+              if pos < 0:
+                  raise SystemExit('firebase bridge anchor not found')
+              end = pos + len(anchor)
+              s = s[:end] + guard + s[end:]
+          if s == old:
+              raise SystemExit('No terminal-session change made')
+          p.write_text(s)
+          PY
+
+          node --check firebase-config.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@github.com'
+          git add firebase-config.js .github/workflows/fix-terminal-session-once.yml
+          git rm .github/workflows/fix-terminal-session-once.yml
+          git commit -m 'Fix invalid terminal session bootstrap [skip ci]'
+          git push
