@@ -33,6 +33,18 @@
 <script>
 let challengeRules={};
 const challengeTabKey='auraSelectedChallengeTab';
+const FALLBACK_CHALLENGES=[
+  {id:'instant-1000',model:'Instant',size:'$1K',accountSize:1000,price:8,dailyDrawdown:'3%',evaluation:'None'},
+  {id:'instant-2500',model:'Instant',size:'$2.5K',accountSize:2500,price:15,dailyDrawdown:'3%',evaluation:'None'},
+  {id:'one-5000',model:'1 Step',size:'$5K',accountSize:5000,price:40,dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'},
+  {id:'one-10000',model:'1 Step',size:'$10K',accountSize:10000,price:75,dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'},
+  {id:'one-25000',model:'1 Step',size:'$25K',accountSize:25000,price:150,dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'},
+  {id:'two-5000',model:'2 Step',size:'$5K',accountSize:5000,price:25,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
+  {id:'two-10000',model:'2 Step',size:'$10K',accountSize:10000,price:45,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
+  {id:'two-25000',model:'2 Step',size:'$25K',accountSize:25000,price:110,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
+  {id:'two-50000',model:'2 Step',size:'$50K',accountSize:50000,price:200,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
+  {id:'two-100000',model:'2 Step',size:'$100K',accountSize:100000,price:350,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'}
+];
 function activateChallengeTab(tabName,save=true){
   const tab=document.querySelector('.challenge-tab[data-tab="'+tabName+'"]');
   const panel=document.getElementById(tabName);
@@ -43,7 +55,18 @@ function activateChallengeTab(tabName,save=true){
   panel.classList.add('active');
   if(save)localStorage.setItem(challengeTabKey,tabName);
 }
-async function loadChallenges(){const res=await fetch('/api/challenges');const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load challenges');return data.challenges||[]}
+async function loadChallenges(){
+  try{
+    const res=await fetch('/api/challenges',{cache:'no-store'});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Could not load challenges');
+    const items=Array.isArray(data.challenges)?data.challenges:[];
+    return items.length?items:FALLBACK_CHALLENGES;
+  }catch(e){
+    console.warn('Challenge catalog API unavailable, using fallback catalog:',e);
+    return FALLBACK_CHALLENGES;
+  }
+}
 async function loadChallengeRules(){const res=await fetch('/api/challenge-rules');if(!res.ok)return{};const data=await res.json();return data.rules||{}}
 function escapeHtml(value){return String(value??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]))}
 function parseExtraRule(rule){
