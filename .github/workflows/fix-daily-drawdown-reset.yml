@@ -34,3 +34,14 @@ jobs:
           if 'id="dailyDrawdownResetCountdown"' in text and 'Daily reset in' not in text:
               text = text.replace(script_marker, script + script_marker, 1)
           courses.write_text(text)
+      - name: Commit patched source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/server.js courses.html
+          if git diff --cached --quiet; then
+            echo "No source changes needed"
+            exit 0
+          fi
+          git commit -m "[auto-drawdown] Fix daily drawdown reset at 09:15 IST"
+          git push
