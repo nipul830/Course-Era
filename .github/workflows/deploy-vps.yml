@@ -31,6 +31,45 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "===== FIX PURCHASED CHALLENGE RULES DISPLAY ====="
+            python3 - <<'PY'
+            from pathlib import Path
+            p=Path('/root/Course-Era/courses.html')
+            s=p.read_text(encoding='utf-8')
+            old="""    const rules=(d.rules||{})[model]||[];
+    const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)]];
+    rules.forEach((rule,i)=>items.push(['Rule '+(i+1),rule]));
+    box.innerHTML=items.map(x=>'<div class=\"rule-item\"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');"""
+            new="""    const rules=(d.rules||{})[model]||[];
+    const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)]];
+    const labels={stage:'Stage',floatingLossEnabled:'Floating Loss',floatingLossPercent:'Floating Loss Limit',minimumTradingDays:'Minimum Trading Days',maxDailyLossPercent:'Max Daily Loss',dailyLossPercent:'Daily Loss Limit',overallLossPercent:'Overall Loss Limit',maxDrawdownPercent:'Max Drawdown Limit',profitTargetPercent:'Profit Target',profitTarget:'Profit Target',consistencyPercent:'Consistency Rule',newsTrading:'News Trading',weekendHolding:'Weekend Holding',minimumDays:'Minimum Trading Days',leverage:'Leverage',timeLimit:'Time Limit'};
+    function prettyRule(rule){
+      if(!rule || typeof rule!=='object') return String(rule ?? '—');
+      const parts=[];
+      for(const [key,val] of Object.entries(rule)){
+        if(val===null || val===undefined || val==='') continue;
+        const label=labels[key] || key.replace(/([A-Z])/g,' $1').replace(/^./,m=>m.toUpperCase());
+        let value=val;
+        if(typeof val==='boolean') value=val?'Allowed':'Not allowed';
+        else if(typeof val==='number' && /percent|loss|drawdown|target|consistency/i.test(key)) value=val+'%';
+        else if(typeof val==='object') value=JSON.stringify(val);
+        parts.push(label+': '+value);
+      }
+      return parts.join(' • ') || '—';
+    }
+    rules.forEach((rule,i)=>items.push(['Rule '+(i+1),prettyRule(rule)]));
+    box.innerHTML=items.map(x=>'<div class=\"rule-item\"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');"""
+            if old in s:
+                s=s.replace(old,new,1)
+                p.write_text(s,encoding='utf-8')
+                print('CHALLENGE_RULES_DISPLAY=FIXED')
+            elif "function prettyRule(rule)" in s:
+                print('CHALLENGE_RULES_DISPLAY=ALREADY_FIXED')
+            else:
+                raise SystemExit('Expected challenge rules renderer not found')
+            PY
+            grep -q "function prettyRule(rule)" /root/Course-Era/courses.html
+
             echo "===== PATCH TERMINAL CLOSE TOOLBAR ====="
             python3 - <<'PY'
             from pathlib import Path
