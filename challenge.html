@@ -6,6 +6,8 @@
 <title>Challenges — Aura Farming</title>
 <link rel="stylesheet" href="aura.css">
 <style>
+/* AURA_CHALLENGE_RULES_20261002 */
+
 .challenge-page{max-width:1200px;margin:0 auto;padding:42px 5% 80px}
 .challenge-head{text-align:center;margin-bottom:34px}.challenge-head h1{font-size:44px;color:var(--text);margin:8px 0}.challenge-head p{color:var(--muted);max-width:680px;margin:auto;line-height:1.7}
 .challenge-tabs{display:flex;justify-content:center;gap:10px;margin:25px 0 34px;flex-wrap:wrap}.challenge-tab{border:1px solid var(--line);background:#050505;color:var(--muted);border-radius:12px;padding:13px 24px;font-weight:800;cursor:pointer}.challenge-tab.active{background:var(--accent);color:#080808;border-color:var(--accent)}
@@ -34,16 +36,16 @@
 let challengeRules={};
 const challengeTabKey='auraSelectedChallengeTab';
 const FALLBACK_CHALLENGES=[
-  {id:'instant-1000',model:'Instant',size:'$1K',accountSize:1000,price:8,dailyDrawdown:'3%',evaluation:'None'},
-  {id:'instant-2500',model:'Instant',size:'$2.5K',accountSize:2500,price:15,dailyDrawdown:'3%',evaluation:'None'},
-  {id:'one-5000',model:'1 Step',size:'$5K',accountSize:5000,price:40,dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'},
-  {id:'one-10000',model:'1 Step',size:'$10K',accountSize:10000,price:75,dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'},
-  {id:'one-25000',model:'1 Step',size:'$25K',accountSize:25000,price:150,dailyDrawdown:'4%',totalDrawdown:'8%',profitTarget:'10%'},
-  {id:'two-5000',model:'2 Step',size:'$5K',accountSize:5000,price:25,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
-  {id:'two-10000',model:'2 Step',size:'$10K',accountSize:10000,price:45,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
-  {id:'two-25000',model:'2 Step',size:'$25K',accountSize:25000,price:110,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
-  {id:'two-50000',model:'2 Step',size:'$50K',accountSize:50000,price:200,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'},
-  {id:'two-100000',model:'2 Step',size:'$100K',accountSize:100000,price:350,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%'}
+  {id:'instant-1000',model:'Instant',size:'$1K',accountSize:1000,price:8,dailyDrawdown:'2%',totalDrawdown:'4%',evaluation:'30% Consistency | 1% Floating Loss'},
+  {id:'instant-2500',model:'Instant',size:'$2.5K',accountSize:2500,price:15,dailyDrawdown:'2%',totalDrawdown:'4%',evaluation:'30% Consistency | 1% Floating Loss'},
+  {id:'one-5000',model:'1 Step',size:'$5K',accountSize:5000,price:40,dailyDrawdown:'3%',totalDrawdown:'7%',profitTarget:'8%',evaluation:'40% Consistency | 1% Floating Loss | 3 Profitable Days ≥0.5%'},
+  {id:'one-10000',model:'1 Step',size:'$10K',accountSize:10000,price:75,dailyDrawdown:'3%',totalDrawdown:'7%',profitTarget:'8%',evaluation:'40% Consistency | 1% Floating Loss | 3 Profitable Days ≥0.5%'},
+  {id:'one-25000',model:'1 Step',size:'$25K',accountSize:25000,price:150,dailyDrawdown:'3%',totalDrawdown:'7%',profitTarget:'8%',evaluation:'40% Consistency | 1% Floating Loss | 3 Profitable Days ≥0.5%'},
+  {id:'two-5000',model:'2 Step',size:'$5K',accountSize:5000,price:25,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%',evaluation:'Phase 1 & 2: 2 Profitable Days ≥1% | Funded Floating Loss 2%'},
+  {id:'two-10000',model:'2 Step',size:'$10K',accountSize:10000,price:45,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%',evaluation:'Phase 1 & 2: 2 Profitable Days ≥1% | Funded Floating Loss 2%'},
+  {id:'two-25000',model:'2 Step',size:'$25K',accountSize:25000,price:110,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%',evaluation:'Phase 1 & 2: 2 Profitable Days ≥1% | Funded Floating Loss 2%'},
+  {id:'two-50000',model:'2 Step',size:'$50K',accountSize:50000,price:200,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%',evaluation:'Phase 1 & 2: 2 Profitable Days ≥1% | Funded Floating Loss 2%'},
+  {id:'two-100000',model:'2 Step',size:'$100K',accountSize:100000,price:350,dailyDrawdown:'4%',totalDrawdown:'8%',phase1Profit:'8%',phase2Profit:'6%',evaluation:'Phase 1 & 2: 2 Profitable Days ≥1% | Funded Floating Loss 2%'}
 ];
 function activateChallengeTab(tabName,save=true){
   const tab=document.querySelector('.challenge-tab[data-tab="'+tabName+'"]');
