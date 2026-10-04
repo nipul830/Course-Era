@@ -3,13 +3,15 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import admin from "firebase-admin";
+import admin from "./mongo-firebase-compat.js";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getMongoDb } from "./mongodb.js";
+import { createAuthToken } from "./mongo-firebase-compat.js";
 
 const app = express();
 // Aura Farming runs behind the AIC edge proxy, so trust its forwarded client IP.
@@ -97,39 +99,51 @@ let bucket;
 // so validating the same session against Firestore on every poll can exhaust
 // the free Firestore read quota. Revocation is still re-checked after expiry.
 const terminalAuthCache = new Map();
+const activeRiskAccounts = new Map(); // key: uid::accountId
+function trackRiskAccount(uid, accountId) {
+  const id = String(accountId || "").trim();
+  const key = String(uid) + "::" + id;
+  activeRiskAccounts.set(key, { uid: String(uid), accountId: id, at: Date.now() });
+}
+function untrackRiskAccount(uid, accountId) {
+  activeRiskAccounts.delete(String(uid) + "::" + String(accountId || "").trim());
+}
+let floatingRiskTimer = null;
+function startFloatingRiskMonitor() {
+  if (floatingRiskTimer) return;
+  floatingRiskTimer = setInterval(async () => {
+    if (!activeRiskAccounts.size) return;
+    const entries = [...activeRiskAccounts.values()];
+    for (const { uid, accountId } of entries) {
+      try {
+        const { ref, data } = await loadTradingAccount(uid, accountId);
+        if ((data.status || "active") !== "active") {
+          untrackRiskAccount(uid, accountId);
+          continue;
+        }
+        const openSnap = await ref.collection("positions").where("status", "==", "open").limit(50).get();
+        if (openSnap.empty) {
+          untrackRiskAccount(uid, accountId);
+          continue;
+        }
+        const symbols = [...new Set(openSnap.docs.map(d => d.data()?.symbol).filter(Boolean))];
+        const quotes = symbols.length ? await getMarketQuotes(symbols) : {};
+        await refreshTradingAccount(uid, quotes, accountId);
+      } catch (e) {
+        console.warn("FLOATING_RISK_TICK", e?.message || e);
+      }
+    }
+  }, 1000);
+}
+startFloatingRiskMonitor();
+
 const TERMINAL_AUTH_CACHE_MS = 10000;
 
 function initFirebase() {
-  if (admin.apps.length) return;
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  const credentialFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || "/etc/secrets/firebase-service-account.json";
-
-  if (raw) {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(raw)),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
-    });
-  } else {
-    // Render Secret Files are mounted under /etc/secrets. Prefer the configured
-    // file when it exists, and fall back to Application Default Credentials.
-    try {
-      const serviceAccount = JSON.parse(readFileSync(credentialFile, "utf8"));
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
-      });
-    } catch {
-      admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
-      });
-    }
-  }
-
-  db = admin.firestore();
-  if (process.env.FIREBASE_STORAGE_BUCKET) {
-    bucket = admin.storage().bucket();
-  }
+  // Compatibility name kept so existing routes stay stable; all persistence and
+  // authentication now run against MongoDB. Firebase Admin/Firestore are not used.
+  if (!db) db = admin.firestore();
+  bucket = null;
 }
 
 async function requireAuth(req, res, next) {
@@ -213,11 +227,7 @@ function verifyTerminalPassword(password, stored) {
 }
 
 function terminalSessionSecret() {
-  let material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
-  if (!material && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    try { material = readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, "utf8"); } catch {}
-  }
-  if (!material) throw new Error("Terminal session signing is not configured on the server");
+  const material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.AUTH_SESSION_SECRET || process.env.MONGO_URI || "course-era-mongo-terminal";
   return crypto.createHash("sha256").update(String(material) + "|terminal-session-v1").digest();
 }
 function base64url(value) {
@@ -246,11 +256,7 @@ function verifyTerminalSessionToken(token) {
 }
 
 function terminalCredentialKey() {
-  let material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
-  if (!material && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    try { material = readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, "utf8"); } catch {}
-  }
-  if (!material) throw new Error("TERMINAL_CREDENTIAL_SECRET is not configured");
+  const material = process.env.TERMINAL_CREDENTIAL_SECRET || process.env.AUTH_SESSION_SECRET || process.env.MONGO_URI || "course-era-mongo-terminal";
   return crypto.createHash("sha256").update(String(material)).digest();
 }
 
@@ -405,9 +411,11 @@ async function requireTerminalAuth(req, res, next) {
 
 const terminalLoginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: 120,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  // Successful logins should not burn the budget (dashboard may refresh session).
+  skipSuccessfulRequests: true,
   message: { error: "Too many terminal login attempts. Please try again later." }
 });
 
@@ -437,14 +445,49 @@ app.get("/health", (req, res) => {
 
 app.get("/api/config", (req, res) => {
   res.json({
-    siteName: "Course Era",
+    siteName: "Aura Farming",
     status: "backend-ready",
-    firebaseConfigured: Boolean(
-      process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
-      process.env.GOOGLE_APPLICATION_CREDENTIALS
-    ),
-    storageConfigured: Boolean(process.env.FIREBASE_STORAGE_BUCKET)
+    mongoConfigured: true,
+    storageConfigured: false,
+    firebaseConfigured: false
   });
+});
+
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    initFirebase();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
+    const name = String(req.body?.name || "").trim().slice(0, 120);
+    if (!email || !password || !name) return res.status(400).json({ error: "Name, email and password are required" });
+    const user = await admin.auth().createUser({ email, password, displayName: name });
+    await db.collection("users").doc(user.uid).set({
+      email, name, mobile: "", photoURL: "", createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    const token = createAuthToken(user);
+    res.status(201).json({ token, user: { uid: user.uid, email: user.email, displayName: user.displayName || name, photoURL: user.photoURL || "" } });
+  } catch (e) {
+    const status = e?.code === "auth/email-already-in-use" ? 409 : 400;
+    res.status(status).json({ error: e?.message || "Could not create account", code: e?.code || "auth/signup-failed" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    initFirebase();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
+    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+    const user = await admin.auth().signInWithEmailAndPassword(email, password);
+    const token = createAuthToken(user);
+    res.json({ token, user: { uid: user.uid, email: user.email, displayName: user.displayName || "", photoURL: user.photoURL || "", admin: Boolean(user.admin) } });
+  } catch (e) {
+    res.status(401).json({ error: e?.message || "Email or password is incorrect", code: e?.code || "auth/invalid-credential" });
+  }
+});
+
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  res.json({ user: { uid: req.user.uid, email: req.user.email || "", displayName: req.user.displayName || req.user.name || "", photoURL: req.user.photoURL || "", admin: Boolean(req.user.admin) } });
 });
 
 app.post("/api/terminal/login", terminalLoginRateLimit, async (req, res) => {
@@ -593,28 +636,15 @@ app.put("/api/profile", requireAuth, async (req, res) => {
 
 app.post("/api/profile/photo", requireAuth, upload.single("photo"), async (req, res) => {
   try {
-    initFirebase();
-    if (!bucket) return res.status(500).json({ error: "Firebase Storage is not configured" });
     if (!req.file) return res.status(400).json({ error: "Photo is required" });
     if (!String(req.file.mimetype || "").startsWith("image/")) return res.status(400).json({ error: "Only image files are allowed" });
     if (req.file.size > 5 * 1024 * 1024) return res.status(400).json({ error: "Photo must be 5MB or smaller" });
-    const path = "users/" + req.user.uid + "/profile-" + Date.now();
-    const file = bucket.file(path);
-    const token = crypto.randomUUID();
-    await file.save(req.file.buffer, {
-      metadata: {
-        contentType: req.file.mimetype,
-        cacheControl: "public,max-age=3600",
-        metadata: { firebaseStorageDownloadTokens: token }
-      }
-    });
-    const photoURL = "https://firebasestorage.googleapis.com/v0/b/" + encodeURIComponent(bucket.name) + "/o/" + encodeURIComponent(path) + "?alt=media&token=" + encodeURIComponent(token);
+    const photoURL = "data:" + req.file.mimetype + ";base64," + req.file.buffer.toString("base64");
     await admin.auth().updateUser(req.user.uid, { photoURL });
-    await db.collection("users").doc(req.user.uid).set({
-      photoURL, updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    await db.collection("users").doc(req.user.uid).set({ photoURL, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     res.json({ message: "Profile photo updated", photoURL });
   } catch (e) {
+    console.error("PROFILE_PHOTO_MONGO_ERROR", e);
     res.status(500).json({ error: "Could not update profile photo" });
   }
 });
@@ -766,42 +796,100 @@ async function getChallengeCatalog() {
   return saved && saved.length ? saved : DEFAULT_CHALLENGES;
 }
 
-const DEFAULT_CHALLENGE_RULES = {
-  "1 Step": ["Daily Drawdown: 4%", "Total Drawdown: 8%", "Profit Target: 10%"],
-  "2 Step": ["Daily Drawdown: 4%", "Total Drawdown: 8%", "Phase 1 Profit Target: 8%", "Phase 2 Profit Target: 6%"],
-  "Instant": ["Daily Drawdown: 3%"]
+const DEFAULT_STRUCTURED_CHALLENGE_RULES = {
+  "1 Step": {
+    "Phase 1": { stage: "Phase 1", floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 5 },
+    "Funded":  { stage: "Funded",  floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 0 }
+  },
+  "2 Step": {
+    "Phase 1": { stage: "Phase 1", floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 3 },
+    "Phase 2": { stage: "Phase 2", floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 2 },
+    "Funded":  { stage: "Funded",  floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 0 }
+  },
+  "Instant": {
+    "Funded": { stage: "Funded", floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 0 }
+  }
 };
 
-app.get("/api/challenge-rules", async (req,res) => {
+function normalizeStageRule(value, stage) {
+  let raw = value;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { raw = {}; }
+  }
+  raw = raw && typeof raw === "object" ? raw : {};
+  const pct = Number(raw.floatingLossPercent ?? raw.floatingLossPct ?? 1);
+  const days = Number(raw.minimumTradingDays ?? raw.minTradingDays ?? 5);
+  return {
+    stage: String(raw.stage || stage),
+    floatingLossEnabled: raw.floatingLossEnabled !== false,
+    floatingLossPercent: Math.min(2.5, Math.max(0.25, Number.isFinite(pct) ? pct : 1)),
+    minimumTradingDays: Math.min(10, Math.max(0, Math.round(Number.isFinite(days) ? days : 5)))
+  };
+}
+
+function normalizeChallengeRulesPayload(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const models = {
+    "1 Step": ["Phase 1", "Funded"],
+    "2 Step": ["Phase 1", "Phase 2", "Funded"],
+    "Instant": ["Funded"]
+  };
+  const out = {};
+  for (const [name, stages] of Object.entries(models)) {
+    out[name] = {};
+    const md = source[name];
+    for (const stage of stages) {
+      let value;
+      if (Array.isArray(md)) {
+        value = md.find(v => {
+          if (v && typeof v === "object") return String(v.stage || "") === stage;
+          try { return JSON.parse(v)?.stage === stage; } catch { return false; }
+        });
+      } else if (md && typeof md === "object") {
+        value = md[stage];
+      }
+      out[name][stage] = normalizeStageRule(value, stage);
+    }
+  }
+  return out;
+}
+
+app.get("/api/challenge-rules", async (req, res) => {
   try {
-    initFirebase();
-    const snap = await db.collection("settings").doc("challengeRules").get();
-    const saved = snap.exists && snap.data()?.rules && typeof snap.data().rules === "object" ? snap.data().rules : null;
-    res.json({ rules: saved || DEFAULT_CHALLENGE_RULES });
-  } catch(e) {
-    res.status(500).json({ error:"Could not load challenge rules" });
+    const mongo = await getMongoDb();
+    const doc = await mongo.collection("challenge_rules").findOne({ _id: "global" });
+    const saved = doc?.rules && typeof doc.rules === "object" ? doc.rules : null;
+    const isStructured = saved && typeof saved["1 Step"] === "object" && !Array.isArray(saved["1 Step"]);
+    const rules = isStructured ? normalizeChallengeRulesPayload(saved) : DEFAULT_STRUCTURED_CHALLENGE_RULES;
+    res.set("Cache-Control", "no-store");
+    res.json({ rules });
+  } catch (e) {
+    console.error("challenge-rules GET error:", e?.message || e);
+    res.status(500).json({ error: "Could not load challenge rules" });
   }
 });
 
-app.put("/api/challenge-rules", requireAuth, requireAdmin, async (req,res) => {
+app.put("/api/challenge-rules", requireAuth, requireAdmin, async (req, res) => {
   try {
-    initFirebase();
-    const clean = v => String(v ?? "").trim().slice(0,300);
     const incoming = req.body?.rules || {};
-    const rules = {};
-    for (const model of ["1 Step","2 Step","Instant"]) {
-      rules[model] = Array.isArray(incoming[model])
-        ? incoming[model].map(clean).filter(Boolean).slice(0,20)
-        : [];
-    }
-    await db.collection("settings").doc("challengeRules").set({
-      rules,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedBy: req.user.uid
-    }, { merge:true });
-    res.json({ rules });
-  } catch(e) {
-    res.status(500).json({ error:"Could not save challenge rules" });
+    const rules = normalizeChallengeRulesPayload(incoming);
+    const mongo = await getMongoDb();
+    await mongo.collection("challenge_rules").updateOne(
+      { _id: "global" },
+      {
+        $set: {
+          rules,
+          updatedAt: new Date(),
+          updatedBy: req.user?.uid || req.user?.email || "admin"
+        }
+      },
+      { upsert: true }
+    );
+    res.set("Cache-Control", "no-store");
+    res.json({ ok: true, rules });
+  } catch (e) {
+    console.error("challenge-rules PUT error:", e?.message || e);
+    res.status(500).json({ error: "Could not save challenge rules" });
   }
 });
 
@@ -1035,31 +1123,16 @@ app.put("/api/payment-settings", requireAuth, requireAdmin, async (req, res) => 
 
 app.post("/api/payment-settings/qr", requireAuth, requireAdmin, upload.single("qr"), async (req, res) => {
   try {
-    initFirebase();
-    if (!bucket) return res.status(500).json({ error: "Firebase Storage is not configured" });
     if (!req.file) return res.status(400).json({ error: "QR image is required" });
     if (!String(req.file.mimetype || "").startsWith("image/")) return res.status(400).json({ error: "Only image files are allowed" });
     if (req.file.size > 5 * 1024 * 1024) return res.status(400).json({ error: "QR image must be 5MB or smaller" });
-
-    const path = "payment-settings/qr-" + Date.now() + "-" + req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const file = bucket.file(path);
-    const downloadToken = crypto.randomUUID();
-    await file.save(req.file.buffer, {
-      metadata: {
-        contentType: req.file.mimetype,
-        cacheControl: "public,max-age=3600",
-        metadata: { firebaseStorageDownloadTokens: downloadToken }
-      }
-    });
-    const qrImageUrl = "https://firebasestorage.googleapis.com/v0/b/" + encodeURIComponent(bucket.name) + "/o/" + encodeURIComponent(path) + "?alt=media&token=" + encodeURIComponent(downloadToken);
-    await db.collection("settings").doc("payment").set({
-      qrImageUrl,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedBy: req.user.uid
-    }, { merge: true });
-    res.json({ message: "QR image updated", qrImageUrl });
+    if (req.file.buffer.length > 650000) return res.status(400).json({ error: "QR image is too large. Please choose a smaller image." });
+    const qrImageUrl = "data:" + req.file.mimetype + ";base64," + req.file.buffer.toString("base64");
+    await db.collection("settings").doc("payment").set({ qrImageUrl, updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: req.user.uid }, { merge: true });
+    res.json({ message: "Payment QR updated", qrImageUrl });
   } catch (e) {
-    res.status(500).json({ error: "Could not upload QR image", detail: e.message });
+    console.error("PAYMENT_QR_MONGO_ERROR", e);
+    res.status(500).json({ error: "Could not update payment QR" });
   }
 });
 
@@ -1594,7 +1667,11 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
           dailyDrawdownPct: Number(account.dailyDrawdownPct || 0),
           maxDrawdownPct: Number(account.maxDrawdownPct || 0),
           dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
-          maxDrawdownLimit: accountRules(account).maxDrawdownPct
+          maxDrawdownLimit: accountRules(account).maxDrawdownPct,
+          floatingLossHits: Number(account.floatingLossHits || 0),
+          floatingLossActive: account.floatingLossActive === true,
+          lastRiskWarning: account.lastRiskWarning || "",
+          riskWarning: account.lastRiskWarning || ""
         }
       });
     }
@@ -1679,7 +1756,11 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
           dailyDrawdownPct: Number(account.dailyDrawdownPct || 0),
           maxDrawdownPct: Number(account.maxDrawdownPct || 0),
           dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
-          maxDrawdownLimit: accountRules(account).maxDrawdownPct
+          maxDrawdownLimit: accountRules(account).maxDrawdownPct,
+          floatingLossHits: Number(account.floatingLossHits || 0),
+          floatingLossActive: account.floatingLossActive === true,
+          lastRiskWarning: account.lastRiskWarning || "",
+          riskWarning: account.lastRiskWarning || ""
         }
       });
     }
@@ -1906,6 +1987,51 @@ function buildChallengeAccountPayload(challenge, paymentId, accountId, terminalC
   return payload;
 }
 
+
+async function resolveFloatingRule(account) {
+  const phase = String(account?.phase || account?.stage || "Phase 1");
+  const modelRaw = String(account?.model || account?.challengeModel || account?.challenge || "");
+  let model = "1 Step";
+  if (/instant/i.test(modelRaw)) model = "Instant";
+  else if (/2\s*step/i.test(modelRaw)) model = "2 Step";
+  else if (/1\s*step/i.test(modelRaw)) model = "1 Step";
+
+  let stageKey = "Phase 1";
+  if (/funded/i.test(phase) || account?.funded === true) stageKey = "Funded";
+  else if (/phase\s*2/i.test(phase)) stageKey = "Phase 2";
+  else if (/phase\s*1/i.test(phase)) stageKey = "Phase 1";
+  if (model === "Instant") stageKey = "Funded";
+
+  const accEnabled = account?.floatingLossEnabled;
+  const accPct = Number(account?.floatingLossPercent ?? account?.floatingLossPct);
+
+  try {
+    const mongo = await getMongoDb();
+    const doc = await mongo.collection("challenge_rules").findOne({ _id: "global" });
+    const saved = doc?.rules && typeof doc.rules === "object" ? doc.rules : null;
+    const rules = saved ? normalizeChallengeRulesPayload(saved) : DEFAULT_STRUCTURED_CHALLENGE_RULES;
+    const stageRule = rules?.[model]?.[stageKey] || {};
+    const enabled = accEnabled != null ? accEnabled !== false : stageRule.floatingLossEnabled !== false;
+    const pct = Number.isFinite(accPct) && accPct > 0 ? accPct : Number(stageRule.floatingLossPercent || 1);
+    return {
+      enabled,
+      percent: Math.min(2.5, Math.max(0.25, pct || 1)),
+      model,
+      stageKey,
+      isFundedStage: stageKey === "Funded" || account?.funded === true || /funded/i.test(phase)
+    };
+  } catch (e) {
+    console.warn("FLOATING_RULE_FALLBACK", e?.message || e);
+    return {
+      enabled: accEnabled !== false,
+      percent: Number.isFinite(accPct) && accPct > 0 ? accPct : 1,
+      model,
+      stageKey,
+      isFundedStage: stageKey === "Funded" || account?.funded === true || /funded/i.test(phase)
+    };
+  }
+}
+
 async function refreshTradingAccount(uid, quotes, accountId = "") {
   const { ref, data } = await loadTradingAccount(uid, accountId);
   const positionSnap = await ref.collection("positions").where("status","==","open").get();
@@ -1948,11 +2074,10 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
     positions.push({ ...p, currentPrice:q || p.entryPrice, pnl });
   }
 
-  // 1% floating loss basket protection (from original account size)
+  // Floating loss basket protection (admin on/off + % from challenge rules)
   const starting = Number(data.startingBalance ?? data.accountSize ?? balance);
   const staticBase = Number(data.staticDrawdownBase ?? data.startingBalance ?? starting);
   const phaseStart = Number(data.phaseStartBalance ?? data.startingBalance ?? starting);
-  const floatingLimit = starting > 0 ? starting * 0.01 : 0;
   let floatingLossHits = Number(data.floatingLossHits || 0);
   let floatingLossActive = data.floatingLossActive === true;
   let riskWarning = "";
@@ -1963,8 +2088,12 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
   let funded = data.funded === true || /funded/i.test(phase);
   let phaseStartBalance = phaseStart;
 
-  if (floatingLimit > 0 && openPnl <= -floatingLimit && positions.length) {
-    // Close all open positions
+  const floatRule = await resolveFloatingRule({ ...data, phase, funded });
+  const floatPct = floatRule.percent;
+  const floatingLimit = (floatRule.enabled && starting > 0) ? starting * (floatPct / 100) : 0;
+  const isFundedStage = floatRule.isFundedStage;
+
+  if (status === "active" && floatingLimit > 0 && openPnl <= -floatingLimit && positions.length) {
     let realized = 0;
     for (const p of positions) {
       const q = Number(quotes?.[p.symbol]?.price || p.currentPrice || 0);
@@ -1972,7 +2101,10 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
       const pnl = tradePnl(p, q);
       realized += pnl;
       await ref.collection("positions").doc(p.id).update({
-        status: "closed", closePrice: q, realizedPnl: pnl, closeReason: "1% floating loss limit",
+        status: "closed",
+        closePrice: q,
+        realizedPnl: pnl,
+        closeReason: floatPct + "% floating loss limit",
         closedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -1983,33 +2115,26 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
     positions = [];
     floatingLossHits += 1;
     floatingLossActive = true;
-    const isFundedStage = funded || /funded/i.test(phase);
+
     if (isFundedStage) {
-      if (floatingLossHits >= 3) {
-        status = "breached";
-        breach = "Funded account breached after 3 floating-loss hits";
-      } else if (floatingLossHits === 2) {
-        profitSplitPct = 70;
-        riskWarning = "Second 1% floating-loss warning. Profit split set to 70%.";
-      } else {
-        riskWarning = "First 1% floating-loss warning.";
-      }
+      status = "breached";
+      breach = "Funded/Instant account breached on " + floatPct + "% floating-loss hit";
+      riskWarning = "Floating loss limit hit. Account breached.";
+    } else if (floatingLossHits >= 2) {
+      status = "breached";
+      breach = "Challenge account breached after 2 floating-loss hits (" + floatPct + "%)";
+      riskWarning = "2nd floating loss hit. Account breached.";
     } else {
-      if (floatingLossHits >= 2) {
-        status = "breached";
-        breach = "Challenge account breached after 2 floating-loss hits";
-      } else {
-        riskWarning = "First 1% floating-loss warning.";
-      }
+      riskWarning = "1st floating hit (" + floatPct + "%). Next hit will breach the account.";
     }
-  } else if (openPnl > -floatingLimit) {
+  } else if (floatingLimit <= 0 || openPnl > -floatingLimit) {
     floatingLossActive = false;
   }
 
   const equity = balance + openPnl;
   const peak = Math.max(Number(data.peakEquity || starting), equity);
 
-  // Daily drawdown trading day resets at 09:15 Asia/Kolkata
+  // Daily drawdown trading day resets at 06:30 Asia/Kolkata
   function dailyDrawdownTradingDayKey(now = new Date()) {
     const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -2018,7 +2143,7 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
     const get = type => parts.find(p => p.type === type)?.value || '';
     let y = Number(get('year')), m = Number(get('month')), d = Number(get('day'));
     const h = Number(get('hour')), min = Number(get('minute'));
-    if (h < 9 || (h === 9 && min < 15)) {
+    if (h < 6 || (h === 6 && min < 30)) {
       const previous = new Date(Date.UTC(y, m - 1, d) - 86400000);
       y = previous.getUTCFullYear(); m = previous.getUTCMonth() + 1; d = previous.getUTCDate();
     }
@@ -2192,6 +2317,7 @@ app.get("/api/trading/positions", requireTerminalAuth, async (req,res) => {
     let positions=[];
     try {
       const quotes=await getMarketQuotes(symbols);
+      if (symbols.length) trackRiskAccount(req.terminal.uid, req.terminal.accountId);
       const refreshed=await refreshTradingAccount(req.terminal.uid, quotes, req.terminal.accountId);
       account={id:refreshed.accountId || data.accountId || "account",balance:refreshed.balance,equity:refreshed.equity,pnl:refreshed.pnl,openPnl:refreshed.openPnl,status:refreshed.status,dailyDrawdownPct:refreshed.dailyDrawdownPct||0,maxDrawdownPct:refreshed.maxDrawdownPct||0};
       positions=refreshed.positions.map(p=>({id:p.id,symbol:p.symbol,name:MARKET_SYMBOLS[p.symbol]?.name||p.symbol,side:p.side,lot:p.lot,entryPrice:p.entryPrice,currentPrice:p.currentPrice,pnl:p.pnl,stopLoss:p.stopLoss||null,takeProfit:p.takeProfit||null,openedAt:p.openedAt||null}));
@@ -2294,6 +2420,7 @@ app.post("/api/trading/orders", requireTerminalAuth, async (req,res) => {
       position:{id:positionRef.id,symbol,side,lot:lotValue,entryPrice,stopLoss,takeProfit},
       account:fastAccount
     });
+    trackRiskAccount(req.terminal.uid, req.terminal.accountId);
     refreshTradingAccount(req.terminal.uid, quotes, req.terminal.accountId).catch(()=>{});
   } catch(e) {
     console.error("TRADING_ORDER_ERROR", e);
@@ -2361,7 +2488,17 @@ app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
     }
     const { data: latest } = await loadTradingAccount(req.terminal.uid, req.terminal.accountId);
     const snap=await ref.collection("positions").get();
-    const toIso=v=>v?.toDate?.()?.toISOString?.() || (v?._seconds?new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString(): (typeof v==="string"?v:null));
+    const toIso=v=>{
+      if(v==null||v==="")return null;
+      if(typeof v==="string")return v;
+      if(typeof v==="number"&&Number.isFinite(v))return new Date(v).toISOString();
+      if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.toISOString();
+      if(typeof v?.toDate==="function"){try{const d=v.toDate();if(d&&!Number.isNaN(d.getTime()))return d.toISOString()}catch(_){}}
+      if(v._seconds!=null)return new Date(Number(v._seconds)*1000+(Number(v._nanoseconds||0)/1e6)).toISOString();
+      if(v.seconds!=null)return new Date(Number(v.seconds)*1000+(Number(v.nanoseconds||0)/1e6)).toISOString();
+      if(v.$date!=null)return new Date(v.$date).toISOString();
+      return null;
+    };
     const all=snap.docs.map(d=>{
       const p={id:d.id,...d.data(),name:MARKET_SYMBOLS[d.data()?.symbol]?.name||d.data()?.symbol};
       p.openedAt=toIso(p.openedAt); p.closedAt=toIso(p.closedAt); p.createdAt=toIso(p.createdAt); p.updatedAt=toIso(p.updatedAt);
@@ -2407,7 +2544,11 @@ app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
         dailyDrawdownLimit: Number(latest.dailyDrawdownLimit ?? rules.dailyDrawdownPct ?? 4),
         maxDrawdownLimit: Number(latest.maxDrawdownLimit ?? rules.maxDrawdownPct ?? 8),
         dailyDrawdown: Number(latest.dailyDrawdown ?? rules.dailyDrawdownPct ?? 4),
-        maxDrawdown: Number(latest.maxDrawdown ?? rules.maxDrawdownPct ?? 8)
+        maxDrawdown: Number(latest.maxDrawdown ?? rules.maxDrawdownPct ?? 8),
+        floatingLossHits: Number(latest.floatingLossHits || 0),
+        floatingLossActive: latest.floatingLossActive === true,
+        lastRiskWarning: latest.lastRiskWarning || "",
+        riskWarning: latest.lastRiskWarning || "" 
       },
       open,pending,closed
     });

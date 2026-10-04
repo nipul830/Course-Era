@@ -122,17 +122,39 @@
 <script src="firebase-config.js?v=7"></script><script src="account-switcher.js?v=2"></script><script src="aura-account.js?v=7"></script><script src="aura.js?v=7"></script><script>
 async function loadPurchasedRules(account){
   try{
-    const r=await fetch('https://aurafirming.in/api/challenge-rules');
+    const r=await fetch('/api/challenge-rules',{cache:'no-store'});
     const d=await r.json();
     const box=document.getElementById('accountRules');
     if(!box)return;
     const challenge=String(account.challenge||'');
     const model=challenge.startsWith('2 Step')?'2 Step':challenge.startsWith('1 Step')?'1 Step':challenge.startsWith('Instant')?'Instant':'';
-    const rules=(d.rules||{})[model]||[];
-    const items=[['Challenge Type',account.challenge||'Purchased Account'],['Account Size',auraMoney(account.startingBalance)]];
-    rules.forEach((rule,i)=>items.push(['Rule '+(i+1),rule]));
+    const stageRaw=String(account.phase||account.stage||account.statusStage||'').toLowerCase();
+    let stage='Phase 1';
+    if(/funded/i.test(stageRaw)||account.funded===true) stage='Funded';
+    else if(model==='2 Step'&&(/phase\s*2|step\s*2/i.test(stageRaw))) stage='Phase 2';
+    else if(model==='Instant') stage='Funded';
+    const modelRules=(d.rules||{})[model]||{};
+    const stageRule=modelRules[stage]||{};
+    const items=[
+      ['Challenge Type',account.challenge||'Purchased Account'],
+      ['Account Size',typeof auraMoney==='function'?auraMoney(account.startingBalance):('$'+Number(account.startingBalance||0).toLocaleString())]
+    ];
+    // Floating Loss
+    if(stageRule.floatingLossEnabled===true){
+      items.push(['Floating Loss',Number(stageRule.floatingLossPercent||1).toFixed(2)+'%']);
+    }else{
+      items.push(['Floating Loss','OFF']);
+    }
+    // Minimum Trading Days for all stages of this model
+    const stageOrder=model==='2 Step'?['Phase 1','Phase 2','Funded']:model==='1 Step'?['Phase 1','Funded']:['Funded'];
+    for(const st of stageOrder){
+      const sr=modelRules[st]||{};
+      const days=Number(sr.minimumTradingDays??0);
+      items.push(['Min Days — '+st, String(days)]);
+    }
     box.innerHTML=items.map(x=>'<div class="rule-item"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
   }catch(e){
+    console.warn('loadPurchasedRules error',e);
     const box=document.getElementById('accountRules');
     if(box)box.innerHTML='<div class="rule-item"><span>Rules</span><strong>Could not load rules</strong></div>';
   }
@@ -264,15 +286,16 @@ if(ceAuth.currentUser)loadDashboard(ceAuth.currentUser);
   }
   function tick(){
     const now=istParts();
-    let target=new Date(Date.UTC(now.y,now.m-1,now.d,3,45,0));
+    let target=new Date(Date.UTC(now.y,now.m-1,now.d,1,0,0));
     const nowUtcMs=Date.now();
     if(target.getTime()<=nowUtcMs)target=new Date(target.getTime()+86400000);
     const diff=Math.max(0,target.getTime()-nowUtcMs);
     const total=Math.floor(diff/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
-    el.textContent='Daily reset in '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' (9:15 AM IST)';
+    el.textContent='Daily reset in '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' (6:30 AM IST)';
   }
   tick();setInterval(tick,1000);
 })();
 </script>
+<script src="dashboard-live-fix.js?v=12"></script>
 </body>
 </html>

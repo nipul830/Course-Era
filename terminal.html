@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Terminal — Aura Farming</title><meta name="aura-terminal-build" content="2026-10-02-refresh-5ms-tpsl-05px">
+<title>Terminal — Aura Farming</title><meta name="aura-terminal-build" content="2026-10-03-chart-order-smooth">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 
 <link rel="stylesheet" href="aura.css">
@@ -712,8 +712,12 @@ function updateChartOrderActions(){
 }
 function startChartOrderActionSync(){
   if(chartOrderActionRaf)cancelAnimationFrame(chartOrderActionRaf);
-  const tick=()=>{
-    updateChartOrderActions();
+  let last=0;
+  const tick=(ts)=>{
+    if(!last || ts-last>=50){ // \~20fps overlay sync — smoother main thread
+      last=ts;
+      try{updateChartOrderActions();}catch(e){}
+    }
     chartOrderActionRaf=requestAnimationFrame(tick);
   };
   chartOrderActionRaf=requestAnimationFrame(tick);
@@ -726,16 +730,20 @@ function renderChartOrderLines(){
   if(!candleSeries)return;
   clearChartPriceLines();
   const positions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>p&&p.symbol===currentSymbol):[];
-  const visiblePositions=positions;
+  let needsRetry=false;
   positions.forEach(p=>{
     const entry=Number(p.entryPrice);
     if(!Number.isFinite(entry)||entry<=0)return;
     const side=String(p.side||'').toUpperCase();
-    candleSeries && chartPriceLines.push(candleSeries.createPriceLine({
+    try{
+      const coord=candleSeries.priceToCoordinate(entry);
+      if(coord==null) needsRetry=true;
+    }catch(e){ needsRetry=true; }
+    chartPriceLines.push(candleSeries.createPriceLine({
       price:entry,color:side==='BUY'?'#00a875':'#ec0050',lineWidth:2,lineStyle:0,axisLabelVisible:true,title:''
     }));
   });
-  visiblePositions.forEach((p,idx)=>{
+  positions.forEach(p=>{
     const sl=getChartRiskDraft(p,'stopLoss'),tp=getChartRiskDraft(p,'takeProfit');
     if(Number.isFinite(sl)&&sl>0){
       const line=candleSeries.createPriceLine({price:sl,color:'#e35b63',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:''});
@@ -749,6 +757,10 @@ function renderChartOrderLines(){
     }
   });
   updateChartOrderActions();
+  if(needsRetry && !renderChartOrderLines._retrying){
+    renderChartOrderLines._retrying=true;
+    setTimeout(()=>{ renderChartOrderLines._retrying=false; try{renderChartOrderLines();}catch(e){} }, 80);
+  }
 }
 async function refreshTerminalAccount(){
   try{
@@ -873,9 +885,36 @@ async function placeSimulatedOrder(side){
     }
     // Show the newly opened position immediately; the server response is already authoritative.
     terminalPositions=Array.isArray(terminalPositions)?terminalPositions.filter(p=>String(p.id)!==String(data.position.id)):[];
-    terminalPositions.push({...data.position,status:'open',currentPrice:Number(data.position.entryPrice)});
-    renderChartOrderLines();
-    if(data.account) { sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account)); renderTerminalAccount(data.account); }
+    const newPos={...data.position,status:'open',currentPrice:Number(data.position.entryPrice||data.position.currentPrice||0),openedAt:data.position.openedAt||new Date().toISOString(),stopLoss:data.position.stopLoss??null,takeProfit:data.position.takeProfit??null};
+    terminalPositions.push(newPos);
+    // Seed risk drafts so SL/TP lines paint immediately (even if null → auto draft)
+    try{
+      const pid=String(newPos.id);
+      expandedChartPositions.add(pid);
+      if(Number(newPos.stopLoss)>0) chartRiskDrafts.set(pid+'-stopLoss',Number(newPos.stopLoss));
+      if(Number(newPos.takeProfit)>0) chartRiskDrafts.set(pid+'-takeProfit',Number(newPos.takeProfit));
+      getChartRiskDraft(newPos,'stopLoss');
+      getChartRiskDraft(newPos,'takeProfit');
+    }catch(e){}
+    // Multi-pass draw: chart scale may not be ready on first frame
+    const paintLines=()=>{try{renderChartOrderLines();updateChartOrderActions();}catch(e){}};
+    paintLines();
+    requestAnimationFrame(()=>{paintLines();requestAnimationFrame(paintLines);});
+    setTimeout(paintLines,40);
+    setTimeout(paintLines,120);
+    if(data.account){ sessionStorage.setItem('auraTerminalAccount',JSON.stringify(data.account)); renderTerminalAccount(data.account); }
+    refreshTerminalAccount().then(()=>{
+      // Keep expansion + re-seed after server positions replace local list
+      try{
+        const pid=String(newPos.id);
+        expandedChartPositions.add(pid);
+        const live=terminalPositions.find(x=>String(x.id)===pid)||newPos;
+        getChartRiskDraft(live,'stopLoss');
+        getChartRiskDraft(live,'takeProfit');
+      }catch(e){}
+      paintLines();
+      setTimeout(paintLines,60);
+    }).catch(()=>{});
     await refreshTerminalAccount();
     
   }catch(e){
@@ -1039,7 +1078,12 @@ function updateLiveCandle(price){
     low:Number(live.low),
     close:Number(live.close)
   });
-  updateChartOrderActions();
+  // Throttle overlay reflow to \~12fps for smoother chart
+  const now=performance.now();
+  if(!updateLiveCandle._lastOverlay || now-updateLiveCandle._lastOverlay>80){
+    updateLiveCandle._lastOverlay=now;
+    updateChartOrderActions();
+  }
 }
 
 async function mountChart(id,symbol){
@@ -1097,6 +1141,8 @@ const canvas=document.createElement('div');canvas.className='aura-chart-canvas';
       updateChartOrderActions();
     }),{passive:true});
     await loadChartCandles(symbol,activeTimeframe);
+    try{startChartOrderActionSync();}catch(e){}
+    try{renderChartOrderLines();}catch(e){}
   }catch(e){
     console.error('Aura chart error',e);
     el.innerHTML='<div style="height:100%;display:grid;place-items:center;color:#667085;font-size:13px;text-align:center;padding:20px">Chart unavailable<br><small style="opacity:.7">'+String(e?.message||e)+'</small></div>';
@@ -1179,7 +1225,7 @@ function startTerminalPolling(){
       lastTerminalAccountRefresh=Date.now();
       refreshTerminalAccount();
     }
-  },30000);
+  },1000);
 }
 
 startTerminalPolling();
