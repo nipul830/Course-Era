@@ -3,3 +3,7 @@ android/
 .DS_Store
 *.log
 # dashboard-account-fix-trigger
+
+.env
+backend/.env
+*.env
