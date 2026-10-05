@@ -7,6 +7,64 @@
   const num=v=>Number(v||0)||0;
   const pct=v=>num(v).toFixed(2)+'%';
   const byId=id=>document.getElementById(id);
+
+  window.paintRiskBars = function paintRiskBars(a){
+    if(!a||a.__error)return;
+    const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
+    const money=v=>'$'+Math.abs(num(v)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let starting=num(a.startingBalance||a.accountSize||a.initialBalance||a.staticDrawdownBase);
+    const balance=num(a.balance||starting);
+    const equity=num(a.equity||balance);
+    let pnl=Number.isFinite(Number(a.pnl))?Number(a.pnl):(balance-starting);
+    if(starting<=0 && Math.abs(pnl)>0){
+      const ring=document.getElementById('profitPercent');
+      const t=ring?String(ring.textContent||'').replace('%',''):'';
+      const pp=Math.abs(num(t));
+      if(pp>0.0001) starting=Math.abs(pnl)/(pp/100);
+    }
+    if(starting<=0) starting=Math.max(balance, equity, 5000);
+
+    const dailyPct=num(a.dailyDrawdownPct);
+    const dailyLim=Math.max(0.01, num(a.dailyDrawdownLimit!=null?a.dailyDrawdownLimit:(a.dailyDrawdown!=null?a.dailyDrawdown:4)));
+    const maxPct=num(a.maxDrawdownPct);
+    const maxLim=Math.max(0.01, num(a.maxDrawdownLimit!=null?a.maxDrawdownLimit:(a.maxDrawdown!=null?a.maxDrawdown:8)));
+    const dailyMoney=starting*(dailyPct/100);
+    const maxMoney=starting*(maxPct/100);
+
+    function setTxt(id,t,c){const el=document.getElementById(id);if(!el)return;el.textContent=t;if(c)el.style.color=c;}
+    function setBar(id,pctVal,over){
+      const el=document.getElementById(id);if(!el)return;
+      el.style.width=Math.min(100,Math.max(0,pctVal))+'%';
+      if(over) el.style.background='linear-gradient(90deg,#a01040,#ff3b6b)';
+    }
+
+    setTxt('dailyDrawdownMoney','-'+money(dailyMoney)+' ('+dailyPct.toFixed(2)+'%)','#ff6b96');
+    setBar('dailyDrawdownBar',(dailyPct/dailyLim)*100, dailyPct>=dailyLim);
+
+    setTxt('maxDrawdownMoney','-'+money(maxMoney)+' ('+maxPct.toFixed(2)+'%)','#ff6b96');
+    setBar('maxDrawdownBar',(maxPct/maxLim)*100, maxPct>=maxLim);
+
+    const target=num(a.profitTargetPct||a.phase1Profit||a.phase2Profit||a.profitTarget||0);
+    const profitPct=starting>0?(pnl/starting)*100:0;
+    setTxt('profitTargetMoney',(pnl>=0?'+':'-')+money(pnl), pnl<0?'#ff6b96':'#68d58a');
+    setTxt('profitTargetLabel', target>0?(profitPct.toFixed(2)+'% / '+target.toFixed(2)+'% target'):(profitPct.toFixed(2)+'%'));
+    setBar('profitTargetBar', target>0?(Math.max(0,profitPct)/target)*100:0, false);
+
+    const phaseEl=document.getElementById('accountPhaseBadge');
+    if(phaseEl){
+      let phase=String(a.phase||a.stage||'').trim();
+      if(a.funded===true||/funded/i.test(phase)) phase='Funded';
+      else if(/phase\s*2/i.test(phase)) phase='Phase 2';
+      else phase='Phase 1';
+      phaseEl.textContent=phase;
+    }
+    const pay=document.getElementById('accountPayoutBtn');
+    if(pay){
+      pay.style.display=(a.funded===true||/funded/i.test(String(a.phase||a.stage||'')))?'block':'none';
+    }
+  }
+
+
   function ensureFloatingWarn(){
     let el=byId('floatingRiskWarn');
     if(el)return el;
@@ -49,20 +107,71 @@
   function row(label){return [...document.querySelectorAll('.metric-row')].find(r=>(r.querySelector('span')?.textContent||'').trim().toLowerCase()===label.toLowerCase());}
   function setRow(label,value){const r=row(label);if(r){const s=r.querySelector('strong');if(s)s.textContent=value;}}
   function setTradeMsg(msg){const box=byId('tradeEmpty');if(box){box.className='trade-empty';box.style.cssText='';box.textContent=msg;}}
-  function nextReset(){const now=new Date();const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now);const get=t=>Number(parts.find(x=>x.type===t)?.value||0);const y=get('year'),m=get('month'),d=get('day'),h=get('hour'),mi=get('minute');let target=new Date(Date.UTC(y,m-1,d,3,45,0));if(h>9||(h===9&&mi>=15))target=new Date(target.getTime()+86400000);return {target,now};}
-  function startCountdown(){const el=byId('dailyDrawdownResetCountdown');if(!el)return;clearInterval(countdownTimer);const paint=()=>{const {target,now}=nextReset();const total=Math.max(0,Math.floor((target-now)/1000));const hh=Math.floor(total/3600),mm=Math.floor((total%3600)/60),ss=total%60;el.textContent='Daily reset in '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0')+' · 09:15 IST';};paint();countdownTimer=setInterval(paint,1000);}
+  function nextReset(){const now=new Date();const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now);const get=t=>Number(parts.find(x=>x.type===t)?.value||0);const y=get('year'),m=get('month'),d=get('day'),h=get('hour'),mi=get('minute');let target=new Date(Date.UTC(y,m-1,d,1,0,0));if(h>9||(h===9&&mi>=15))target=new Date(target.getTime()+86400000);return {target,now};}
+  function startCountdown(){const el=byId('dailyDrawdownResetCountdown');if(!el)return;clearInterval(countdownTimer);const paint=()=>{const {target,now}=nextReset();const total=Math.max(0,Math.floor((target-now)/1000));const hh=Math.floor(total/3600),mm=Math.floor((total%3600)/60),ss=total%60;el.textContent='Daily reset in '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0')+' · 06:30 IST';};paint();countdownTimer=setInterval(paint,1000);}
   async function getHistory(user){
     const firebaseToken=await user.getIdToken(false);
+    const accKey=(localStorage.getItem('auraSelectedTradingAccount')||localStorage.getItem('aura_selected_account')||'default'); const SESSION_KEY='auraDashTerminalSession:'+accKey;
+    const SESSION_TTL_MS=25*60*1000; // reuse \~25 min
+
+    function readCached(){
+      try{
+        const raw=sessionStorage.getItem(SESSION_KEY);
+        if(!raw)return null;
+        const o=JSON.parse(raw);
+        if(!o||!o.token||!o.at)return null;
+        if(Date.now()-Number(o.at)>SESSION_TTL_MS)return null;
+        return o.token;
+      }catch(e){return null;}
+    }
+    function writeCached(token){
+      try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({token,at:Date.now()}));}catch(e){}
+    }
+    function clearCached(){
+      try{sessionStorage.removeItem(SESSION_KEY);}catch(e){}
+    }
+
+    async function fetchHistory(token){
+      const historyRes=await fetch(API+'/api/trading/history',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+      const historyText=await historyRes.text();
+      let data={};
+      try{data=JSON.parse(historyText);}catch(e){}
+      return {historyRes,data};
+    }
+
+    // 1) try cached terminal token first
+    let token=readCached();
+    if(token){
+      const {historyRes,data}=await fetchHistory(token);
+      if(historyRes.ok)return data;
+      // token expired / revoked
+      clearCached();
+    }
+
+    // 2) login once
     const credRes=await fetch(API+'/api/trading-credentials',{headers:{Authorization:'Bearer '+firebaseToken},cache:'no-store'});
-    let cred={};try{cred=JSON.parse(await credRes.text())}catch(e){}
+    const credText=await credRes.text();
+    let cred={};
+    try{cred=JSON.parse(credText);}catch(e){}
     if(!credRes.ok)throw new Error('Credentials '+credRes.status+(cred.error?': '+cred.error:''));
     if(!cred.loginId||!cred.tradingPassword)throw new Error('Login ID / trading password missing');
-    const loginRes=await fetch(API+'/api/terminal/login',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+firebaseToken},body:JSON.stringify({loginId:cred.loginId,password:cred.tradingPassword,mode:'trader'})});
-    let session={};try{session=JSON.parse(await loginRes.text())}catch(e){}
-    if(!loginRes.ok)throw new Error('Terminal login '+loginRes.status+(session.error?': '+session.error:''));
+
+    const loginRes=await fetch(API+'/api/terminal/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+firebaseToken},
+      body:JSON.stringify({loginId:cred.loginId,password:cred.tradingPassword,mode:'trader'})
+    });
+    const loginText=await loginRes.text();
+    let session={};
+    try{session=JSON.parse(loginText);}catch(e){}
+    if(!loginRes.ok){
+      const msg=session.error||session.detail||loginText||'login failed';
+      throw new Error('Terminal login '+loginRes.status+': '+msg);
+    }
     if(!session.token)throw new Error('No terminal session token');
-    const historyRes=await fetch(API+'/api/trading/history',{headers:{Authorization:'Bearer '+session.token},cache:'no-store'});
-    let data={};try{data=JSON.parse(await historyRes.text())}catch(e){}
+    writeCached(session.token);
+
+    const {historyRes,data}=await fetchHistory(session.token);
     if(!historyRes.ok)throw new Error('History '+historyRes.status+(data.error?': '+data.error:''));
     return data;
   }
@@ -89,11 +198,30 @@
     tabs.forEach((b,i)=>{b.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));b.classList.add('active');paint(tabs.length===2?(i===0?'open':'closed'):(i===0?'open':i===1?'closed':'pending'));};});
     const active=tabs.findIndex(b=>b.classList.contains('active'));paint(tabs.length===2?(active===1?'closed':'open'):(active===1?'closed':active===2?'pending':'open'));
   }
+  
+  function syncHeroBalance(balance, equity, pnl, starting){
+    const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const balTxt=money(balance);
+    const ids=['purchasedAccountValue','purchasedBalance','heroBalance'];
+    ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=balTxt; });
+    // balance-card under purchased account (label BALANCE)
+    document.querySelectorAll('.balance-card').forEach(card=>{
+      const lab=(card.querySelector('span')?.textContent||'').trim().toUpperCase();
+      const strong=card.querySelector('strong');
+      if(!strong)return;
+      if(lab==='BALANCE' || lab==='ACCOUNT VALUE') strong.textContent=balTxt;
+    });
+    // challenge name if present on account later
+    const nameEl=document.getElementById('purchasedAccountName');
+    // keep name from courses; only balance sync here
+  }
+
   async function load(){
     if(busy)return;busy=true;
     try{
-      const user=window.ceAuth?.currentUser;
+      const user=(window.ceAuth&&window.ceAuth.currentUser)||(typeof ceAuth!=='undefined'&&ceAuth.currentUser)||null;
       if(!user){setTradeMsg('Login required');return;}
+      if(typeof user.getIdToken!=='function'){setTradeMsg('Auth token missing');return;}
       let data;
       try{data=await getHistory(user);}
       catch(err){
@@ -105,11 +233,11 @@
             if(a&&!a.__error){
               const starting=num(a.startingBalance||a.accountSize||a.initialBalance),balance=num(a.balance||starting),equity=num(a.equity||balance);
               const pnl=Number.isFinite(Number(a.pnl))?Number(a.pnl):(balance-starting);
-              set('accountBalance',money(balance));set('accountEquity',money(equity));
+              set('accountBalance',money(balance)); try{syncHeroBalance(balance,equity,pnl,starting);}catch(e){}set('accountEquity',money(equity));
               set('accountPnl',(pnl>=0?'+':'-')+money(Math.abs(pnl)),pnl<0?'#ff5b70':'#68d58a');
               set('dailyDrawdown',pct(num(a.dailyDrawdownPct))+' / '+pct(num(a.dailyDrawdownLimit??4)));
               set('maxDrawdown',pct(num(a.maxDrawdownPct))+' / '+pct(num(a.maxDrawdownLimit??8)));
-              paintFloatingWarn(a);
+              paintFloatingWarn(a);paintRiskBars(a);
             }
           }
         }catch(e){}
@@ -119,7 +247,7 @@
       const a=data.account||{};
       const starting=num(a.startingBalance||a.accountSize||a.initialBalance),balance=num(a.balance||starting),equity=num(a.equity||balance);
       const pnl=Number.isFinite(Number(a.pnl))?Number(a.pnl):(balance-starting);
-      set('accountBalance',money(balance));set('accountEquity',money(equity));
+      set('accountBalance',money(balance)); try{syncHeroBalance(balance,equity,pnl,starting);}catch(e){}set('accountEquity',money(equity));
       set('accountPnl',(pnl>=0?'+':'-')+money(Math.abs(pnl)),pnl<0?'#ff5b70':'#68d58a');
       set('dailyDrawdown',pct(num(a.dailyDrawdownPct))+' / '+pct(num(a.dailyDrawdownLimit??a.dailyDrawdown??4)));
       set('maxDrawdown',pct(num(a.maxDrawdownPct))+' / '+pct(num(a.maxDrawdownLimit??a.maxDrawdown??8)));
@@ -127,7 +255,7 @@
       set('profitPercent',(starting?((pnl/starting)*100):0).toFixed(2)+'%');
       const status=String(a.status||'ACTIVE').toUpperCase();
       set('accountStatus',status,status==='BREACHED'?'#ff6b96':'#68d58a');
-      paintFloatingWarn(a);
+      paintFloatingWarn(a);paintRiskBars(a);
       renderAnalytics(closed);renderTrades(open,pending,closed);startCountdown();
     }catch(e){console.warn('Dashboard live data:',e?.message||e);setTradeMsg('Error: '+(e?.message||e));}
     finally{busy=false;}
@@ -137,7 +265,7 @@
     const tryLoad=()=>{if(window.ceAuth?.currentUser)load();};
     tryLoad();
     if(window.ceAuth?.onAuthStateChanged)window.ceAuth.onAuthStateChanged(function(u){if(u)load();});
-    clearInterval(timer);timer=setInterval(load,8000);startCountdown();
+    clearInterval(timer);timer=setInterval(load,20000);startCountdown();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();

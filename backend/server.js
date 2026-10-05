@@ -19,6 +19,14 @@ app.set("trust proxy", 1);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const FRONTEND_ROOT = path.resolve(__dirname, "..");
+app.use("/downloads", express.static(path.join(FRONTEND_ROOT, "downloads"), {
+  setHeaders: (res, filePath) => {
+    if (String(filePath).endsWith(".apk")) {
+      res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      res.setHeader("Content-Disposition", 'attachment; filename="AuraFarming-Terminal.apk"');
+    }
+  }
+}));
 const httpServer = http.createServer(app);
 const meetingWss = new WebSocketServer({ noServer: true });
 const marketWss = new WebSocketServer({ noServer: true });
@@ -821,7 +829,7 @@ function normalizeStageRule(value, stage) {
   const days = Number(raw.minimumTradingDays ?? raw.minTradingDays ?? 5);
   return {
     stage: String(raw.stage || stage),
-    floatingLossEnabled: raw.floatingLossEnabled !== false,
+    floatingLossEnabled: raw.floatingLossEnabled === true,
     floatingLossPercent: Math.min(2.5, Math.max(0.25, Number.isFinite(pct) ? pct : 1)),
     minimumTradingDays: Math.min(10, Math.max(0, Math.round(Number.isFinite(days) ? days : 5)))
   };
@@ -1628,9 +1636,36 @@ app.post("/api/trading-account/select", requireAuth, async (req, res) => {
     if (!selectedSnap.exists) return res.status(404).json({ error:"Trading account not found" });
     const selected = selectedSnap.data() || {};
     if (selected.status && selected.status !== "active") return res.status(403).json({ error:"Trading account is not active" });
-    await userRef.collection("trading").doc("account").set(selected, { merge:false });
-    return res.json({ account:{ id:accountId, ...selected } });
+    // Always mirror with canonical accountId = doc id (prevents stale balance/credentials mix)
+    const mirror = {
+      ...selected,
+      accountId,
+      id: accountId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await userRef.collection("trading").doc("account").set(mirror, { merge: false });
+    // Keep tradingAccounts doc accountId field consistent
+    try {
+      await selectedRef.set({ accountId, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    } catch (_) {}
+    console.log("ACCOUNT_SELECT", req.user.uid, accountId, "balance=", mirror.balance, "challenge=", mirror.challenge);
+    return res.json({
+      account: {
+        id: accountId,
+        accountId,
+        startingBalance: Number(mirror.startingBalance || 0),
+        balance: Number(mirror.balance ?? mirror.startingBalance ?? 0),
+        equity: Number(mirror.equity ?? mirror.balance ?? mirror.startingBalance ?? 0),
+        pnl: Number(mirror.pnl ?? 0),
+        challenge: mirror.challenge || "",
+        status: mirror.status || "active",
+        phase: mirror.phase || mirror.stage || "",
+        dailyDrawdownPct: Number(mirror.dailyDrawdownPct || 0),
+        maxDrawdownPct: Number(mirror.maxDrawdownPct || 0)
+      }
+    });
   } catch (e) {
+    console.error("ACCOUNT_SELECT_ERR", e);
     return res.status(500).json({ error:"Could not select trading account", detail:e.message });
   }
 });
@@ -1668,6 +1703,10 @@ app.get("/api/trading-account", requireAuth, async (req, res) => {
           maxDrawdownPct: Number(account.maxDrawdownPct || 0),
           dailyDrawdownLimit: accountRules(account).dailyDrawdownPct,
           maxDrawdownLimit: accountRules(account).maxDrawdownPct,
+          profitTargetPct: (function(){ try { const r = accountRules(account); return r.profitTargetPct; } catch(e){ return null; } })(),
+          phase: account.phase || account.stage || '',
+          funded: account.funded === true,
+          startingBalance: Number(account.startingBalance || account.accountSize || 0),
           floatingLossHits: Number(account.floatingLossHits || 0),
           floatingLossActive: account.floatingLossActive === true,
           lastRiskWarning: account.lastRiskWarning || "",
@@ -2032,6 +2071,28 @@ async function resolveFloatingRule(account) {
   }
 }
 
+
+async function closeAllOpenPositions(ref, positions, quotes, reason) {
+  let realized = 0;
+  const closed = [];
+  for (const p of positions) {
+    const q = Number(quotes?.[p.symbol]?.price || p.currentPrice || p.entryPrice || 0);
+    if (!q) continue;
+    const pnl = tradePnl(p, q);
+    realized += pnl;
+    await ref.collection("positions").doc(p.id).update({
+      status: "closed",
+      closePrice: q,
+      realizedPnl: pnl,
+      closeReason: String(reason || "Risk limit").slice(0, 120),
+      closedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    closed.push(p.id);
+  }
+  return { realized, closed };
+}
+
 async function refreshTradingAccount(uid, quotes, accountId = "") {
   const { ref, data } = await loadTradingAccount(uid, accountId);
   const positionSnap = await ref.collection("positions").where("status","==","open").get();
@@ -2131,7 +2192,7 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
     floatingLossActive = false;
   }
 
-  const equity = balance + openPnl;
+  let equity = balance + openPnl;
   const peak = Math.max(Number(data.peakEquity || starting), equity);
 
   // Daily drawdown trading day resets at 06:30 Asia/Kolkata
@@ -2160,10 +2221,24 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
   if (status === "active" && dailyDd >= rules.dailyDrawdownPct) {
     status = "breached";
     breach = `Daily drawdown limit reached (${rules.dailyDrawdownPct}%)`;
+    if (positions.length) {
+      const r = await closeAllOpenPositions(ref, positions, quotes, breach);
+      balance += r.realized;
+      realizedFromStops += r.realized;
+      openPnl = 0;
+      positions = [];
+    }
   }
   if (status === "active" && maxDd >= rules.maxDrawdownPct) {
     status = "breached";
     breach = `Maximum drawdown limit reached (${rules.maxDrawdownPct}%)`;
+    if (positions.length) {
+      const r = await closeAllOpenPositions(ref, positions, quotes, breach);
+      balance += r.realized;
+      realizedFromStops += r.realized;
+      openPnl = 0;
+      positions = [];
+    }
   }
 
   // --- Trading days tracking (unique calendar days with at least one closed trade) ---
@@ -2199,14 +2274,25 @@ async function refreshTradingAccount(uid, quotes, accountId = "") {
         newPhaseStartBalance = equity; // reset base for next target
         riskWarning = riskWarning || `Phase 1 passed (${profitPct.toFixed(2)}%). Moved to Phase 2.`;
       } else {
-        // 1-Step or Phase 2 -> Funded
+        // 1-Step or Phase 2 -> Funded: close ALL open trades
         newPhase = "Funded";
         newFunded = true;
         newPhaseStartBalance = equity;
         riskWarning = riskWarning || `Challenge passed (${profitPct.toFixed(2)}%). Account is now Funded.`;
+        if (positions.length) {
+          const r = await closeAllOpenPositions(ref, positions, quotes, "Phase target complete — positions closed");
+          balance += r.realized;
+          realizedFromStops += r.realized;
+          openPnl = 0;
+          positions = [];
+          // recompute equity after closes
+          // equity updated below from balance + openPnl
+        }
       }
     }
   }
+
+  equity = balance + openPnl; // recompute after risk closes
 
   if (status === "breached" && data.status !== "breached") {
     await revokeTerminalCredentials({ ...data, terminalCredentialId: data.terminalCredentialId }, breach || "Account breached");
@@ -2474,6 +2560,77 @@ app.post("/api/trading/positions/:id/close", requireTerminalAuth, async (req,res
     res.status(500).json({error:"Could not close position",detail:e.message || "Unknown server error"});
   }
 });
+
+// Website dashboard history — Firebase auth only (no terminal token needed)
+app.get("/api/dashboard/history", requireAuth, async (req, res) => {
+  try {
+    initFirebase();
+    const uid = req.user.uid;
+    // Prefer selected trading account mirror
+    let accountId = "";
+    let accountData = {};
+    const selected = await db.collection("users").doc(uid).collection("trading").doc("account").get();
+    if (selected.exists) {
+      accountData = selected.data() || {};
+      accountId = String(accountData.accountId || "");
+    }
+    if (!accountId) {
+      const list = await db.collection("users").doc(uid).collection("tradingAccounts").orderBy("createdAt", "desc").limit(1).get();
+      if (!list.empty) {
+        accountId = list.docs[0].id;
+        accountData = list.docs[0].data() || {};
+      }
+    }
+    if (!accountId) {
+      return res.status(404).json({ error: "No trading account found" });
+    }
+    const ref = db.collection("users").doc(uid).collection("tradingAccounts").doc(accountId);
+    const snap = await ref.collection("positions").get();
+    const toIso = v => v?.toDate?.()?.toISOString?.() || (v?._seconds ? new Date(Number(v._seconds)*1000).toISOString() : (typeof v === "string" ? v : null));
+    const all = snap.docs.map(d => {
+      const p = { id: d.id, ...d.data() };
+      p.openedAt = toIso(p.openedAt); p.closedAt = toIso(p.closedAt);
+      p.createdAt = toIso(p.createdAt); p.updatedAt = toIso(p.updatedAt);
+      if (p.realizedPnl == null && p.pnl != null) p.realizedPnl = Number(p.pnl);
+      return p;
+    });
+    const open = all.filter(p => p.status === "open");
+    const pending = all.filter(p => p.status === "pending");
+    const closed = all.filter(p => p.status === "closed").sort((a,b) => {
+      const at = Date.parse(a.closedAt || a.updatedAt || 0) || 0;
+      const bt = Date.parse(b.closedAt || b.updatedAt || 0) || 0;
+      return bt - at;
+    });
+    const starting = Number(accountData.startingBalance ?? accountData.accountSize ?? 0);
+    const balance = Number(accountData.balance ?? starting);
+    const equity = Number(accountData.equity ?? balance);
+    const rules = accountRules(accountData);
+    res.json({
+      account: {
+        id: accountId,
+        startingBalance: starting,
+        balance,
+        equity,
+        pnl: Number(accountData.pnl ?? (balance - starting)),
+        openPnl: Number(accountData.openPnl ?? 0),
+        status: accountData.status || "active",
+        challenge: accountData.challenge || "",
+        challengeId: accountData.challengeId || "",
+        phase: accountData.phase || accountData.stage || "",
+        funded: accountData.funded === true,
+        dailyDrawdownPct: Number(accountData.dailyDrawdownPct || 0),
+        maxDrawdownPct: Number(accountData.maxDrawdownPct || 0),
+        dailyDrawdownLimit: Number(accountData.dailyDrawdownLimit ?? rules.dailyDrawdownPct ?? 4),
+        maxDrawdownLimit: Number(accountData.maxDrawdownLimit ?? rules.maxDrawdownPct ?? 8)
+      },
+      open, pending, closed
+    });
+  } catch (e) {
+    console.error("dashboard history error:", e?.message || e);
+    res.status(500).json({ error: "Could not load dashboard history", detail: e.message });
+  }
+});
+
 app.get("/api/trading/history", requireTerminalAuth, async (req,res) => {
   try {
     const {ref,data}=await loadTradingAccount(req.terminal.uid, req.terminal.accountId);

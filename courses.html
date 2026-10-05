@@ -36,7 +36,7 @@
     </div>
   </div>
 
-  <a class="account-terminal-action" href="terminal.html">Open Terminal</a>
+  <a class="account-terminal-action" href="/downloads/AuraFarming-Terminal.apk" download="AuraFarming-Terminal.apk">Download Terminal</a>
 
   <div class="balance-card">
     <span>Balance</span>
@@ -70,11 +70,22 @@
 
 <section class="overview-grid">
   <div class="stat"><span>Balance</span><strong id="accountBalance">Loading…</strong></div>
-  <div class="stat"><span>Equity</span><strong id="accountEquity">Loading…</strong></div>
+  <div class="stat"><span>Equity</span><strong id="accountEquity">Loading…</strong>
+    <div id="accountPhaseBadge" style="margin-top:6px;display:inline-block;padding:3px 8px;border-radius:99px;border:1px solid #3a2c13;background:#12100a;color:#f1d98a;font-size:10px;font-weight:900;">Phase —</div>
+    <button type="button" id="accountPayoutBtn" style="display:none;margin-top:8px;width:100%;padding:8px;border:0;border-radius:8px;background:#d6b35a;color:#080808;font-size:11px;font-weight:900;cursor:pointer">Payout</button>
+    </div>
   <div class="stat"><span>P&amp;L</span><strong id="accountPnl">—</strong></div>
   <div class="stat"><span>Daily Drawdown</span><strong id="dailyDrawdown">—</strong>
+    <div id="dailyDrawdownMoney" style="margin-top:4px;color:#ff6b96;font-size:11px;font-weight:800;">$0.00</div>
+    <div style="margin-top:6px;height:8px;background:#1a150c;border-radius:99px;overflow:hidden;border:1px solid #302713">
+      <div id="dailyDrawdownBar" style="height:100%;width:0%;background:linear-gradient(90deg,#c45c2a,#ff6b96);transition:width .35s ease"></div>
+    </div>
     <small id="dailyDrawdownResetCountdown" style="display:block;margin-top:5px;color:#9b8552;font-size:10px;font-weight:800;"></small></div>
-  <div class="stat"><span>Max Drawdown</span><strong id="maxDrawdown">—</strong></div>
+  <div class="stat"><span>Max Drawdown</span><strong id="maxDrawdown">—</strong>
+    <div id="maxDrawdownMoney" style="margin-top:4px;color:#ff6b96;font-size:11px;font-weight:800;">$0.00</div>
+    <div style="margin-top:6px;height:8px;background:#1a150c;border-radius:99px;overflow:hidden;border:1px solid #302713">
+      <div id="maxDrawdownBar" style="height:100%;width:0%;background:linear-gradient(90deg,#8b1e3f,#ff5b86);transition:width .35s ease"></div>
+    </div></div>
   <div class="stat"><span>Open Positions</span><strong id="openPositionsCount">0</strong></div>
 </section>
 
@@ -87,6 +98,13 @@
     <article class="analytics-card performance-card">
       <span class="analytics-label">Performance</span>
       <div class="ring ring-profit"><strong id="profitPercent">0%</strong><small>Profit</small></div>
+      <div style="margin-top:10px;width:100%;max-width:160px">
+        <div id="profitTargetMoney" style="color:#68d58a;font-size:11px;font-weight:800;text-align:center">$0.00</div>
+        <div id="profitTargetLabel" style="color:#9b8552;font-size:10px;font-weight:800;text-align:center;margin-top:2px">0% / target</div>
+        <div style="margin-top:6px;height:8px;background:#0d1510;border-radius:99px;overflow:hidden;border:1px solid #1e3a28">
+          <div id="profitTargetBar" style="height:100%;width:0%;background:linear-gradient(90deg,#1f7a32,#68d58a);transition:width .35s ease"></div>
+        </div>
+      </div>
       <div class="ring ring-win"><strong>0%</strong><small>Win Rate</small></div>
     </article>
     <article class="analytics-card">
@@ -119,7 +137,7 @@
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="firebase-config.js?v=7"></script><script src="account-switcher.js?v=2"></script><script src="aura-account.js?v=7"></script><script src="aura.js?v=7"></script><script>
+<script src="firebase-config.js?v=7"></script><script src="account-switcher.js?v=20"></script><script src="aura-account.js?v=10"></script><script src="aura.js?v=7"></script><script>
 async function loadPurchasedRules(account){
   try{
     const r=await fetch('/api/challenge-rules',{cache:'no-store'});
@@ -238,6 +256,13 @@ async function loadDashboard(user){
     }
 
     if(balance)balance.textContent=auraMoney(account.balance);
+    const heroBal=document.getElementById('purchasedAccountValue');
+    if(heroBal)heroBal.textContent=auraMoney(account.balance ?? account.startingBalance);
+    document.querySelectorAll('.balance-card').forEach(card=>{
+      const lab=(card.querySelector('span')?.textContent||'').trim().toUpperCase();
+      const strong=card.querySelector('strong');
+      if(strong && (lab==='BALANCE'||lab==='ACCOUNT VALUE')) strong.textContent=auraMoney(account.balance ?? account.startingBalance);
+    });
     if(equity)equity.textContent=auraMoney(account.equity);
     if(pnl){
       pnl.textContent=auraMoney(account.pnl);
@@ -256,6 +281,8 @@ async function loadDashboard(user){
     loadTerminalCredentials(user,account);
     if(daily)daily.textContent=Number(account.dailyDrawdownPct||0).toFixed(2)+'% / '+Number(account.dailyDrawdownLimit||4).toFixed(2)+'%';
     if(max)max.textContent=Number(account.maxDrawdownPct||0).toFixed(2)+'% / '+Number(account.maxDrawdownLimit||8).toFixed(2)+'%';
+    try{if(window.paintRiskBars)window.paintRiskBars(account);}catch(e){}
+
     if(status)status.textContent='TERMINAL '+String(account.status||'active').toUpperCase();
   }finally{
     dashboardLoading=false;
@@ -296,6 +323,124 @@ if(ceAuth.currentUser)loadDashboard(ceAuth.currentUser);
   tick();setInterval(tick,1000);
 })();
 </script>
-<script src="dashboard-live-fix.js?v=12"></script>
+<script src="dashboard-live-balance.js?v=30"></script>
+
+
+
+
+
+<script id="aura-balance-sync">
+(function(){
+  function liveBal(){
+    var el = document.getElementById('accountBalance');
+    return el ? String(el.textContent || '').trim() : '';
+  }
+  function apply(v){
+    if(!v || v === '—' || v === '') return;
+    // #purchasedAccountValue
+    var a = document.getElementById('purchasedAccountValue');
+    if(a) a.textContent = v;
+    // every .balance-card strong under BALANCE label
+    document.querySelectorAll('.balance-card').forEach(function(card){
+      var lab = '';
+      var span = card.querySelector('span,small,label');
+      if(span) lab = String(span.textContent || '').toUpperCase();
+      var strong = card.querySelector('strong');
+      if(strong && lab.indexOf('BALANCE') !== -1) strong.textContent = v;
+    });
+  }
+  function tick(){ apply(liveBal()); }
+  // continuous sync — live panel is source of truth
+  setInterval(tick, 800);
+  var n=0, iv=setInterval(function(){
+    tick();
+    var el=document.getElementById('accountBalance');
+    if(el && !el.__auraObs){
+      el.__auraObs=true;
+      new MutationObserver(tick).observe(el,{childList:true,characterData:true,subtree:true});
+    }
+    if(++n>20) clearInterval(iv);
+  }, 400);
+})();
+</script>
+
+
+<script id="aura-risk-bars-inline">
+(function(){
+  function paintRiskBars(a){
+    if(!a||a.__error)return;
+    function num(v){var n=Number(v);return isFinite(n)?n:0;}
+    function money(v){return '$'+Math.abs(num(v)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+    var starting=num(a.startingBalance||a.accountSize||a.initialBalance||a.staticDrawdownBase);
+    var balance=num(a.balance||starting);
+    var equity=num(a.equity||balance);
+    var pnl=isFinite(Number(a.pnl))?Number(a.pnl):(balance-starting);
+    if(starting<=0){
+      var ring=document.getElementById('profitPercent');
+      var t=ring?String(ring.textContent||'').replace('%','').replace('+',''):'';
+      var pp=Math.abs(num(t));
+      if(pp>0.0001&&Math.abs(pnl)>0) starting=Math.abs(pnl)/(pp/100);
+    }
+    if(starting<=0) starting=Math.max(balance,equity,1000);
+
+    var dailyPct=num(a.dailyDrawdownPct);
+    var dailyLim=Math.max(0.01,num(a.dailyDrawdownLimit!=null?a.dailyDrawdownLimit:4));
+    var maxPct=num(a.maxDrawdownPct);
+    var maxLim=Math.max(0.01,num(a.maxDrawdownLimit!=null?a.maxDrawdownLimit:8));
+    var dailyMoney=starting*(dailyPct/100);
+    var maxMoney=starting*(maxPct/100);
+
+    function setTxt(id,t,c){var el=document.getElementById(id);if(!el)return;el.textContent=t;if(c)el.style.color=c;}
+    function setBar(id,pctVal){var el=document.getElementById(id);if(!el)return;el.style.width=Math.min(100,Math.max(0,pctVal))+'%';}
+
+    setTxt('dailyDrawdownMoney','-'+money(dailyMoney)+' ('+dailyPct.toFixed(2)+'%)','#ff6b96');
+    setBar('dailyDrawdownBar',(dailyPct/dailyLim)*100);
+
+    setTxt('maxDrawdownMoney','-'+money(maxMoney)+' ('+maxPct.toFixed(2)+'%)','#ff6b96');
+    setBar('maxDrawdownBar',(maxPct/maxLim)*100);
+
+    var target=num(a.profitTargetPct||a.phase1Profit||a.phase2Profit||a.profitTarget||a.phase1ProfitTarget||a.phase2ProfitTarget||0);
+    if(!target){
+      try{
+        var rulesBox=document.getElementById('accountRules');
+        if(rulesBox){
+          var items=rulesBox.querySelectorAll('.rule-item');
+          items.forEach(function(it){
+            var lab=(it.querySelector('span')&&it.querySelector('span').textContent||'').toLowerCase();
+            var val=(it.querySelector('strong')&&it.querySelector('strong').textContent||'').replace('%','');
+            if(lab.indexOf('profit')>=0) target=num(val);
+          });
+        }
+      }catch(e){}
+    }
+    if(!target) target=num(a.rules&&(a.rules.profitTargetPct||a.rules.phase1Profit)||0);
+    var profitPct=starting>0?(pnl/starting)*100:0;
+    setTxt('profitTargetMoney',(pnl>=0?'+':'-')+money(pnl),pnl<0?'#ff6b96':'#68d58a');
+    setTxt('profitTargetLabel',target>0?(profitPct.toFixed(2)+'% / '+target.toFixed(2)+'% target'):(profitPct.toFixed(2)+'%'));
+    setBar('profitTargetBar',target>0?(Math.max(0,profitPct)/target)*100:0);
+
+    var phaseEl=document.getElementById('accountPhaseBadge');
+    if(phaseEl){
+      var phase=String(a.phase||a.stage||'').trim();
+      if(a.funded===true||/funded/i.test(phase)) phase='Funded';
+      else if(/phase\s*2/i.test(phase)) phase='Phase 2';
+      else phase='Phase 1';
+      phaseEl.textContent=phase;
+    }
+  }
+  window.paintRiskBars=paintRiskBars;
+
+  // Hook after aura account loads
+  var tries=0;
+  var t=setInterval(function(){
+    tries++;
+    if(typeof auraAccount==='function'){
+      auraAccount().then(function(a){ if(a&&!a.__error) paintRiskBars(a); }).catch(function(){});
+    }
+    if(tries>40) clearInterval(t);
+  },1000);
+})();
+</script>
+
 </body>
 </html>

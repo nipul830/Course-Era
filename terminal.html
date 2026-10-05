@@ -112,7 +112,7 @@ body{background:#fff}
 </header>
 
 <main class="terminal-page">
- <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">LIVE</span></div>
+ <div class="desktop-head"><div><h1>Market Terminal</h1><p>Gold · Forex · Crypto · simulated execution</p></div><span class="status">LIVE</span> <span id="terminalPhaseBadge" style="margin-left:8px;padding:4px 10px;border-radius:99px;border:1px solid #3a2c13;background:#12100a;color:#f1d98a;font-size:11px;font-weight:900;">Phase —</span></div>
  <div class="desktop-orders" aria-label="Simulated trade controls">
    <button class="trade-btn sell" type="button" onclick="placeSimulatedOrder('SELL');return false;">SELL <span id="desktopSellPrice">4,288.33</span></button>
    <button class="trade-btn buy" type="button" onclick="placeSimulatedOrder('BUY');return false;">BUY <span id="desktopBuyPrice">4,288.89</span></button>
@@ -269,6 +269,26 @@ function setTradeStatus(message,good){
 }
 function renderTerminalAccount(account){
   terminalAccountState=account||terminalAccountState||{};
+  (function paintPhase(){
+    var a=terminalAccountState||{};
+    var phase=String(a.phase||a.stage||'').trim();
+    if(a.funded===true||/funded/i.test(phase)) phase='Funded';
+    else if(/phase\s*2/i.test(phase)) phase='Phase 2';
+    else if(/phase\s*1/i.test(phase)) phase='Phase 1';
+    else if(/instant/i.test(String(a.model||a.challengeModel||''))) phase='Funded';
+    else phase=phase||'Phase 1';
+    var el=document.getElementById('terminalPhaseBadge');
+    if(!el){
+      el=document.createElement('span');
+      el.id='terminalPhaseBadge';
+      el.style.cssText='display:inline-block;margin:6px 10px;padding:4px 10px;border-radius:99px;border:1px solid #3a2c13;background:#12100a;color:#f1d98a;font-size:11px;font-weight:900;';
+      var host=document.getElementById('terminalBalance')||document.querySelector('.status')||document.body;
+      if(host&&host.parentNode) host.parentNode.insertBefore(el, host);
+      else document.body.appendChild(el);
+    }
+    el.textContent=phase;
+  })();
+
   const money=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const b=document.getElementById('terminalBalance'),e=document.getElementById('terminalEquity');
   const oldEquity=Number(e?.dataset.value);
@@ -1236,5 +1256,94 @@ startTerminalPolling();
 window.AURA_CHART_REFRESH_MS=5;
 window.dispatchEvent(new CustomEvent('aura-chart-refresh-rate',{detail:{ms:5}}));
 </script>
+
+<script>
+(function(){
+  var API = location.origin || 'https://aurafirming.in';
+  function el(id){ return document.getElementById(id); }
+  async function token(){
+    try {
+      if (window.ceAuth && window.ceAuth.currentUser) {
+        return await window.ceAuth.currentUser.getIdToken(false);
+      }
+    } catch (e) {}
+    return null;
+  }
+  async function loadAccounts(){
+    var t = await token();
+    if (!t) return [];
+    var r = await fetch(API + '/api/trading-accounts', {
+      headers: { Authorization: 'Bearer ' + t },
+      cache: 'no-store'
+    });
+    if (!r.ok) return [];
+    var data = await r.json();
+    var list = Array.isArray(data.accounts) ? data.accounts : (Array.isArray(data) ? data : []);
+    return list.filter(function(a){
+      return String(a.status || 'active').toLowerCase() === 'active';
+    });
+  }
+  async function selectAccount(accountId){
+    var t = await token();
+    if (!t || !accountId) return;
+    var r = await fetch(API + '/api/trading-account/select', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + t,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ accountId: accountId })
+    });
+    if (!r.ok) {
+      alert('Could not switch account');
+      return;
+    }
+    try {
+      sessionStorage.removeItem('auraTerminalSession');
+      sessionStorage.removeItem('auraTerminalRole');
+    } catch (e) {}
+    location.reload();
+  }
+  async function mount(){
+    if (el('terminalAccountSwitcher')) return;
+    var host = document.querySelector('.terminal-topbar')
+      || document.querySelector('header')
+      || document.body;
+    var wrap = document.createElement('div');
+    wrap.id = 'terminalAccountSwitcher';
+    wrap.style.cssText = 'margin:8px 10px;padding:8px 10px;border:1px solid #302713;border-radius:10px;background:#0a0a08;color:#f1d98a;font-size:12px;font-weight:800;z-index:9999;position:relative';
+    wrap.innerHTML = '<div style="margin-bottom:6px;color:#9b8552;font-size:10px;text-transform:uppercase">Active Account</div><select id="terminalAccountSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #302713;background:#050505;color:#fff;font-weight:800"></select>';
+    if (host.firstChild) host.insertBefore(wrap, host.firstChild);
+    else host.appendChild(wrap);
+    var sel = el('terminalAccountSelect');
+    var accounts = await loadAccounts();
+    if (!accounts.length) {
+      sel.innerHTML = '<option>No active accounts</option>';
+      sel.disabled = true;
+      return;
+    }
+    sel.innerHTML = accounts.map(function(a){
+      var id = a.accountId || a.id || '';
+      var label = (a.model || a.challengeModel || 'Account')
+        + ' · '
+        + String(id).slice(0, 12)
+        + ' · $'
+        + Number(a.balance || a.startingBalance || 0).toFixed(0);
+      return '<option value="' + id + '">' + label.replace(/</g, '') + '</option>';
+    }).join('');
+    sel.onchange = function(){
+      if (sel.value) selectAccount(sel.value);
+    };
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
+  setTimeout(mount, 1200);
+  setTimeout(mount, 3000);
+})();
+</script>
+
 </body>
 </html>
