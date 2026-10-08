@@ -901,6 +901,74 @@ app.put("/api/challenge-rules", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+
+const FUNDING_PLAN_SEEDS = [
+  ["2 STEP LITE",5000,29,5,10,5,8,5,true],
+  ["2 STEP PRO",5000,39,4,8,4,10,5,true],
+  ["1 STEP LITE",5000,49,4,8,4,10,5,true],
+  ["1 STEP PRO",5000,59,3,6,3,8,3,true],
+  ["INSTANT PRO",5000,89,2,5,2.5,0,0,false],
+  ["2 STEP LITE",10000,49,5,10,5,8,5,true],
+  ["2 STEP PRO",10000,69,4,8,4,10,5,true],
+  ["1 STEP LITE",10000,89,4,8,4,10,5,true],
+  ["1 STEP PRO",10000,109,3,6,3,8,3,true],
+  ["INSTANT PRO",10000,159,2,5,2.5,0,0,false],
+  ["2 STEP LITE",25000,99,5,10,5,8,5,true],
+  ["2 STEP PRO",25000,139,4,8,4,10,5,true],
+  ["1 STEP LITE",25000,179,4,8,4,10,5,true],
+  ["1 STEP PRO",25000,219,3,6,3,8,3,true],
+  ["INSTANT PRO",25000,319,2,5,2.5,0,0,false]
+];
+
+function fundingPlanId(name, accountSize) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Number(accountSize);
+}
+
+async function getFundingPlans() {
+  const mongo = await getMongoDb();
+  const collection = mongo.collection("funding_plans");
+  const activeCount = await collection.countDocuments({ active: true });
+  if (!activeCount) {
+    const docs = FUNDING_PLAN_SEEDS.map(([name, accountSize, price, daily, max, floating, target, minDays, targetEnabled]) => ({
+      _id: fundingPlanId(name, accountSize),
+      id: fundingPlanId(name, accountSize),
+      name,
+      account_size: Number(accountSize),
+      price: Number(price),
+      currency: "USD",
+      active: true,
+      rule_version: 1,
+      rules: {
+        dailyDrawdown: { enabled: true, mode: "percent", limit: Number(daily), basis: "start_of_day_equity", action: "BREACH_ACCOUNT" },
+        maxDrawdown: { enabled: true, mode: "percent", limit: Number(max), basis: "initial_balance", type: "static", action: "BREACH_ACCOUNT" },
+        floatingLoss: { enabled: true, mode: "percent", limit: Number(floating), action: "CLOSE_POSITIONS" },
+        profitTarget: { enabled: Boolean(targetEnabled), mode: "percent", target: Number(target), action: "PASS_ACCOUNT" },
+        minTradingDays: { enabled: Boolean(minDays), limit: Number(minDays), action: "PASS_ACCOUNT" },
+        overnight: { enabled: false, action: "BLOCK_NEW_TRADE" },
+        weekend: { enabled: false, action: "BLOCK_NEW_TRADE" },
+        newsTrading: { enabled: false, action: "BLOCK_NEW_TRADE" }
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
+    try { await collection.insertMany(docs, { ordered: false }); } catch (e) { if (e?.code !== 11000) throw e; }
+  }
+  return collection.find({ active: true }, {
+    projection: { _id: 0, id: 1, name: 1, account_size: 1, price: 1, currency: 1, active: 1, rule_version: 1, rules: 1 }
+  }).sort({ account_size: 1, name: 1 }).toArray();
+}
+
+app.get("/api/funding-plans", async (_req, res) => {
+  try {
+    const plans = await getFundingPlans();
+    res.set("Cache-Control", "no-store");
+    res.json({ plans });
+  } catch (e) {
+    console.error("funding-plans GET error:", e?.message || e);
+    res.status(500).json({ error: "Could not load funding plans" });
+  }
+});
+
 app.get("/api/challenges", async (req, res) => {
   try {
     const challenges = await getChallengeCatalog();
