@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plans · THE AURA FUNDING</title><link rel="stylesheet" href="funding-plans.css">
+<style>
+.plan-page{max-width:1180px}.top{margin-bottom:26px}.plan-intro{margin:0 0 18px}.plan-intro h2{display:none}.plan-intro p{margin:0;color:var(--muted);font-size:15px}
+.plan-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px;padding:5px;border:1px solid #202b39;border-radius:16px;background:#091018}.plan-tab{border:0;border-radius:12px;padding:14px 8px;background:transparent;color:#9ca7b8;font-weight:800;font-size:14px;cursor:pointer}.plan-tab.active{background:#f5b72c;color:#090b0f;box-shadow:0 0 18px rgba(245,183,44,.12)}
+.variant-tabs{display:flex;justify-content:center;gap:8px;margin:0 auto 18px}.variant-tab{min-width:110px;border:1px solid #202b39;border-radius:14px;padding:11px 18px;background:#091018;color:#9ca7b8;font-weight:800;cursor:pointer}.variant-tab.active{border-color:#f5b72c;color:#f5b72c;background:#0d1219;box-shadow:0 0 16px rgba(245,183,44,.10)}.variant-tab.hidden{display:none}
+.plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}.plan-group{grid-column:1/-1;border:1px solid #202b39;border-radius:16px;padding:13px 14px;background:linear-gradient(180deg,#101822,#0b1118);display:flex;align-items:center;gap:12px;margin-top:2px}.plan-group-icon{width:38px;height:38px;border:1px solid #263342;border-radius:11px;display:grid;place-items:center;color:#f5b72c;font-size:19px;background:#0b141d}.plan-group-copy{min-width:0;flex:1}.plan-group-title{font-size:18px;font-weight:850}.plan-group-title span{color:#f5b72c}.plan-group-sub{color:var(--muted);font-size:12px;margin-top:2px}.plan-version{padding:7px 9px;border-radius:10px;background:#17202b;color:#dce2ea;font-size:11px;font-weight:800}.plan-rules-btn{border:1px solid #2a3746;border-radius:10px;background:#111a25;color:#dce2ea;padding:9px 11px;font-weight:700;font-size:12px}
+.plan-card{position:relative;display:flex;flex-direction:column;min-height:0;padding:14px;border:1px solid #24303e;border-radius:16px;background:linear-gradient(180deg,#0e1721,#091018);box-shadow:0 8px 22px rgba(0,0,0,.16)}.plan-card.featured{border-color:#806216;box-shadow:0 0 0 1px rgba(245,183,44,.12),0 8px 24px rgba(0,0,0,.18)}border-radius:999px;background:#f5b72c;color:#090b0f;font-size:9px;font-weight:900} .plan-size{font-size:25px;font-weight:900;letter-spacing:-.5px;margin:1px 0 1px}.plan-label{font-size:11px;color:#8f9bad;margin-bottom:8px}.plan-price{font-size:23px;font-weight:900;color:#f5b72c;margin:3px 0 2px}.plan-price small{display:block;font-size:10px;color:#8f9bad;font-weight:500;margin-top:1px}.plan-rule-list{list-style:none;padding:9px 0 4px;margin:6px 0 8px;border-top:1px solid #202b39;display:grid;gap:7px;flex:1}.plan-rule-list li{display:flex;justify-content:space-between;gap:5px;font-size:11px;color:#aeb7c5}.plan-rule-list b{color:#f1f4f8;font-size:11px}.choose-plan{width:100%;min-height:40px;border-radius:11px;font-size:12px;font-weight:850}.plan-loading,.plan-empty{grid-column:1/-1;padding:28px;border:1px dashed #253141;border-radius:16px;color:var(--muted);text-align:center}
+@media(max-width:700px){.main{padding-left:14px;padding-right:14px}.top{margin-bottom:20px}.title h1{font-size:28px}.title .muted{font-size:13px}.plan-tabs{gap:4px;padding:4px}.plan-tab{padding:13px 4px;font-size:13px}.variant-tabs{margin-bottom:14px}.variant-tab{min-width:104px;padding:10px 14px}.plan-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.plan-group{padding:11px 10px}.plan-group-icon{width:34px;height:34px;font-size:16px}.plan-group-title{font-size:16px}.plan-group-sub{font-size:10px}.plan-rules-btn{display:none}.plan-version{font-size:10px;padding:6px 7px}.plan-card{padding:11px 9px;border-radius:14px}.plan-size{font-size:20px}.plan-label{font-size:9px}.plan-price{font-size:21px}.plan-price small{font-size:9px}.plan-rule-list{gap:6px;padding-top:8px}.plan-rule-list li{font-size:9px}.plan-rule-list b{font-size:10px}.choose-plan{min-height:38px;padding:8px 3px;font-size:10px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side"><div class="brand">THE AURA <span>FUNDING</span></div>
+<nav class="bottom-nav"><a class="" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z"/></svg><span>Home</span></a><a class="" href="courses.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg><span>Dashboard</span></a><a class="active" href="plans.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6Z"/></svg><span>Plans</span></a><a class="" href="terminal.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10m5 10V4m5 16v-7m5 7V7"/></svg><span>Terminal</span></a><a class="" href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8 4a8 8 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2.1-1.2L15 3h-4l-.4 2.7a8 8 0 0 0-2.1 1.2l-2.4-1-2 3.4 2 1.5A8 8 0 0 0 6 12c0 .4 0 .8.1 1.2l-2 1.5 2.4-1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg><span>Settings</span></a></nav></aside>
+<main class="main plan-page">
+<div class="top"><div class="title"><h1>Challenge Plans</h1><div class="muted">Choose the account size that fits your trading style.</div></div><a class="profile-chip" href="profile.html"><span class="avatar">A</span><span>Profile</span></a></div>
+<div class="plan-intro"><h2>Pick your challenge</h2><p class="muted">Select challenge type, then choose Lite or Pro.</p></div>
+<div class="plan-tabs">
+  <button class="plan-tab active" data-type="2 STEP">2 STEP</button>
+  <button class="plan-tab" data-type="1 STEP">1 STEP</button>
+  <button class="plan-tab" data-type="INSTANT">INSTANT</button>
+</div>
+<div class="variant-tabs">
+  <button class="variant-tab active" data-variant="LITE">LITE</button>
+  <button class="variant-tab" data-variant="PRO">PRO</button>
+</div>
+<div id="plans" class="plan-grid"><div class="plan-loading">Loading available plans…</div></div>
+</main></div>
+<script>
+const plansEl=document.getElementById("plans");
+let allPlans=[], selectedType="2 STEP", selectedVariant="LITE";
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function ruleValue(r,key,field="limit"){return r?.[key]?.[field] ?? null}
+function makeCard(p,i){
+ const r=p.rules||{}, size=Number(p.account_size||0), price=Number(p.price||0), currency=p.currency||"USD";
+ const target=ruleValue(r,"profitTarget","target"), daily=ruleValue(r,"dailyDrawdown"), max=ruleValue(r,"maxDrawdown"), floating=ruleValue(r,"floatingLoss"), minDays=r.minTradingDays?.enabled===false?null:(r.minTradingDays?.limit??null);
+ return `<article class="plan-card ${i===1?"featured":""}">
+   
+   <div class="plan-size">$${size.toLocaleString("en-US",{maximumFractionDigits:0})}</div>
+   <div class="plan-label">Account Size</div>
+   <div class="plan-price">${price>0?esc(currency)+" "+price.toLocaleString("en-US",{maximumFractionDigits:2}):"—"}<small>Challenge Fee</small></div>
+   <ul class="plan-rule-list">
+     <li><span>Daily DD</span><b>${daily!=null?daily+"%":"—"}</b></li>
+     <li><span>Max DD</span><b>${max!=null?max+"%":"—"}</b></li>
+     <li><span>Profit Target</span><b>${target!=null?target+"%":"—"}</b></li>
+     <li><span>Floating Loss</span><b>${floating!=null?floating+"%":"—"}</b></li>
+     <li><span>Min Days</span><b>${minDays!=null?minDays:"—"}</b></li>
+   </ul>
+   <button class="btn primary choose-plan" data-id="${esc(p.id)}">Choose Plan →</button>
+ </article>`
+}
+function renderPlans(){
+ const filtered=allPlans.filter(p=>String(p.name||"").toUpperCase()===selectedType+" "+selectedVariant);
+ plansEl.innerHTML=filtered.length ? '<div class="plan-group"><div class="plan-group-icon">'+(selectedType==="2 STEP"?"↗":selectedType==="1 STEP"?"ϟ":"🚀")+'</div><div class="plan-group-copy"><div class="plan-group-title">'+selectedType+' <span>'+selectedVariant+'</span></div><div class="plan-group-sub">'+(selectedVariant==="LITE"?"Standard rules with balanced targets.":"Lower drawdown, better conditions.")+'</div></div><div class="plan-version">v'+(filtered[0].rule_version||1)+'</div><button class="plan-rules-btn" type="button">View Rules →</button></div>'+filtered.map(makeCard).join("") : '<div class="plan-empty">No plan available for this option.</div>';
+ document.querySelectorAll(".choose-plan").forEach(btn=>btn.addEventListener("click",()=>{
+   location.href="checkout.html?planId="+encodeURIComponent(btn.dataset.id);
+ }));
+}
+document.querySelectorAll(".plan-tab").forEach(btn=>btn.addEventListener("click",()=>{
+ selectedType=btn.dataset.type;
+ document.querySelectorAll(".plan-tab").forEach(x=>x.classList.toggle("active",x===btn));
+ const lite=document.querySelector('.variant-tab[data-variant="LITE"]');
+ if(selectedType==="INSTANT"){
+   selectedVariant="PRO";
+   lite.classList.add("hidden");
+   document.querySelector('.variant-tab[data-variant="PRO"]').classList.add("active");
+ }else{
+   lite.classList.remove("hidden");
+   document.querySelectorAll(".variant-tab").forEach(x=>x.classList.toggle("active",x.dataset.variant===selectedVariant));
+ }
+ renderPlans();
+}));
+document.querySelectorAll(".variant-tab").forEach(btn=>btn.addEventListener("click",()=>{
+ if(btn.classList.contains("hidden"))return;
+ selectedVariant=btn.dataset.variant;
+ document.querySelectorAll(".variant-tab").forEach(x=>x.classList.toggle("active",x===btn));
+ renderPlans();
+}));
+async function loadPlans(){
+ try{
+   const r=await fetch("/api/funding-plans",{credentials:"same-origin",cache:"no-store"});
+   const d=await r.json();
+   if(!r.ok) throw new Error(d.error||"Unable to load plans");
+   if(!d.plans?.length){plansEl.innerHTML='<div class="plan-empty">No active plans are available right now.</div>';return}
+   allPlans=d.plans||[];
+   renderPlans();
+ }catch(e){plansEl.innerHTML='<div class="plan-empty">Unable to load plans. Please try again.</div>'}
+}
+loadPlans();
+</script>
+</body></html>
