@@ -801,9 +801,26 @@ async function getChallengeCatalog() {
   initFirebase();
   const snap = await db.collection("settings").doc("challengeCatalog").get();
   const saved = snap.exists && Array.isArray(snap.data()?.items) ? snap.data().items : null;
-  return saved && saved.length ? saved : DEFAULT_CHALLENGES;
+  const base = saved && saved.length ? saved : FALLBACK_CHALLENGES;
+  try {
+    const fundingPlans = await getFundingPlans();
+    const mapped = fundingPlans.map(p => ({
+      id: String(p.id),
+      model: String(p.name || "Funding Plan"),
+      size: "$" + Number(p.account_size || 0).toLocaleString("en-US", { maximumFractionDigits: 0 }),
+      accountSize: Number(p.account_size || 0),
+      price: Number(p.price || 0),
+      discountPercent: 0,
+      fundingPlan: true,
+      ruleVersion: Number(p.rule_version || 1),
+      rules: p.rules || {}
+    }));
+    return [...base, ...mapped];
+  } catch (e) {
+    console.warn("FUNDING_PLANS_MERGE_ERROR:", e?.message || e);
+    return base;
+  }
 }
-
 const DEFAULT_STRUCTURED_CHALLENGE_RULES = {
   "1 Step": {
     "Phase 1": { stage: "Phase 1", floatingLossEnabled: true, floatingLossPercent: 1, minimumTradingDays: 5 },
